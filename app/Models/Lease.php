@@ -18,6 +18,7 @@ class Lease extends Model
         'property_id',
         'tenant_id',
         'application_id',
+        'renewed_from_id',
         'lease_no',
         'start_date',
         'end_date',
@@ -102,6 +103,22 @@ class Lease extends Model
     public function application()
     {
         return $this->belongsTo(RentalApplication::class);
+    }
+
+    /**
+     * The original lease this renewal continues (FR-05).
+     */
+    public function renewedFrom()
+    {
+        return $this->belongsTo(self::class, 'renewed_from_id');
+    }
+
+    /**
+     * The renewal leases created from this lease.
+     */
+    public function renewals()
+    {
+        return $this->hasMany(self::class, 'renewed_from_id');
     }
 
     /**

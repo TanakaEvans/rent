@@ -181,6 +181,9 @@ Route::middleware(['auth', EnsurePasswordIsChanged::class, EnsureHasRole::class]
         Route::post('/owner/leases/{lease}/sign', [LeaseController::class, 'sign'])
             ->name('owner.leases.sign')
             ->defaults('description', 'Sign a lease as the property owner');
+        Route::post('/owner/leases/{lease}/renew', [LeaseController::class, 'renew'])
+            ->name('owner.leases.renew')
+            ->defaults('description', 'Create a renewal lease from an active lease');
     });
 
     Route::middleware('role:Tenant')->group(function () {

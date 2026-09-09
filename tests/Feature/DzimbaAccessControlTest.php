@@ -230,6 +230,7 @@ class DzimbaAccessControlTest extends TestCase
         $this->actingAs($tenant)->post('/owner/applications/1/lease', [])->assertForbidden();
         $this->actingAs($tenant)->post('/owner/leases/1/send', [])->assertForbidden();
         $this->actingAs($tenant)->post('/owner/leases/1/sign', [])->assertForbidden();
+        $this->actingAs($tenant)->post('/owner/leases/1/renew', [])->assertForbidden();
     }
 
     public function test_tenant_can_access_own_leases(): void
@@ -251,6 +252,7 @@ class DzimbaAccessControlTest extends TestCase
         $this->post('/owner/applications/1/lease', [])->assertRedirect(route('login'));
         $this->post('/owner/leases/1/send', [])->assertRedirect(route('login'));
         $this->post('/owner/leases/1/sign', [])->assertRedirect(route('login'));
+        $this->post('/owner/leases/1/renew', [])->assertRedirect(route('login'));
         $this->post('/tenant/leases/1/sign', [])->assertRedirect(route('login'));
     }
 

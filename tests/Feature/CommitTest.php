@@ -818,5 +818,157 @@ class CommitTest extends TestCase
         $this->get('/tenant/leases')->assertRedirect(route('login'));
         $this->get('/owner/leases')->assertRedirect(route('login'));
         $this->post('/owner/applications/1/lease', [])->assertRedirect(route('login'));
+        $this->post('/owner/leases/1/renew', [])->assertRedirect(route('login'));
+    }
+
+    public function test_owner_renews_an_active_lease_copying_the_terms(): void
+    {
+        $property = $this->makeProperty(null, 'occupied');
+        $lease = $this->makeLease($property, null, 'active');
+        $lease->update([
+            'start_date' => now()->subYear()->toDateString(),
+            'end_date' => now()->addDays(30)->toDateString(),
+        ]);
+
+        $this->actingAs($this->owner())
+            ->post('/owner/leases/'.$lease->id.'/renew', [])
+            ->assertRedirect(route('owner.leases.index'));
+
+        $renewal = Lease::where('renewed_from_id', $lease->id)->first();
+        $this->assertNotNull($renewal);
+        $this->assertSame($property->id, $renewal->property_id);
+        $this->assertSame($this->tenant()->id, $renewal->tenant_id);
+        $this->assertNull($renewal->application_id);
+        $this->assertSame((float) $lease->rent_amount, (float) $renewal->rent_amount);
+        $this->assertSame((float) $lease->deposit_amount, (float) $renewal->deposit_amount);
+        $this->assertSame($lease->payment_terms, $renewal->payment_terms);
+        $this->assertSame($lease->clause_version, $renewal->clause_version);
+        $this->assertSame('draft', $renewal->status);
+        $this->assertSame($lease->end_date->toDateString(), $renewal->start_date->toDateString());
+        $this->assertSame($lease->end_date->copy()->addYear()->toDateString(), $renewal->end_date->toDateString());
+        $this->assertSame('active', $lease->fresh()->status);
+        $this->assertSame('occupied', $property->fresh()->status);
+        $this->assertStringStartsWith('LSE-'.now()->year.'-', $renewal->lease_no);
+        $this->assertDatabaseHas('lease_history', ['lease_id' => $renewal->id, 'action' => 'lease_renewal']);
+    }
+
+    public function test_renewal_accepts_updated_dates_and_validates_them(): void
+    {
+        $property = $this->makeProperty(null, 'occupied');
+        $lease = $this->makeLease($property, null, 'active');
+
+        $this->actingAs($this->owner())
+            ->post('/owner/leases/'.$lease->id.'/renew', [
+                'start_date' => '2026-12-01',
+                'end_date' => '2027-11-30',
+            ])
+            ->assertRedirect(route('owner.leases.index'));
+
+        $renewal = Lease::where('renewed_from_id', $lease->id)->first();
+        $this->assertNotNull($renewal);
+        $this->assertSame('2026-12-01', $renewal->start_date->toDateString());
+        $this->assertSame('2027-11-30', $renewal->end_date->toDateString());
+
+        $secondLease = $this->makeLease($property, null, 'active');
+        $this->actingAs($this->owner())
+            ->post('/owner/leases/'.$secondLease->id.'/renew', [
+                'start_date' => '2026-12-01',
+                'end_date' => '2026-11-30',
+            ])
+            ->assertSessionHasErrors('end_date');
+
+        $this->assertDatabaseCount('leases', 3);
+    }
+
+    public function test_only_an_active_lease_can_be_renewed(): void
+    {
+        $property = $this->makeProperty(null, 'occupied');
+        $draft = $this->makeLease($property);
+
+        $this->actingAs($this->owner())
+            ->post('/owner/leases/'.$draft->id.'/renew', [])
+            ->assertSessionHasErrors('status');
+
+        $this->assertDatabaseCount('leases', 1);
+    }
+
+    public function test_owner_cannot_renew_another_owners_lease(): void
+    {
+        $property = $this->makeProperty($this->newOwner());
+        $lease = $this->makeLease($property, $this->newTenant(), 'active');
+
+        $this->actingAs($this->owner())
+            ->post('/owner/leases/'.$lease->id.'/renew', [])
+            ->assertNotFound();
+
+        $this->assertDatabaseCount('leases', 1);
+    }
+
+    public function test_only_one_renewal_can_be_in_flight_at_a_time(): void
+    {
+        $property = $this->makeProperty(null, 'occupied');
+        $lease = $this->makeLease($property, null, 'active');
+
+        $this->actingAs($this->owner())
+            ->post('/owner/leases/'.$lease->id.'/renew', [])
+            ->assertRedirect();
+        $this->actingAs($this->owner())
+            ->post('/owner/leases/'.$lease->id.'/renew', [])
+            ->assertSessionHasErrors('status');
+
+        $this->assertDatabaseCount('leases', 2);
+    }
+
+    public function test_signing_a_renewal_activates_it_and_marks_the_original_renewed(): void
+    {
+        $property = $this->makeProperty(null, 'occupied');
+        $lease = $this->makeLease($property, null, 'active');
+        $lease->update(['end_date' => now()->addDays(30)->toDateString()]);
+
+        $this->actingAs($this->owner())
+            ->post('/owner/leases/'.$lease->id.'/renew', [])
+            ->assertRedirect();
+
+        $renewal = Lease::where('renewed_from_id', $lease->id)->first();
+        $this->assertSame('draft', $renewal->status);
+
+        $this->actingAs($this->owner())->post('/owner/leases/'.$renewal->id.'/send', [])->assertRedirect();
+        $this->actingAs($this->owner())->post('/owner/leases/'.$renewal->id.'/sign', [])->assertRedirect();
+        $this->actingAs($this->tenant())->post('/tenant/leases/'.$renewal->id.'/sign', [])->assertRedirect();
+
+        $this->assertSame('active', $renewal->fresh()->status);
+        $this->assertSame('renewed', $lease->fresh()->status);
+        $this->assertSame('occupied', $property->fresh()->status);
+        $this->assertDatabaseHas('lease_history', ['lease_id' => $lease->id, 'action' => 'lease_renewed']);
+        $this->assertDatabaseHas('lease_history', ['lease_id' => $lease->id, 'details->superseded_by' => $renewal->fresh()->lease_no]);
+    }
+
+    public function test_a_renewed_lease_cannot_be_renewed_again(): void
+    {
+        $property = $this->makeProperty(null, 'occupied');
+        $lease = $this->makeLease($property, null, 'renewed');
+
+        $this->actingAs($this->owner())
+            ->post('/owner/leases/'.$lease->id.'/renew', [])
+            ->assertSessionHasErrors('status');
+
+        $this->assertDatabaseCount('leases', 1);
+    }
+
+    public function test_tenant_lease_page_exposes_renewal_linkage(): void
+    {
+        $property = $this->makeProperty(null, 'occupied');
+        $original = $this->makeLease($property, null, 'active');
+        $original->update(['lease_no' => 'LSE-2026-9900']);
+        $renewal = $this->makeLease($property, null, 'draft');
+        $renewal->update(['lease_no' => 'LSE-2026-9901', 'renewed_from_id' => $original->id]);
+
+        $response = $this->actingAs($this->tenant())->get('/tenant/leases')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->component('Tenant/Leases')->has('leases', 2));
+
+        $leases = $response->inertiaProps('leases');
+        $renewalEntry = collect($leases)->first(fn ($entry) => $entry['lease_no'] === 'LSE-2026-9901');
+        $this->assertSame('LSE-2026-9900', $renewalEntry['renewed_from']['lease_no']);
     }
 }

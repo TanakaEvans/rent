@@ -1,5 +1,5 @@
 import { Head, Link, usePage } from '@inertiajs/react';
-import { FileSignature, MapPin, UserRound, CalendarDays, Coins, ArrowUpRight, CheckCircle2, PenLine } from 'lucide-react';
+import { FileSignature, MapPin, UserRound, CalendarDays, Coins, ArrowUpRight, CheckCircle2, PenLine, RefreshCw, FileText } from 'lucide-react';
 import MainLayout from '@/Layouts/MainLayout';
 import PropertyArt from '@/Components/Shared/PropertyArt';
 import StatusBadge from '@/Components/Shared/StatusBadge';
@@ -54,6 +54,21 @@ export default function TenantLeases({ leases = [] }) {
                                     </div>
                                     <StatusBadge status={lease.status} />
                                 </header>
+
+                                {(lease.renewed_from || lease.renewals?.length > 0) && (
+                                    <div className="flex flex-wrap items-center gap-2 border-b border-border bg-muted/30 px-5 py-2.5">
+                                        {lease.renewed_from && (
+                                            <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-700">
+                                                <RefreshCw className="h-3.5 w-3.5" /> Renewal of {lease.renewed_from.lease_no}
+                                            </span>
+                                        )}
+                                        {lease.renewals?.map((r) => (
+                                            <span key={r.id} className="inline-flex items-center gap-1.5 rounded-full border border-teal-200 bg-teal-50 px-2.5 py-1 text-xs font-bold text-teal-700">
+                                                <RefreshCw className="h-3.5 w-3.5" /> Renewed by {r.lease_no}
+                                            </span>
+                                        ))}
+                                    </div>
+                                )}
 
                                 <div className="grid gap-4 px-5 py-4 sm:grid-cols-2 lg:grid-cols-4">
                                     <div className="flex items-center gap-2.5">
@@ -131,6 +146,11 @@ export default function TenantLeases({ leases = [] }) {
                                     {lease.status === 'active' && (
                                         <p className="flex items-center gap-1.5 text-sm font-medium text-emerald-700">
                                             <CheckCircle2 className="h-4 w-4" /> Lease active — rent schedules and payments arrive in a later phase.
+                                        </p>
+                                    )}
+                                    {lease.status === 'renewed' && (
+                                        <p className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
+                                            <FileText className="h-4 w-4" /> This lease was renewed — see the newer agreement above.
                                         </p>
                                     )}
                                 </div>

@@ -1,10 +1,10 @@
 # Module 08 - Lease & Agreement Management
 
-> Phase: MVP | **Implemented (Wave 3 slices 2-3)** | Primary actors: Owner (creator), Tenant (signer), Admin (templates & storage)
+> Phase: MVP | **Implemented (Wave 3 slices 2-4)** | Primary actors: Owner (creator), Tenant (signer), Admin (templates & storage)
 
 > **Implementation status:** **Slice 2 (create) — DONE.** `leases` + `lease_history` tables; `Lease` state machine (`draft→sent→signed→active→renewed→terminated`, `terminated` terminal); `LeaseService::createFromApplication` generates a lease from an **approved** application (approved-only guard, one lease per application/property, prefilled tenant/property/rent/deposit, unique `lease_no` `LSE-<year>-NNNN`, default monthly payment terms, clause v1, `lease_created` history entry), flips the property to **`reserved`** (FR-05 / AC-01 handover — the step deferred from the applications slice) and **auto-rejects remaining active applicants** with the recorded reason + notification. `LeaseController` + routes `owner.applications.lease` (POST from the approved application card), `owner.leases.index`, `tenant.leases.index`. UI: `Owner/Leases/Index` + `Tenant/Leases` (status prose per state) + nav for both roles + `StatusBadge` `sent/signed/renewed/terminated` tones. Notified via `LeaseCreatedNotification`. Tested in `CommitTest` + access matrix.
 > **Slice 3 (signing) — DONE.** `lease_signatures` table (`2026_09_09_000013`, unique per lease×user, signed_at + signature_payload varchar(255)); `LeaseService::sendForSignature` (owner sends only a draft → `sent`, history `lease_sent`, tenant notified) and `LeaseService::sign` (parties only — owner-of-property or lease tenant, else 404; must be `sent`; one signature per user; empty payload defaults to signer name; when **both** sign the lease moves `sent→signed→active` in one transaction and the property moves `reserved→occupied` + the counterpart is notified via `LeaseSignedNotification`). Routes `owner.leases.send`, `owner.leases.sign`, `tenant.leases.sign`. UI: Send-for-signature + inline SignPad (`Components/Shared/LeaseSignPad`) for each party + signature chips (who/when) on both lease lists. 11 new tests in `CommitTest` (send rules, parties-only 404s, senting rules, no double-sign, both-sign→active+occupied). FR-03/AC-02/AC-03 covered.
-> **Slice 4 — Renew (FR-05)** is the next tracked feature in §1.5 (copies terms with updated dates, links the new lease to the original, sets the old lease `renewed`; 60/30/14-day reminders may split to Wave 4).
+> **Slice 4 (renew, FR-05) — DONE.** `2026_09_09_000014` adds `renewed_from_id` (nullable self-FK to leases, nullOnDelete + index). `LeaseService::renew` — owner-only via `findOwnedByOwner`, **only an `active` lease renewable**; copies property/tenant/rent/deposit/payment_terms/clause_version (`application_id` null); default `start_date` = old lease `end_date`, default `end_date` = start + 1y; `end > start` validated; the new lease starts `draft`, is linked via `renewed_from_id`, writes `lease_renewal` history on itself and `lease_renewed` history on the source (the old lease also gains constraint `renewed-leases-not-renewable` + a one-in-flight renewal guard). `sign()` activation now also **marks the source lease `renewed`** (history `lease_renewed` + `superseded_by` details) and skips the occupancy flip when the property is already `occupied`. Route `owner.leases.renew` (POST) via `LeaseController::renew`. UI: `Owner/Leases/Index` renew form (inline date pickers, open-per-lease) + renewal-linkage chips; `Tenant/Leases` linkage chips + renewed prose. Seeded demo chain: active `LSE-DEMO-2026-003` + draft renewal `LSE-DEMO-2026-002` on the (now occupied) Kumalo property. 60/30/14-day expiry reminders deferred to Wave 4 (Notifications growth). 8 new tests in `CommitTest` (copied terms, dates, only-active, cross-owner 404, one-in-flight, renewed-not-renewable, signing activates + marks source renewed, tenant page exposes linkage) + access matrix (tenant 403, guest redirect). FR-05 / workflow 3 covered.
 
 ## 1. Purpose
 
@@ -38,18 +38,18 @@ Formalises an approved application into a rental agreement. Manages lease creati
 
 1. **Hold/reserve conversion** - When a lease is created from an approved application, the system prefills parties and property from the application; the system keeps property status `reserved` until the lease is signed.
 2. **Sign** - When the owner sends the lease, the system notifies the tenant to review; when the tenant signs first, the system requests the owner's counter-signature; when both have signed, the system sets status `active` and marks the property `occupied`.
-3. **Renew** - When a lease approaches expiry, the system sends renewal reminders 60/30/14 days before end; when the owner creates a renewal, the system copies terms with updated dates; when signed, the system links the new lease to the original and sets the old lease `renewed`.
+3. **Renew** - When the owner creates a renewal on an `active` lease, the system copies terms with updated dates and creates a linked `draft`; when both sign the renewal, the system sets it `active` and marks the original lease `renewed`. (60/30/14-day expiry reminders deferred to Wave 4.)
 4. **Terminate** - When either party gives notice, the system records the termination date; when the owner closes the lease, the system runs a final invoice/balance check; then the system sets status `terminated` and the property returns to `available`.
 
 ## 6. Data Model
 
 | Table | Key Columns |
 |---|---|
-| `leases` | id, property_id FK, tenant_id FK, application_id FK (nullable), lease_no (unique), start_date, end_date, rent_amount, deposit_amount, payment_terms (json), status, clause_version, timestamps |
+| `leases` | id, property_id FK, tenant_id FK, application_id FK (nullable), lease_no (unique), start_date, end_date, rent_amount, deposit_amount, payment_terms (json), status, clause_version, **renewed_from_id FK (nullable, self-referencing)**, timestamps |
 | `lease_signatures` | id, lease_id FK, user_id FK, signed_at, signature_payload (text/hash) |
 | `lease_history` | id, lease_id FK, action, performed_by FK, details (json), created_at |
 
-Relationships: `leases` belongsTo property, tenant, application; hasMany signatures and history.
+Relationships: `leases` belongsTo property, tenant, application; hasMany signatures and history; belongsTo `renewedFrom` and hasMany `renewals` (self-referencing via `renewed_from_id`).
 
 ## 7. Integrations & Dependencies
 

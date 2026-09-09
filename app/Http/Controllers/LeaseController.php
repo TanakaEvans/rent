@@ -55,6 +55,21 @@ class LeaseController extends Controller
     }
 
     /**
+     * Create a renewal draft that continues an active lease (owner).
+     */
+    public function renew(Request $request, Lease $lease)
+    {
+        $validated = $request->validate([
+            'start_date' => ['nullable', 'date'],
+            'end_date' => ['nullable', 'date'],
+        ]);
+
+        $this->service->renew($request->user(), $lease->id, $validated);
+
+        return redirect()->route('owner.leases.index')->with('success', 'Renewal lease drafted — send it for signing when ready.');
+    }
+
+    /**
      * The owner's leases across all their properties.
      */
     public function ownerIndex(Request $request)

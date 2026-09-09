@@ -105,7 +105,7 @@ class PropertySeeder extends Seeder
                 'price' => 1000,
                 'deposit' => 1000,
                 'furnished' => false,
-                'status' => 'reserved',
+                'status' => 'occupied',
                 'suburb' => 'Kumalo',
                 'city' => 'Bulawayo',
                 'address' => '23 Matsheumhlophe Road',
@@ -185,6 +185,47 @@ class PropertySeeder extends Seeder
                             'end_date' => now()->addYear()->toDateString(),
                             'rent_amount' => $leaseTarget->price,
                             'deposit_amount' => $leaseTarget->deposit ?? 0,
+                            'payment_terms' => ['frequency' => 'monthly', 'due_day' => 1, 'description' => 'Rent is due on the 1st of each month.'],
+                            'status' => 'draft',
+                            'clause_version' => 1,
+                        ]
+                    );
+                }
+
+                // Demo renewal chain: an active lease on the occupied Kumalo
+                // property plus its renewal draft, so the owner list exercises
+                // the renew flow and the tenant sees both agreements (direct
+                // rows only — no service side-effects).
+                $occupiedTarget = \App\Models\Property::where('title', '4 Bedroom Family Home in Kumalo')->first();
+                if ($occupiedTarget) {
+                    $occupiedTarget->update(['status' => 'occupied']);
+                    $activeLease = \App\Models\Lease::firstOrCreate(
+                        ['lease_no' => 'LSE-DEMO-2026-003'],
+                        [
+                            'property_id' => $occupiedTarget->id,
+                            'tenant_id' => $tenant->id,
+                            'application_id' => null,
+                            'start_date' => now()->subMonths(10)->toDateString(),
+                            'end_date' => now()->addDays(60)->toDateString(),
+                            'rent_amount' => $occupiedTarget->price,
+                            'deposit_amount' => $occupiedTarget->deposit ?? 0,
+                            'payment_terms' => ['frequency' => 'monthly', 'due_day' => 1, 'description' => 'Rent is due on the 1st of each month.'],
+                            'status' => 'active',
+                            'clause_version' => 1,
+                        ]
+                    );
+
+                    \App\Models\Lease::firstOrCreate(
+                        ['lease_no' => 'LSE-DEMO-2026-002'],
+                        [
+                            'property_id' => $occupiedTarget->id,
+                            'tenant_id' => $tenant->id,
+                            'application_id' => null,
+                            'renewed_from_id' => $activeLease->id,
+                            'start_date' => now()->addDays(60)->toDateString(),
+                            'end_date' => now()->addDays(60)->addYear()->toDateString(),
+                            'rent_amount' => $occupiedTarget->price,
+                            'deposit_amount' => $occupiedTarget->deposit ?? 0,
                             'payment_terms' => ['frequency' => 'monthly', 'due_day' => 1, 'description' => 'Rent is due on the 1st of each month.'],
                             'status' => 'draft',
                             'clause_version' => 1,

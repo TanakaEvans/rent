@@ -150,6 +150,68 @@ class LeaseService
     }
 
     /**
+     * Create a renewal draft that continues an active lease (FR-05).
+     * Copies the terms with updated dates and links the new lease to the
+     * original via `renewed_from_id`; the original only becomes `renewed`
+     * once the renewal has been signed (activated).
+     */
+    public function renew(User $owner, int $id, array $data): Lease
+    {
+        $lease = $this->findOwnedByOwner($owner, $id);
+
+        if ($lease->status !== 'active') {
+            throw ValidationException::withMessages([
+                'status' => ['Only an active lease can be renewed.'],
+            ]);
+        }
+
+        if (Lease::where('renewed_from_id', $lease->id)
+            ->whereIn('status', ['draft', 'sent', 'signed'])
+            ->exists()) {
+            throw ValidationException::withMessages([
+                'status' => ['This lease already has a renewal in progress.'],
+            ]);
+        }
+
+        $startDate = isset($data['start_date'])
+            ? Carbon::parse($data['start_date'])->startOfDay()
+            : ($lease->end_date?->copy()->startOfDay() ?: now()->startOfDay());
+        $endDate = isset($data['end_date'])
+            ? Carbon::parse($data['end_date'])->startOfDay()
+            : $startDate->copy()->addYear();
+
+        if ($endDate->lte($startDate)) {
+            throw ValidationException::withMessages([
+                'end_date' => ['The lease end date must be after the start date.'],
+            ]);
+        }
+
+        return DB::transaction(function () use ($owner, $lease, $startDate, $endDate) {
+            $renewal = Lease::create([
+                'property_id' => $lease->property_id,
+                'tenant_id' => $lease->tenant_id,
+                'application_id' => null,
+                'renewed_from_id' => $lease->id,
+                'lease_no' => $this->nextLeaseNo(),
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+                'rent_amount' => $lease->rent_amount,
+                'deposit_amount' => $lease->deposit_amount,
+                'payment_terms' => $lease->payment_terms,
+                'status' => 'draft',
+                'clause_version' => $lease->clause_version,
+            ]);
+
+            $renewal->recordHistory('lease_renewal', $owner, [
+                'status' => 'draft',
+                'renewed_from' => $lease->lease_no,
+            ]);
+
+            return $renewal->fresh(['property', 'tenant:id,name,email', 'renewedFrom:id,lease_no,status']);
+        });
+    }
+
+    /**
      * Leases against an owner's properties, newest first.
      */
     public function listForOwner(User $owner)
@@ -159,6 +221,8 @@ class LeaseService
             'tenant:id,name,email',
             'application:id,status',
             'signatures.user:id,name',
+            'renewedFrom:id,lease_no,status',
+            'renewals:id,lease_no,status',
         ])->whereHas('property', fn ($query) => $query->where('owner_id', $owner->id))
             ->latest()
             ->get();
@@ -173,6 +237,8 @@ class LeaseService
             'property:id,title,price,property_type,suburb,city,cover_image,status,verified',
             'property.owner:id,name,email',
             'signatures.user:id,name',
+            'renewedFrom:id,lease_no,status',
+            'renewals:id,lease_no,status',
         ])->where('tenant_id', $tenant->id)
             ->latest()
             ->get();
@@ -242,7 +308,20 @@ class LeaseService
                 $lease->update(['status' => 'active']);
                 $lease->recordHistory('lease_activated', $user, ['status' => 'active']);
 
-                app(PropertyService::class)->changeStatus($lease->property_id, 'occupied', $lease->property->owner);
+                if ($lease->property->status !== 'occupied') {
+                    app(PropertyService::class)->changeStatus($lease->property_id, 'occupied', $lease->property->owner);
+                }
+
+                if ($lease->renewed_from_id) {
+                    $source = $lease->renewedFrom()->first();
+                    if ($source && $source->status === 'active') {
+                        $source->update(['status' => 'renewed']);
+                        $source->recordHistory('lease_renewed', $user, [
+                            'status' => 'renewed',
+                            'superseded_by' => $lease->lease_no,
+                        ]);
+                    }
+                }
 
                 $counterpart = $user->id === $lease->property->owner_id ? $lease->tenant : $lease->property->owner;
                 $counterpart->notify(new LeaseSignedNotification($lease->fresh(['property'])));

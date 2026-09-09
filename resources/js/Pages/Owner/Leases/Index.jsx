@@ -1,5 +1,6 @@
-import { Head, Link, router, usePage } from '@inertiajs/react';
-import { FileSignature, MapPin, UserRound, CalendarDays, Coins, BadgeCheck, ArrowRight, CheckCircle2, Send } from 'lucide-react';
+import { useState } from 'react';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
+import { FileSignature, MapPin, UserRound, CalendarDays, Coins, BadgeCheck, ArrowRight, CheckCircle2, Send, RefreshCw, CalendarPlus } from 'lucide-react';
 import MainLayout from '@/Layouts/MainLayout';
 import PropertyArt from '@/Components/Shared/PropertyArt';
 import StatusBadge from '@/Components/Shared/StatusBadge';
@@ -16,6 +17,24 @@ const fmt = (value) => (value ? new Date(value).toLocaleDateString(undefined, { 
 
 export default function OwnerLeasesIndex({ leases = [] }) {
     const { user } = usePage().props.auth;
+    const [openRenewId, setOpenRenewId] = useState(null);
+    const renewForm = useForm({ start_date: '', end_date: '' });
+
+    const openRenew = (lease) => {
+        if (openRenewId === lease.id) {
+            setOpenRenewId(null);
+            return;
+        }
+        renewForm.setData({
+            start_date: lease.end_date ? String(lease.end_date).slice(0, 10) : '',
+            end_date: '',
+        });
+        setOpenRenewId(lease.id);
+    };
+
+    const submitRenew = (leaseId) => {
+        renewForm.post(route('owner.leases.renew', leaseId), { preserveScroll: true });
+    };
 
     return (
         <MainLayout title="Leases">
@@ -58,6 +77,21 @@ export default function OwnerLeasesIndex({ leases = [] }) {
                                     </div>
                                     <StatusBadge status={lease.status} />
                                 </header>
+
+                                {(lease.renewed_from || lease.renewals?.length > 0) && (
+                                    <div className="flex flex-wrap items-center gap-2 border-b border-border bg-muted/30 px-5 py-2.5">
+                                        {lease.renewed_from && (
+                                            <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-700">
+                                                <RefreshCw className="h-3.5 w-3.5" /> Renewal of {lease.renewed_from.lease_no}
+                                            </span>
+                                        )}
+                                        {lease.renewals?.map((r) => (
+                                            <span key={r.id} className="inline-flex items-center gap-1.5 rounded-full border border-teal-200 bg-teal-50 px-2.5 py-1 text-xs font-bold text-teal-700">
+                                                <RefreshCw className="h-3.5 w-3.5" /> Renewed by {r.lease_no}
+                                            </span>
+                                        ))}
+                                    </div>
+                                )}
 
                                 <div className="grid gap-4 px-5 py-4 sm:grid-cols-2 lg:grid-cols-4">
                                     <div className="flex items-center gap-2.5">
@@ -140,7 +174,62 @@ export default function OwnerLeasesIndex({ leases = [] }) {
                                         </div>
                                     )}
                                     {lease.status === 'active' && (
-                                        <p className="text-sm font-medium text-emerald-700">Lease active — this property is occupied and no longer listed.</p>
+                                        <div>
+                                            <div className="flex flex-wrap items-center justify-between gap-3">
+                                                <p className="text-sm font-medium text-emerald-700">Lease active — this property is occupied and no longer listed.</p>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => openRenew(lease)}
+                                                    className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/[0.06] px-4 text-sm font-bold text-primary transition hover:bg-primary/15"
+                                                >
+                                                    <RefreshCw className={openRenewId === lease.id ? 'h-4 w-4 rotate-180 transition' : 'h-4 w-4'} /> Renew lease
+                                                </button>
+                                            </div>
+                                            {openRenewId === lease.id && (
+                                                <form
+                                                    onSubmit={(e) => {
+                                                        e.preventDefault();
+                                                        submitRenew(lease.id);
+                                                    }}
+                                                    className="mt-3 grid gap-3 rounded-xl border border-primary/20 bg-primary/[0.04] p-4 sm:grid-cols-[1fr_1fr_auto]"
+                                                >
+                                                    <label className="block">
+                                                        <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Renewal starts</span>
+                                                        <input
+                                                            type="date"
+                                                            value={renewForm.data.start_date}
+                                                            onChange={(e) => renewForm.setData('start_date', e.target.value)}
+                                                            className="field w-full"
+                                                        />
+                                                        <span className="mt-1 block text-[11px] text-muted-foreground">Defaults to the current end date.</span>
+                                                    </label>
+                                                    <label className="block">
+                                                        <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Renewal ends</span>
+                                                        <input
+                                                            type="date"
+                                                            value={renewForm.data.end_date}
+                                                            onChange={(e) => renewForm.setData('end_date', e.target.value)}
+                                                            className="field w-full"
+                                                        />
+                                                        <span className="mt-1 block text-[11px] text-muted-foreground">Defaults to one year later.</span>
+                                                    </label>
+                                                    <div className="flex items-end gap-2">
+                                                        <button
+                                                            type="submit"
+                                                            disabled={renewForm.processing}
+                                                            className="inline-flex h-10 items-center gap-1.5 rounded-lg bg-primary px-4 text-sm font-bold text-primary-foreground transition hover:bg-primary/90 disabled:opacity-60"
+                                                        >
+                                                            <CalendarPlus className="h-4 w-4" /> {renewForm.processing ? 'Drafting…' : 'Draft renewal'}
+                                                        </button>
+                                                    </div>
+                                                    {(renewForm.errors.start_date || renewForm.errors.end_date) && (
+                                                        <p className="sm:col-span-3 text-xs font-semibold text-rose-600">
+                                                            {renewForm.errors.start_date || renewForm.errors.end_date}
+                                                        </p>
+                                                    )}
+                                                </form>
+                                            )}
+                                        </div>
                                     )}
                                 </div>
                             </section>
