@@ -39,7 +39,7 @@ The owner's core module for creating, publishing, managing and maintaining renta
 
 1. **Create draft** - When an owner submits the property form, the system validates required fields; then the system stores the record with status `available` (MVP) or `draft`; finally the system shows the property on the owner dashboard.
 2. **Publish / verify** - When an owner publishes a listing, the system notifies admin for review; when admin approves and sets `verified = true`, the system displays the Verified Property badge on the marketplace.
-3. **Mark reserved** - When an owner accepts a tenant's application, the system sets status `reserved`; when the lease starts and keys are handed over, the owner sets status `occupied`.
+3. **Mark reserved** - When a lease is generated from an approved application, the system sets status `reserved`; when both parties sign (lease `active`), the system sets status `occupied` automatically.
 4. **Make unavailable** - When a property is removed from the market, the owner sets status `unavailable`; then the system hides it from tenant searches while keeping the record for reports.
 5. **Feature** - When an owner purchases a featured slot, the system sets `featured = true` with a promotion window; when the window ends, the system sets `featured = false`.
 

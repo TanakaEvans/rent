@@ -113,6 +113,14 @@ class Lease extends Model
     }
 
     /**
+     * The digital signatures recorded against this lease.
+     */
+    public function signatures()
+    {
+        return $this->hasMany(LeaseSignature::class);
+    }
+
+    /**
      * Append an audit entry to the lease trail.
      */
     public function recordHistory(string $action, ?User $performer, ?array $details = []): void

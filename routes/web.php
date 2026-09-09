@@ -175,6 +175,12 @@ Route::middleware(['auth', EnsurePasswordIsChanged::class, EnsureHasRole::class]
         Route::get('/owner/leases', [LeaseController::class, 'ownerIndex'])
             ->name('owner.leases.index')
             ->defaults('description', 'View leases for your properties');
+        Route::post('/owner/leases/{lease}/send', [LeaseController::class, 'sendForSignature'])
+            ->name('owner.leases.send')
+            ->defaults('description', 'Send a draft lease to the tenant for signature');
+        Route::post('/owner/leases/{lease}/sign', [LeaseController::class, 'sign'])
+            ->name('owner.leases.sign')
+            ->defaults('description', 'Sign a lease as the property owner');
     });
 
     Route::middleware('role:Tenant')->group(function () {
@@ -220,6 +226,10 @@ Route::middleware(['auth', EnsurePasswordIsChanged::class, EnsureHasRole::class]
         Route::get('/tenant/leases', [LeaseController::class, 'tenantIndex'])
             ->name('tenant.leases.index')
             ->defaults('description', 'View my leases');
+
+        Route::post('/tenant/leases/{lease}/sign', [LeaseController::class, 'sign'])
+            ->name('tenant.leases.sign')
+            ->defaults('description', 'Sign a lease as the tenant');
     });
 
     // Force Change Password Routes

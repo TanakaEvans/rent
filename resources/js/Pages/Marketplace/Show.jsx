@@ -22,6 +22,7 @@ import PropertyArt from '@/Components/Shared/PropertyArt';
 import StatusBadge from '@/Components/Shared/StatusBadge';
 import { buttonVariants } from '@/Components/ui/button';
 import { cn } from '@/lib/utils';
+import { dashboardRouteFor } from '@/lib/roles';
 
 const typeLabels = {
     house: 'House',
@@ -109,16 +110,33 @@ export default function MarketplaceShow({ property, isFavourited = false, viewin
                             <Brand dark />
                         </Link>
                         <div className="flex items-center gap-2">
-                            <Link
-                                href={route('login')}
-                                className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), 'text-white hover:bg-white/10 hover:text-white')}
-                            >
-                                Sign In
-                            </Link>
-                            <Link href={route('login')} className={cn(buttonVariants({ size: 'sm' }), 'bg-emerald-500 text-white shadow-lg shadow-emerald-950/40 hover:bg-emerald-400')}>
-                                List Your Property
-                                <ArrowRight className="h-4 w-4" />
-                            </Link>
+                            {auth?.user ? (
+                                <>
+                                    <Link
+                                        href={route(dashboardRouteFor(auth.user.roles))}
+                                        className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), 'text-white hover:bg-white/10 hover:text-white')}
+                                    >
+                                        My Dashboard
+                                    </Link>
+                                    <Link href={route(dashboardRouteFor(auth.user.roles))} className={cn(buttonVariants({ size: 'sm' }), 'bg-emerald-500 text-white shadow-lg shadow-emerald-950/40 hover:bg-emerald-400')}>
+                                        Manage Properties
+                                        <ArrowRight className="h-4 w-4" />
+                                    </Link>
+                                </>
+                            ) : (
+                                <>
+                                    <Link
+                                        href={route('login')}
+                                        className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), 'text-white hover:bg-white/10 hover:text-white')}
+                                    >
+                                        Sign In
+                                    </Link>
+                                    <Link href={route('login')} className={cn(buttonVariants({ size: 'sm' }), 'bg-emerald-500 text-white shadow-lg shadow-emerald-950/40 hover:bg-emerald-400')}>
+                                        List Your Property
+                                        <ArrowRight className="h-4 w-4" />
+                                    </Link>
+                                </>
+                            )}
                         </div>
                     </div>
                 </header>
@@ -428,7 +446,7 @@ export default function MarketplaceShow({ property, isFavourited = false, viewin
                         <Brand dark />
                         <p className="text-sm font-medium text-white/60">Rent directly. Live simply.</p>
                         <div className="flex gap-6 text-sm font-semibold text-white/70">
-                            <Link href={route('login')} className="transition-colors hover:text-emerald-300">Sign In</Link>
+                            {auth?.user ? <Link href={route(dashboardRouteFor(auth.user.roles))} className="transition-colors hover:text-emerald-300">My Dashboard</Link> : <Link href={route('login')} className="transition-colors hover:text-emerald-300">Sign In</Link>}
                             <Link href={route('login')} className="transition-colors hover:text-emerald-300">For Owners</Link>
                             <Link href={route('login')} className="transition-colors hover:text-emerald-300">For Tenants</Link>
                         </div>

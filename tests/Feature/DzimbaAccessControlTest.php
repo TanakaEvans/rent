@@ -228,6 +228,8 @@ class DzimbaAccessControlTest extends TestCase
         $tenant = User::where('username', 'tenant')->first();
         $this->actingAs($tenant)->get('/owner/leases')->assertForbidden();
         $this->actingAs($tenant)->post('/owner/applications/1/lease', [])->assertForbidden();
+        $this->actingAs($tenant)->post('/owner/leases/1/send', [])->assertForbidden();
+        $this->actingAs($tenant)->post('/owner/leases/1/sign', [])->assertForbidden();
     }
 
     public function test_tenant_can_access_own_leases(): void
@@ -239,6 +241,7 @@ class DzimbaAccessControlTest extends TestCase
     {
         $owner = User::where('username', 'owner')->first();
         $this->actingAs($owner)->get('/tenant/leases')->assertForbidden();
+        $this->actingAs($owner)->post('/tenant/leases/1/sign', [])->assertForbidden();
     }
 
     public function test_guest_cannot_access_lease_routes(): void
@@ -246,6 +249,9 @@ class DzimbaAccessControlTest extends TestCase
         $this->get('/owner/leases')->assertRedirect(route('login'));
         $this->get('/tenant/leases')->assertRedirect(route('login'));
         $this->post('/owner/applications/1/lease', [])->assertRedirect(route('login'));
+        $this->post('/owner/leases/1/send', [])->assertRedirect(route('login'));
+        $this->post('/owner/leases/1/sign', [])->assertRedirect(route('login'));
+        $this->post('/tenant/leases/1/sign', [])->assertRedirect(route('login'));
     }
 
     public function test_any_authenticated_role_can_access_own_notifications(): void

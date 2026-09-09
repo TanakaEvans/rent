@@ -37,7 +37,7 @@ auth_users (owner) ───< properties >───< property_favourites >──
                          ├──< viewing_slots          (IMPLEMENTED, Wave 2)
                          ├──< viewing_requests       (IMPLEMENTED, Wave 2)
                          ├──< enquiries              (IMPLEMENTED, Wave 2)
-                         ├──< leases                 (Phase 2) ─< lease_signatures
+                         ├──< leases                 (IMPLEMENTED, Wave 3) ─< lease_history ─< lease_signatures (slice 3)
                          ├──< rent_schedules         (Phase 2) ─< rent_invoices ─< payments
                          └──< maintenance_requests   (Phase 2) ─< maintenance_actions
 
@@ -161,9 +161,9 @@ Writes on every allowed transition (matrix in `Property::TRANSITIONS`).
 - **viewing_requests** (IMPLEMENTED, Wave 2): id, property_id FK, tenant_id FK, slot_id FK (restrictOnDelete), request_message VARCHAR(1000) nullable, status ENUM(requested,accepted,rescheduled,declined,completed,cancelled,no-show), outcome, timestamps; indexes (property_id, status), (tenant_id, status). `ViewingRequestService` guards transitions per status (409) and ownership (404); accept/confirm set slot `taken`; cancel/decline/no-show release a `taken` slot back to `available`.
 
 ### leases + lease_signatures + lease_history
-- **leases**: id, property_id FK, tenant_id FK, application_id FK nullable, lease_no unique, start_date, end_date, rent_amount DECIMAL(12,2), deposit_amount DECIMAL(12,2), payment_terms JSON, status ENUM(draft,sent,signed,active,renewed,terminated), clause_version.
-- **lease_signatures**: id, lease_id FK, user_id FK, signed_at, signature_payload.
-- **lease_history**: id, lease_id FK, action, performed_by FK, details JSON.
+- **leases (IMPLEMENTED, Wave 3 slice 2)**: id, property_id FK, tenant_id FK, application_id FK nullable (nullOnDelete — a lease survives its application), lease_no unique, start_date/end_date nullable, rent_amount DECIMAL(12,2), deposit_amount DECIMAL(12,2), payment_terms JSON, status ENUM(draft,sent,signed,active,renewed,terminated) default draft, clause_version SMALLINT default 1.
+- **lease_signatures (IMPLEMENTED, Wave 3 slice 3)**: id, lease_id FK (cascade), user_id FK (cascade), signed_at timestamp nullable, signature_payload VARCHAR(255) nullable, unique (lease_id, user_id), index (lease_id, signed_at).
+- **lease_history (IMPLEMENTED, Wave 3 slice 2)**: id, lease_id FK (cascade), action, performed_by FK (nullOnDelete), details JSON, timestamps. Audit entries written for every state change (e.g. `lease_created`).
 
 ### rent_schedules + rent_invoices + payments + deposits
 - **rent_schedules**: id, lease_id FK, start_date, end_date, rent_amount, payment_terms JSON.

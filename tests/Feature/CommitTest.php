@@ -75,6 +75,22 @@ class CommitTest extends TestCase
         ]);
     }
 
+    private function makeLease(Property $property, ?User $tenant = null, string $status = 'draft'): Lease
+    {
+        return Lease::create([
+            'property_id' => $property->id,
+            'tenant_id' => ($tenant ?? $this->tenant())->id,
+            'lease_no' => 'LSE-2026-'.mt_rand(7000, 8999),
+            'start_date' => now()->toDateString(),
+            'end_date' => now()->addYear()->toDateString(),
+            'rent_amount' => 850,
+            'deposit_amount' => 850,
+            'payment_terms' => ['frequency' => 'monthly'],
+            'status' => $status,
+            'clause_version' => 1,
+        ]);
+    }
+
     public function test_tenant_can_apply_to_an_available_property(): void
     {
         $property = $this->makeProperty();
@@ -623,6 +639,178 @@ class CommitTest extends TestCase
                 ->component('Tenant/Leases')
                 ->has('leases', 1)
                 ->where('leases.0.lease_no', 'LSE-2026-9003'));
+    }
+
+    public function test_owner_sends_draft_lease_for_signature(): void
+    {
+        Notification::fake();
+        $property = $this->makeProperty(null, 'reserved');
+        $lease = $this->makeLease($property);
+
+        $this->actingAs($this->owner())
+            ->post('/owner/leases/'.$lease->id.'/send', [])
+            ->assertRedirect();
+
+        $this->assertSame('sent', $lease->fresh()->status);
+        $this->assertSame('reserved', $property->fresh()->status);
+        $this->assertDatabaseHas('lease_history', ['lease_id' => $lease->id, 'action' => 'lease_sent']);
+
+        Notification::assertSentTo(
+            $this->tenant(),
+            \App\Notifications\LeaseSentForSignatureNotification::class
+        );
+    }
+
+    public function test_lease_can_only_be_sent_from_draft(): void
+    {
+        $property = $this->makeProperty(null, 'reserved');
+        $lease = $this->makeLease($property);
+
+        $this->actingAs($this->owner())
+            ->post('/owner/leases/'.$lease->id.'/send', [])
+            ->assertRedirect();
+        $this->assertSame('sent', $lease->fresh()->status);
+
+        $this->actingAs($this->owner())
+            ->post('/owner/leases/'.$lease->id.'/send', [])
+            ->assertSessionHasErrors('status');
+    }
+
+    public function test_owner_cannot_send_another_owners_lease(): void
+    {
+        $property = $this->makeProperty($this->newOwner());
+        $lease = $this->makeLease($property, $this->newTenant());
+
+        $this->actingAs($this->owner())
+            ->post('/owner/leases/'.$lease->id.'/send', [])
+            ->assertNotFound();
+
+        $this->assertSame('draft', $lease->fresh()->status);
+    }
+
+    public function test_single_signature_keeps_the_lease_sent(): void
+    {
+        $property = $this->makeProperty();
+        $lease = $this->makeLease($property, null, 'sent');
+
+        $this->actingAs($this->tenant())
+            ->post('/tenant/leases/'.$lease->id.'/sign', ['signature' => 'T. Gwese'])
+            ->assertRedirect();
+
+        $signature = $lease->signatures()->first();
+        $this->assertNotNull($signature);
+        $this->assertSame($this->tenant()->id, $signature->user_id);
+        $this->assertSame('T. Gwese', $signature->signature_payload);
+        $this->assertSame('sent', $lease->fresh()->status);
+        $this->assertSame('available', $property->fresh()->status);
+
+        $this->actingAs($this->tenant())->get('/tenant/leases')
+            ->assertInertia(fn ($page) => $page
+                ->component('Tenant/Leases')
+                ->has('leases.0.signatures', 1)
+                ->where('leases.0.signatures.0.user_id', $this->tenant()->id));
+    }
+
+    public function test_signature_payload_defaults_to_the_signers_name(): void
+    {
+        $property = $this->makeProperty();
+        $lease = $this->makeLease($property, null, 'sent');
+
+        $this->actingAs($this->tenant())
+            ->post('/tenant/leases/'.$lease->id.'/sign', [])
+            ->assertRedirect();
+
+        $this->assertSame(
+            $this->tenant()->name,
+            $lease->signatures()->first()->signature_payload
+        );
+    }
+
+    public function test_tenant_cannot_sign_a_lease_they_do_not_hold(): void
+    {
+        $property = $this->makeProperty();
+        $lease = $this->makeLease($property, $this->newTenant(), 'sent');
+
+        $this->actingAs($this->tenant())
+            ->post('/tenant/leases/'.$lease->id.'/sign', [])
+            ->assertNotFound();
+
+        $this->assertDatabaseCount('lease_signatures', 0);
+    }
+
+    public function test_owner_cannot_sign_a_lease_on_another_owners_property(): void
+    {
+        $property = $this->makeProperty($this->newOwner());
+        $lease = $this->makeLease($property, $this->newTenant(), 'sent');
+
+        $this->actingAs($this->owner())
+            ->post('/owner/leases/'.$lease->id.'/sign', [])
+            ->assertNotFound();
+
+        $this->assertDatabaseCount('lease_signatures', 0);
+    }
+
+    public function test_lease_cannot_be_signed_before_it_is_sent(): void
+    {
+        $property = $this->makeProperty();
+        $lease = $this->makeLease($property);
+
+        $this->actingAs($this->tenant())
+            ->post('/tenant/leases/'.$lease->id.'/sign', [])
+            ->assertSessionHasErrors('status');
+
+        $this->assertDatabaseCount('lease_signatures', 0);
+    }
+
+    public function test_a_party_cannot_sign_twice(): void
+    {
+        $property = $this->makeProperty();
+        $lease = $this->makeLease($property, null, 'sent');
+
+        $this->actingAs($this->tenant())
+            ->post('/tenant/leases/'.$lease->id.'/sign', [])
+            ->assertRedirect();
+
+        $this->actingAs($this->tenant())
+            ->post('/tenant/leases/'.$lease->id.'/sign', [])
+            ->assertSessionHasErrors('status');
+
+        $this->assertDatabaseCount('lease_signatures', 1);
+    }
+
+    public function test_both_signatures_activate_the_lease_and_occupy_the_property(): void
+    {
+        Notification::fake();
+        $property = $this->makeProperty(null, 'reserved');
+        $lease = $this->makeLease($property, null, 'sent');
+
+        $this->actingAs($this->owner())
+            ->post('/owner/leases/'.$lease->id.'/sign', ['signature' => 'O. Dzimba'])
+            ->assertRedirect();
+        $this->assertSame('sent', $lease->fresh()->status);
+
+        $this->actingAs($this->tenant())
+            ->post('/tenant/leases/'.$lease->id.'/sign', ['signature' => 'T. Gwese'])
+            ->assertRedirect();
+
+        $fresh = $lease->fresh();
+        $this->assertSame('active', $fresh->status);
+        $this->assertSame('occupied', $property->fresh()->status);
+        $this->assertDatabaseHas('lease_history', ['lease_id' => $lease->id, 'action' => 'lease_signed_final']);
+        $this->assertDatabaseHas('lease_history', ['lease_id' => $lease->id, 'action' => 'lease_activated']);
+        $this->assertDatabaseCount('lease_signatures', 2);
+
+        Notification::assertSentTo(
+            $this->owner(),
+            \App\Notifications\LeaseSignedNotification::class
+        );
+    }
+
+    public function test_guests_are_redirected_to_login_for_signature_routes(): void
+    {
+        $this->post('/owner/leases/1/send', [])->assertRedirect(route('login'));
+        $this->post('/owner/leases/1/sign', [])->assertRedirect(route('login'));
+        $this->post('/tenant/leases/1/sign', [])->assertRedirect(route('login'));
     }
 
     public function test_guests_are_redirected_to_login_for_lease_routes(): void
