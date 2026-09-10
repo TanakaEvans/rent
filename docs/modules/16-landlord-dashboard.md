@@ -1,6 +1,7 @@
 # Module 16 - Landlord (Owner) Dashboard
 
-> Phase: MVP | Implemented (core cards) | Primary actors: Owner
+> Phase: MVP | Implemented (core cards + financial KPIs) | Primary actors: Owner
+> **Implementation status (Wave 4 slice 5):** the Rent Due KPI now reads the ledger — `FinancialSummaryService::ownerIndex()` aggregates tenant-scoped **monthly income** (settled `paid_at`), **rent due/outstanding + arrears + late-fee totals** (Money-exact server-side sums, AC-04), a **6-month income trend** and **occupancy rate** (ledger occupancy ÷ listed properties, rounded 1dp) for the property owner — injected by `OwnerDashboardController` into the Owner Dashboard (Monthly Income + Occupancy KPI cards; Rent Due = `outstanding_total`). No client-side arithmetic; all scoped row-level per owner (`NFR-01`). Chart rendering (income trend / occupancy graph) from the `financial` prop is a follow-up within Wave 4/5.
 
 ## 1. Purpose
 
@@ -16,12 +17,12 @@ The owner's command centre. One glance answers: how many properties, what is ava
 
 ## 3. Functional Requirements
 
-- FR-01 KPI cards: Properties, Available, Occupied, Applications, Pending Enquiries, Rent Due, Monthly Income.
+- FR-01 KPI cards: Properties, Available, Occupied, Applications, Pending Enquiries, Rent Due, Monthly Income. Rent Due and Monthly Income are ledger-backed via `FinancialSummaryService::ownerIndex()` (Wave 4 slice 5); Occupancy is included as a KPI.
 - FR-02 Properties table: thumbnail, title, type, price, status badge, quick actions (view/edit/mark reserved/occupied).
 - FR-03 Alert banner for urgent items (rent due soon, pending applications beyond SLA, maintenance emergencies).
 - FR-04 Quick links to Property list, Applications, Viewings, Enquiries, Subscriptions.
 - FR-05 StatusBadge component reuses property statuses: available/reserved/occupied/unavailable.
-- FR-06 Phase 2: occupancy chart, income trend, upcoming lease expiries.
+- FR-06 Phase 2: occupancy trend, income trend, upcoming lease expiries. Data side (6-month income trend + occupancy rate aggregated in `FinancialSummaryService`) landed in Wave 4 slice 5; chart rendering is a follow-up.
 
 ## 4. Non-Functional Requirements
 
@@ -50,3 +51,4 @@ Read-only aggregation over: `properties`, `rental_applications`, `property_favou
 AC-01 Counts match the underlying tables exactly.
 AC-02 Owner never sees another owner's data.
 AC-03 Status changes reflect in badges/keys without a manual refresh.
+AC-04 Money shown (Rent Due, Monthly Income, Occupancy) is computed server-side from the `payments`/`rent_invoices` ledger (never client arithmetic), scoped to the owner's properties (`FinancialSummaryService::ownerIndex()`).

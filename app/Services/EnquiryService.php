@@ -11,6 +11,10 @@ use Illuminate\Validation\ValidationException;
 
 class EnquiryService
 {
+    public function __construct(private readonly AdPlacementService $advertisements)
+    {
+    }
+
     /**
      * Create a new enquiry from a tenant for an available property.
      * A tenant can only have one open (non-closed) enquiry per property.
@@ -36,6 +40,7 @@ class EnquiryService
             'status' => 'new',
         ]);
 
+        $this->advertisements->trackForProperty($property, 'enquiry');
         $property->owner->notify(new NewEnquiryNotification($enquiry));
 
         return $enquiry;

@@ -22,12 +22,30 @@ use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\EmployeeController;
+use App\Http\Controllers\AdminPlansController;
+use App\Http\Controllers\AdminConfigController;
+use App\Http\Controllers\OwnerSubscriptionController;
+use App\Http\Controllers\RentController;
 use App\Http\Controllers\Auth\ChangePasswordController;
+use App\Http\Controllers\SavedSearchController;
+use App\Http\Controllers\MarketplaceReportController;
+use App\Http\Controllers\AdminReportController;
+use App\Http\Controllers\AdminMarketplaceAnalyticsController;
+use App\Http\Controllers\OwnerAnalyticsController;
+use App\Http\Controllers\AdPlacementController;
 use App\Http\Middleware\EnsurePasswordIsChanged;
 use App\Http\Middleware\EnsureHasRole;
 
 // Public marketplace landing page
 Route::get('/', [HomeController::class, 'index'])->name('home');
+
+// Public marketplace autocomplete
+Route::get('/search/suggestions', [HomeController::class, 'suggest'])->name('search.suggestions');
+
+// Public report listing (guests may report; auth optional)
+Route::post('/properties/{id}/report', [MarketplaceReportController::class, 'store'])
+    ->name('property.report')
+    ->whereNumber('id');
 
 // Public property detail page
 Route::get('/properties/{id}', [PublicPropertyController::class, 'show'])
@@ -72,6 +90,14 @@ Route::middleware(['auth', EnsurePasswordIsChanged::class, EnsureHasRole::class]
     Route::post('/notifications/read-all', [NotificationController::class, 'readAll'])
         ->name('notifications.read-all')
         ->defaults('description', 'Mark all notifications as read');
+
+    // Agreement documents (M20-lite) - parties on the lease or admin
+    Route::get('/documents/{document}', [\App\Http\Controllers\DocumentController::class, 'show'])
+        ->name('documents.show')
+        ->defaults('description', 'View a stored agreement document');
+    Route::get('/documents/{document}/download', [\App\Http\Controllers\DocumentController::class, 'download'])
+        ->name('documents.download')
+        ->defaults('description', 'Download a stored agreement document');
 
     // Role-specific dashboards
     Route::middleware('role:Owner')->group(function () {
@@ -184,6 +210,39 @@ Route::middleware(['auth', EnsurePasswordIsChanged::class, EnsureHasRole::class]
         Route::post('/owner/leases/{lease}/renew', [LeaseController::class, 'renew'])
             ->name('owner.leases.renew')
             ->defaults('description', 'Create a renewal lease from an active lease');
+
+        Route::get('/owner/documents', [\App\Http\Controllers\DocumentController::class, 'ownerIndex'])
+            ->name('owner.documents.index')
+            ->defaults('description', 'View agreement documents for your properties');
+
+        Route::get('/owner/subscriptions', [OwnerSubscriptionController::class, 'index'])
+            ->name('owner.subscriptions.index')
+            ->defaults('description', 'View and manage my subscription');
+        Route::post('/owner/subscriptions', [OwnerSubscriptionController::class, 'subscribe'])
+            ->name('owner.subscriptions.subscribe')
+            ->defaults('description', 'Subscribe to a plan');
+
+        Route::get('/owner/rent', [RentController::class, 'ownerIndex'])
+            ->name('owner.rent.index')
+            ->defaults('description', 'View rent schedules and invoices for your properties');
+
+        // Listing lifecycle + marketplace analytics (Marketplace §41/§43)
+        Route::post('/owner/properties/{property}/renew', [PropertyController::class, 'renew'])
+            ->name('owner.properties.renew')
+            ->whereNumber('property')
+            ->defaults('description', 'Renew a listing for another validity period');
+
+        Route::get('/owner/analytics', [OwnerAnalyticsController::class, 'index'])
+            ->name('owner.analytics.index')
+            ->defaults('description', 'View marketplace performance for my properties');
+
+        // Featured & advertising (M13, Wave 4 slice 6)
+        Route::get('/owner/advertising', [AdPlacementController::class, 'ownerIndex'])
+            ->name('owner.advertising.index')
+            ->defaults('description', 'Book and track listing promotions');
+        Route::post('/owner/advertising', [AdPlacementController::class, 'store'])
+            ->name('owner.advertising.store')
+            ->defaults('description', 'Book a promotion for one of my listings');
     });
 
     Route::middleware('role:Tenant')->group(function () {
@@ -233,6 +292,38 @@ Route::middleware(['auth', EnsurePasswordIsChanged::class, EnsureHasRole::class]
         Route::post('/tenant/leases/{lease}/sign', [LeaseController::class, 'sign'])
             ->name('tenant.leases.sign')
             ->defaults('description', 'Sign a lease as the tenant');
+
+        Route::get('/tenant/documents', [\App\Http\Controllers\DocumentController::class, 'tenantIndex'])
+            ->name('tenant.documents.index')
+            ->defaults('description', 'View my agreement documents');
+
+        Route::get('/tenant/rent', [RentController::class, 'tenantIndex'])
+            ->name('tenant.rent.index')
+            ->defaults('description', 'View my rent invoices');
+        Route::post('/tenant/rent/{invoice}/pay', [\App\Http\Controllers\PaymentController::class, 'tenantStore'])
+            ->name('tenant.rent.pay')
+            ->defaults('description', 'Pay a rent invoice');
+        Route::get('/tenant/rent/payments/{payment}/receipt', [\App\Http\Controllers\PaymentController::class, 'tenantReceipt'])
+            ->name('tenant.rent.receipt')
+            ->defaults('description', 'Download a rent receipt');
+
+        // Saved marketplace searches + report history (Marketplace §47)
+        Route::get('/tenant/saved-searches', [SavedSearchController::class, 'index'])
+            ->name('tenant.saved-searches.index')
+            ->defaults('description', 'View my saved marketplace searches');
+        Route::post('/tenant/saved-searches', [SavedSearchController::class, 'store'])
+            ->name('tenant.saved-searches.store')
+            ->defaults('description', 'Save the current marketplace filters');
+        Route::put('/tenant/saved-searches/{savedSearch}', [SavedSearchController::class, 'update'])
+            ->name('tenant.saved-searches.update')
+            ->defaults('description', 'Update a saved marketplace search');
+        Route::delete('/tenant/saved-searches/{savedSearch}', [SavedSearchController::class, 'destroy'])
+            ->name('tenant.saved-searches.destroy')
+            ->defaults('description', 'Delete a saved marketplace search');
+
+        Route::get('/tenant/reports', [MarketplaceReportController::class, 'index'])
+            ->name('tenant.reports.index')
+            ->defaults('description', 'View my marketplace reports');
     });
 
     // Force Change Password Routes
@@ -419,5 +510,74 @@ Route::prefix('auth')->name('auth.')->middleware('admin')->group(function () {
         Route::post('employees/{employee}/create-user', [EmployeeController::class, 'storeUserAccount'])
             ->name('employees.store-user')
             ->defaults('description', 'Save user account for employee');
+
+        // Subscription Plans CRUD (M12)
+        Route::get('subscriptions/plans', [AdminPlansController::class, 'index'])
+            ->name('subscriptions.plans.index')
+            ->defaults('description', 'Manage subscription plans');
+        Route::post('subscriptions/plans', [AdminPlansController::class, 'store'])
+            ->name('subscriptions.plans.store')
+            ->defaults('description', 'Create a subscription plan');
+        Route::patch('subscriptions/plans/{plan}', [AdminPlansController::class, 'update'])
+            ->name('subscriptions.plans.update')
+            ->defaults('description', 'Update a subscription plan');
+        Route::delete('subscriptions/plans/{plan}', [AdminPlansController::class, 'destroy'])
+            ->name('subscriptions.plans.destroy')
+            ->defaults('description', 'Archive or delete a subscription plan');
+        Route::put('subscriptions/plans/{plan}/features', [AdminPlansController::class, 'features'])
+            ->name('subscriptions.plans.features')
+            ->defaults('description', 'Toggle plan feature grants');
+
+        // Configuration Centre (M24)
+        Route::get('configuration', [AdminConfigController::class, 'index'])
+            ->name('configuration.index')
+            ->defaults('description', 'Configuration Centre — commercial rules as data');
+        Route::patch('configuration', [AdminConfigController::class, 'update'])
+            ->name('configuration.update')
+            ->defaults('description', 'Save configuration changes');
+
+        // Rent payment approvals (M9)
+        Route::get('rent/payments', [\App\Http\Controllers\PaymentController::class, 'adminIndex'])
+            ->name('rent.payments.index')
+            ->defaults('description', 'Approve or reject pending rent payments');
+        Route::post('rent/payments/{payment}/approve', [\App\Http\Controllers\PaymentController::class, 'adminApprove'])
+            ->name('rent.payments.approve')
+            ->defaults('description', 'Settle a pending rent payment');
+        Route::post('rent/payments/{payment}/reject', [\App\Http\Controllers\PaymentController::class, 'adminReject'])
+            ->name('rent.payments.reject')
+            ->defaults('description', 'Reject a pending rent payment');
+
+        // Marketplace analytics + report moderation (Marketplace §35/§43)
+        Route::get('marketplace/analytics', [AdminMarketplaceAnalyticsController::class, 'index'])
+            ->name('marketplace.analytics')
+            ->defaults('description', 'View platform marketplace analytics');
+        Route::get('marketplace/reports', [AdminReportController::class, 'index'])
+            ->name('marketplace.reports.index')
+            ->defaults('description', 'Moderate marketplace reports');
+        Route::post('marketplace/reports/{report}/{status}', [AdminReportController::class, 'transition'])
+            ->name('marketplace.reports.transition')
+            ->whereNumber('report')
+            ->defaults('description', 'Update a report status');
+
+        // Featured & advertising approvals (M13, Wave 4 slice 6)
+        Route::get('advertising', [AdPlacementController::class, 'adminIndex'])
+            ->name('advertising.index')
+            ->defaults('description', 'Approve and moderate listing promotions');
+        Route::post('advertising/{placement}/approve', [AdPlacementController::class, 'adminApprove'])
+            ->name('advertising.approve')
+            ->whereNumber('placement')
+            ->defaults('description', 'Approve a reserved placement and open its window');
+        Route::post('advertising/{placement}/cancel', [AdPlacementController::class, 'adminCancel'])
+            ->name('advertising.cancel')
+            ->whereNumber('placement')
+            ->defaults('description', 'Cancel a placement with a prorated credit');
+        Route::post('advertising/{placement}/pause', [AdPlacementController::class, 'adminPause'])
+            ->name('advertising.pause')
+            ->whereNumber('placement')
+            ->defaults('description', 'Pause a live placement');
+        Route::post('advertising/{placement}/resume', [AdPlacementController::class, 'adminResume'])
+            ->name('advertising.resume')
+            ->whereNumber('placement')
+            ->defaults('description', 'Resume a paused placement and extend its window');
     });
 });

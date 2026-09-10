@@ -64,6 +64,7 @@ class AuthSeeder extends Seeder
                 'email' => 'owner@dzimba.local',
                 'username' => 'owner',
                 'role' => 'Owner',
+                'verified' => true,
             ],
             [
                 'name' => 'Demo Tenant',
@@ -88,6 +89,8 @@ class AuthSeeder extends Seeder
                 'status' => 'active',
                 'email_verified_at' => now(),
                 'password_changed_at' => now(),
+                'verified' => $userData['verified'] ?? false,
+                'verified_at' => isset($userData['verified']) && $userData['verified'] ? now() : null,
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);

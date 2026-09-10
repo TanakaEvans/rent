@@ -2,8 +2,10 @@
 
 namespace Database\Seeders;
 
+use App\Models\Document;
 use App\Models\Property;
 use App\Models\PropertyFavourite;
+use App\Models\PropertyImage;
 use App\Models\RentalApplication;
 use App\Models\User;
 use Illuminate\Database\Seeder;
@@ -132,11 +134,62 @@ class PropertySeeder extends Seeder
             ],
         ];
 
+        // Map/coordinates + availability variety per listing, keyed by title.
+        // Some listings are available now (null), others open on a future
+        // date so the marketplace exercises both states.
+        $locationOverrides = [
+            'Modern 3 Bedroom House in Borrowdale' => ['latitude' => -17.7833, 'longitude' => 31.0833, 'available_from' => null],
+            '2 Bedroom Flat with Generator Backup' => ['latitude' => -17.8064, 'longitude' => 31.0208, 'available_from' => null],
+            'Townhouse near Bulawayo CBD' => ['latitude' => -20.1650, 'longitude' => 28.6050, 'available_from' => now()->addDays(14)],
+            'Bachelor Room in Msasa' => ['latitude' => -17.8500, 'longitude' => 31.1167, 'available_from' => null],
+            '4 Bedroom Family Home in Kumalo' => ['latitude' => -20.1740, 'longitude' => 28.5740, 'available_from' => now()->addDays(30)],
+            'Office Space in Avondale' => ['latitude' => -17.8000, 'longitude' => 31.0333, 'available_from' => now()->addDays(7)],
+        ];
+
         foreach ($properties as $data) {
-            Property::firstOrCreate(
+            $overrides = $locationOverrides[$data['title']] ?? [];
+            Property::updateOrCreate(
                 ['title' => $data['title']],
-                array_merge(['owner_id' => $owner->id, 'available_from' => now()->addDays(14)], $data)
+                array_merge(
+                    ['owner_id' => $owner->id, 'expires_at' => now()->addDays(60)],
+                    $data,
+                    $overrides
+                )
             );
+        }
+
+        // Photo gallery for every listing, so the marketplace and detail
+        // page render full carousels. Uses local SVG placeholders until the
+        // owner uploads real photos; the first image becomes the cover.
+        $imageFiles = ['house-1.svg', 'apartment-1.svg', 'townhouse-1.svg', 'room-1.svg', 'house-2.svg', 'office-1.svg'];
+        foreach (Property::all() as $property) {
+            $paths = [];
+            foreach (range(0, 3) as $sort) {
+                $file = $imageFiles[($property->id + $sort) % count($imageFiles)];
+                $path = "/uploads/homes/{$file}";
+                PropertyImage::firstOrCreate(
+                    ['property_id' => $property->id, 'path' => $path],
+                    ['caption' => 'Demo ' . ucfirst($property->property_type) . ' photo', 'sort_order' => $sort]
+                );
+                $paths[] = $path;
+            }
+            $property->update(['cover_image' => $paths[0]]);
+        }
+
+        // Marketplace analytics demo (single guard so re-seeding never
+        // duplicates): every listing earns several dated views so detail
+        // analytics, "recently viewed" and the Popular badge all have data.
+        if (! \App\Models\PropertyView::exists()) {
+            foreach (Property::listed()->get() as $rank => $property) {
+                foreach (range(0, 4 + $rank) as $day) {
+                    \App\Models\PropertyView::create([
+                        'property_id' => $property->id,
+                        'user_id' => null,
+                        'ip' => '127.0.0.1',
+                        'viewed_at' => now()->subDays($day)->setTime(10, 0),
+                    ]);
+                }
+            }
         }
 
         // Demo favourited properties and an application for the tenant
@@ -149,6 +202,30 @@ class PropertySeeder extends Seeder
                     'property_id' => $property->id,
                 ]);
             });
+
+            // Saved search + a marketplace report so the tenant and the
+            // admin moderation queue both have demo content.
+            \App\Models\SavedSearch::firstOrCreate(
+                ['user_id' => $tenant->id, 'name' => '3-bed Harare under $1,000'],
+                [
+                    'criteria' => ['property_type' => 'house', 'city' => 'Harare', 'bedrooms' => 3, 'max_price' => 1000, 'status' => 'available'],
+                    'notify' => true,
+                ]
+            );
+
+            $reportTarget = \App\Models\Property::where('title', 'Bachelor Room in Msasa')->first();
+            if ($reportTarget) {
+                \App\Models\Report::firstOrCreate(
+                    ['reporter_id' => $tenant->id, 'subject_id' => $reportTarget->id],
+                    [
+                        'subject_type' => 'property',
+                        'category' => 'incorrect_information',
+                        'description' => 'Demo report — the rent shown on this listing looks stale.',
+                        'status' => 'open',
+                        'priority' => 'medium',
+                    ]
+                );
+            }
 
             if ($available->isNotEmpty()) {
                 $demoApplication = RentalApplication::firstOrCreate(
@@ -231,6 +308,46 @@ class PropertySeeder extends Seeder
                             'clause_version' => 1,
                         ]
                     );
+
+                    // Stored agreement for the active lease (M20-lite), so both
+                    // parties can demo the document store. Rendered through the
+                    // service so the snapshot matches runtime format exactly;
+                    // guarded so re-seeding never bumps the version.
+                    if (! Document::where('lease_id', $activeLease->id)->exists()) {
+                        app(\App\Services\DocumentService::class)->storeLeaseAgreement($activeLease);
+                    }
+
+                    // Rent schedule for the active lease (M9, Wave 4 slice 3):
+                    // generated through the service so the demo rows match
+                    // runtime exactly (guarded — re-seeding never re-bills),
+                    // then run through the lifecycle so past periods read
+                    // overdue, the live period reads due and the date reminder
+                    // resolves against the real configuration.
+                    if (! \App\Models\RentSchedule::where('lease_id', $activeLease->id)->exists()) {
+                        app(\App\Services\RentService::class)->generateFor($activeLease);
+                        app(\App\Services\RentService::class)->runInvoiceLifecycle(false);
+                    }
+
+                    // Demo payment (M9, Wave 4 slice 4): the tenant records a cash payment for
+                    // the live (due) invoice. The $1,000.00 invoice clears the
+                    // $500.00 approval threshold, so the payment sits `pending`
+                    // and staff can demo the approval queue — approve settles
+                    // the invoice + issues a receipt, reject leaves it owing.
+                    // (Bank/mobile would need a proof-of-payment upload, which a
+                    // seeder cannot attach, so cash keeps the demo file-free.)
+                    // Guarded: re-seeding never duplicates the payment.
+                    $dueInvoice = \App\Models\RentInvoice::where('lease_id', $activeLease->id)
+                        ->where('status', 'due')
+                        ->orderBy('period_start')
+                        ->first();
+
+                    if ($dueInvoice && ! \App\Models\Payment::where('invoice_id', $dueInvoice->id)->exists()) {
+                        app(\App\Services\PaymentService::class)->recordPayment($tenant, $dueInvoice, [
+                            'amount' => $dueInvoice->amount,
+                            'method' => 'cash',
+                            'reference' => 'Cash at branch — live demo payment',
+                        ]);
+                    }
                 }
 
                 $enquiryTarget = $available->skip(1)->first();

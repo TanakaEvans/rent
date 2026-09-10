@@ -1,5 +1,5 @@
-import { Head, Link } from '@inertiajs/react';
-import { Heart, FileText, Hourglass, BadgeCheck, MapPin, CalendarDays, Mail, BedDouble, Bath, Armchair, MessageSquareText } from 'lucide-react';
+import { Head, Link, router } from '@inertiajs/react';
+import { Heart, FileText, Hourglass, BadgeCheck, MapPin, CalendarDays, Mail, BedDouble, Bath, Armchair, MessageSquareText, Search, ArrowRight, Building2 } from 'lucide-react';
 import MainLayout from '@/Layouts/MainLayout';
 import StatCard from '@/Components/Shared/StatCard';
 import StatusBadge from '@/Components/Shared/StatusBadge';
@@ -22,14 +22,29 @@ const formatPrice = (value) => '$' + Number(value).toLocaleString();
 const formatDate = (value) =>
     value ? new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '';
 
+const quickLinks = [
+    { label: 'Browse Listings', description: 'Search the marketplace', href: route('home'), icon: Building2 },
+    { label: 'My Enquiries', description: 'Track conversations with owners', href: route('tenant.enquiries.index'), icon: MessageSquareText },
+    { label: 'My Applications', description: 'Track application status', href: route('tenant.applications.index'), icon: FileText },
+    { label: 'Favourite Homes', description: 'Homes you have saved', href: route('tenant.favourites.index'), icon: Heart },
+];
+
 export default function TenantDashboard({ stats = {}, favourites = [], applications = [] }) {
     const statCards = [
-        { key: 'enquiries', label: 'Enquiries', value: stats.enquiries ?? 0, icon: MessageSquareText, tone: 'sky' },
-        { key: 'favourites', label: 'Favourite Homes', value: stats.favourites ?? 0, icon: Heart, tone: 'rose' },
-        { key: 'applications', label: 'Applications', value: stats.applications ?? 0, icon: FileText, tone: 'emerald' },
-        { key: 'pending', label: 'Under Review', value: stats.pending ?? 0, icon: Hourglass, tone: 'amber' },
-        { key: 'approved', label: 'Approved', value: stats.approved ?? 0, icon: BadgeCheck, tone: 'teal' },
+        { key: 'enquiries', label: 'Enquiries', value: stats.enquiries ?? 0, icon: MessageSquareText, tone: 'sky', routeName: 'tenant.enquiries.index' },
+        { key: 'favourites', label: 'Favourite Homes', value: stats.favourites ?? 0, icon: Heart, tone: 'rose', routeName: 'tenant.favourites.index' },
+        { key: 'applications', label: 'Applications', value: stats.applications ?? 0, icon: FileText, tone: 'emerald', routeName: 'tenant.applications.index' },
+        { key: 'pending', label: 'Under Review', value: stats.pending ?? 0, icon: Hourglass, tone: 'amber', routeName: 'tenant.applications.index' },
+        { key: 'approved', label: 'Approved', value: stats.approved ?? 0, icon: BadgeCheck, tone: 'teal', routeName: 'tenant.applications.index' },
     ];
+
+    const handleEnquire = (e, property) => {
+        e.preventDefault();
+        e.stopPropagation();
+        router.post(route('tenant.enquiries.store', { property: property.id }), { message: `Hi, I'm interested in ${property.title}. Please get in touch.` }, {
+            preserveScroll: true,
+        });
+    };
 
     return (
         <MainLayout title="Tenant Dashboard">
@@ -40,9 +55,14 @@ export default function TenantDashboard({ stats = {}, favourites = [], applicati
                     <h2 className="text-balance text-2xl font-extrabold tracking-tight sm:text-3xl">Find Your Next Home</h2>
                     <p className="mt-1 text-sm text-muted-foreground">Track your enquiries and applications, and keep an eye on the homes you love.</p>
                 </div>
-                <Link href={route('tenant.enquiries.index')} className={cn(buttonVariants({ variant: 'outline' }), 'border-primary/30 text-primary hover:bg-primary hover:text-white')}>
-                    <MessageSquareText className="h-4 w-4" /> My Enquiries
-                </Link>
+                <div className="flex flex-wrap gap-2">
+                    <Link href={route('home')} className={cn(buttonVariants())}>
+                        <Search className="h-4 w-4" /> Browse Listings
+                    </Link>
+                    <Link href={route('tenant.enquiries.index')} className={cn(buttonVariants({ variant: 'outline' }), 'border-primary/30 text-primary hover:bg-primary hover:text-white')}>
+                        <MessageSquareText className="h-4 w-4" /> My Enquiries
+                    </Link>
+                </div>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -50,6 +70,30 @@ export default function TenantDashboard({ stats = {}, favourites = [], applicati
                     <StatCard key={card.key} {...card} />
                 ))}
             </div>
+
+            <section className="mt-8">
+                <div className="mb-4 flex items-end justify-between gap-3">
+                    <h3 className="text-lg font-bold tracking-tight">Quick Links</h3>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    {quickLinks.map((link) => (
+                        <Link
+                            key={link.label}
+                            href={link.href}
+                            className="surface group flex items-center gap-3 p-4 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_16px_40px_-16px_rgba(16,60,45,0.28)]"
+                        >
+                            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-muted text-primary transition-colors group-hover:bg-primary group-hover:text-white">
+                                <link.icon className="h-5 w-5" />
+                            </span>
+                            <span className="min-w-0 flex-1">
+                                <span className="block truncate text-sm font-bold text-foreground">{link.label}</span>
+                                <span className="block truncate text-xs text-muted-foreground">{link.description}</span>
+                            </span>
+                            <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
+                        </Link>
+                    ))}
+                </div>
+            </section>
 
             <section className="mt-9">
                 <div className="mb-4 flex items-end justify-between gap-3">
@@ -112,16 +156,18 @@ export default function TenantDashboard({ stats = {}, favourites = [], applicati
                     <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
                         {favourites.map((property) => (
                             <article key={property.id} className="group surface flex flex-col overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_24px_60px_-24px_rgba(16,60,45,0.35)]">
-                                <div className="relative h-40 overflow-hidden">
+                                <Link href={route('property.show', property.id)} className="relative block h-40 overflow-hidden">
                                     <PropertyArt property={property} className="transition-transform duration-500 group-hover:scale-105" />
                                     {property.verified && (
                                         <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-emerald-500/90 px-2 py-1 text-[10px] font-extrabold uppercase tracking-wider text-white shadow">
                                             <BadgeCheck className="h-3 w-3" /> Verified
                                         </span>
                                     )}
-                                </div>
+                                </Link>
                                 <div className="flex flex-1 flex-col p-4">
-                                    <h4 className="font-bold leading-snug text-foreground">{property.title}</h4>
+                                    <Link href={route('property.show', property.id)}>
+                                        <h4 className="font-bold leading-snug text-foreground transition-colors hover:text-primary">{property.title}</h4>
+                                    </Link>
                                     <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
                                         <MapPin className="h-3 w-3 shrink-0 text-emerald-500" />
                                         {[property.suburb, property.city].filter(Boolean).join(', ') || 'Location on request'}
@@ -147,7 +193,10 @@ export default function TenantDashboard({ stats = {}, favourites = [], applicati
                                             {formatPrice(property.price)}
                                             <span className="text-xs font-semibold text-muted-foreground">/mo</span>
                                         </div>
-                                        <Button size="sm">Enquire</Button>
+                                        <div className="flex gap-2">
+                                            <Button size="sm" variant="outline" onClick={(e) => handleEnquire(e, property)}>Enquire</Button>
+                                            <Link href={route('property.show', property.id)} className={cn(buttonVariants({ size: 'sm' }))}>View</Link>
+                                        </div>
                                     </div>
                                     {property?.owner?.name && (
                                         <p className="mt-1 flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">

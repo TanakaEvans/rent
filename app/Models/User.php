@@ -28,6 +28,8 @@ class User extends Authenticatable
         'password_expires_at',
         'failed_login_attempts',
         'locked_at',
+        'verified',
+        'verified_at',
     ];
 
     /**
@@ -53,6 +55,8 @@ class User extends Authenticatable
             'password_changed_at' => 'datetime',
             'password_expires_at' => 'datetime',
             'locked_at' => 'datetime',
+            'verified' => 'boolean',
+            'verified_at' => 'datetime',
         ];
     }
 
@@ -163,6 +167,38 @@ class User extends Authenticatable
     public function viewingRequests()
     {
         return $this->hasMany(ViewingRequest::class, 'tenant_id');
+    }
+
+    /**
+     * Get the tenant's saved marketplace searches (Module 04 Phase 2).
+     */
+    public function savedSearches()
+    {
+        return $this->hasMany(SavedSearch::class);
+    }
+
+    /**
+     * Get the marketplace reports raised by this user.
+     */
+    public function reports()
+    {
+        return $this->hasMany(Report::class, 'reporter_id');
+    }
+
+    /**
+     * Get every subscription this user has held (owners).
+     */
+    public function subscriptions()
+    {
+        return $this->hasMany(Subscription::class, 'owner_id');
+    }
+
+    /**
+     * Get the owner's most recent subscription (or none).
+     */
+    public function currentSubscription()
+    {
+        return $this->subscriptions()->latest('id')->first();
     }
 
     /**

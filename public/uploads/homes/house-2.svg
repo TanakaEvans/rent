@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600">
+  <defs>
+    <linearGradient id="sky5" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#9cc4e0"/><stop offset="1" stop-color="#eef6fb"/>
+    </linearGradient>
+    <linearGradient id="thatch" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#a97d4f"/><stop offset="1" stop-color="#8a5e33"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#sky5)"/>
+  <circle cx="180" cy="110" r="46" fill="#ffe08a"/>
+  <ellipse cx="400" cy="575" rx="440" ry="125" fill="#8fba72"/>
+  <rect x="300" y="320" width="220" height="140" rx="6" fill="#e7cd9c"/>
+  <path d="M275 350 Q400 215 525 350 Z" fill="url(#thatch)"/>
+  <rect x="435" y="385" width="46" height="36" rx="2" fill="#cddff0" stroke="#7d5a38" stroke-width="3"/>
+  <path d="M455 385 L455 362" stroke="#7d5a38" stroke-width="3"/>
+  <rect x="345" y="405" width="44" height="55" rx="2" fill="#7d5a38"/>
+  <rect x="230" y="440" width="340" height="18" rx="4" fill="#6b8f5a"/>
+  <circle cx="600" cy="470" r="44" fill="#5e8f4e"/>
+  <circle cx="655" cy="492" r="26" fill="#6da05b"/>
+  <circle cx="120" cy="460" r="38" fill="#5e8f4e"/>
+  <rect x="520" y="470" width="70" height="10" rx="4" fill="#5e8f4e"/>
+  <path d="M80 500 q90 -30 180 0 q90 30 180 0" fill="none" stroke="#ccd9ae" stroke-width="5"/>
+</svg>

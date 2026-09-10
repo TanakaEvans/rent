@@ -37,18 +37,19 @@ auth_users (owner) ───< properties >───< property_favourites >──
                          ├──< viewing_slots          (IMPLEMENTED, Wave 2)
                          ├──< viewing_requests       (IMPLEMENTED, Wave 2)
                          ├──< enquiries              (IMPLEMENTED, Wave 2)
-                         ├──< leases                 (IMPLEMENTED, Wave 3) ─< lease_history ─< lease_signatures (slice 3); renewals self-link ─`renewed_from` (slice 4)
-                         ├──< rent_schedules         (Phase 2) ─< rent_invoices ─< payments
+                         ├──< leases                 (IMPLEMENTED, Wave 3) ─< lease_history ─< lease_signatures (slice 3); renewals self-link ─`renewed_from` (slice 4) ─< documents (slice 5, M20-lite)
+                         ├──< rent_schedules         (IMPLEMENTED, Wave 4) ─< rent_invoices (slice 3) ─< payments (slice 4)
                          └──< maintenance_requests   (Phase 2) ─< maintenance_actions
 
 auth_users ─< notifications (IMPLEMENTED, Wave 2 - morphed)
 
-auth_users (owner) ─< subscriptions >── subscription_plans
+auth_users (owner) ─< subscriptions >── subscription_plans ─< subscription_plan_features >── subscription_features
 auth_users (owner) ─< ad_placements >── ad_packages ─< ad_events
 verification_cases (polymorphic subject) ─< verification_documents
 reports / disputes (polymorphic) ─< case_actions
 documents ─< document_versions (polymorphic links)
 role_routes ─ system_routes ─ system_modules
+system_configurations ─< configuration_audits (config change history; drives billing/approval/rule engines)
 ```
 
 ## 21.3 Implemented Tables
@@ -165,11 +166,14 @@ Writes on every allowed transition (matrix in `Property::TRANSITIONS`).
 - **lease_signatures (IMPLEMENTED, Wave 3 slice 3)**: id, lease_id FK (cascade), user_id FK (cascade), signed_at timestamp nullable, signature_payload VARCHAR(255) nullable, unique (lease_id, user_id), index (lease_id, signed_at).
 - **lease_history (IMPLEMENTED, Wave 3 slice 2)**: id, lease_id FK (cascade), action, performed_by FK (nullOnDelete), details JSON, timestamps. Audit entries written for every state change (e.g. `lease_created`).
 
+### documents (M20-lite)
+- **documents (IMPLEMENTED, Wave 3 slice 5 — M20-lite)**: id, lease_id FK nullable (cascadeOnDelete — M20-lite links one lease agreement document; the polymorphic `document_links` table ships with full M20), type VARCHAR default `lease_agreement`, name, content LONGTEXT (plain-text agreement snapshot; binary/pdf storage ships with full M20), mime default `text/plain`, size BIGINT UNSIGNED nullable, version SMALLINT UNSIGNED default 1 (bumps in place on re-store; `document_versions` history table deferred), visibility VARCHAR default `private`, timestamps; indexes (lease_id, version), (type). `DocumentService` renders the snapshot (`renderAgreementText`), stores/versions it on lease activation (`storeLeaseAgreement`), and authorizes reads (`authorize`: admin/superuser OR lease property owner OR lease tenant, else 404).
+
 ### rent_schedules + rent_invoices + payments + deposits
-- **rent_schedules**: id, lease_id FK, start_date, end_date, rent_amount, payment_terms JSON.
-- **rent_invoices**: id, property_id FK, tenant_id FK, lease_id FK, schedule_id FK, period_start, period_end, amount DECIMAL(12,2), status ENUM(draft,due,paid,overdue,cancelled,refunded), invoice_no unique.
-- **payments**: id, invoice_id FK, paid_by FK, received_by FK nullable, amount DECIMAL(12,2), method ENUM(cash,bank,mobile,gateway), reference, paid_at, receipt_no.
-- **deposits**: id, lease_id FK, amount DECIMAL(12,2), status ENUM(held,returned,forfeited), deductions JSON, returned_at.
+- **rent_schedules (IMPLEMENTED, Wave 4 slice 3)**: id, lease_id FK (unique — one schedule per lease, cascade), start_date, end_date, rent_amount DECIMAL(12,2), payment_terms JSON, timestamps. `RentService::generateFor` creates exactly one per active lease (idempotent; inactive leases never bill). `RentSchedule::invoices()`/`outstandingInvoices()` (draft/due/overdue).
+- **rent_invoices (IMPLEMENTED, Wave 4 slices 3 & 5)**: id, property_id FK (cascade), tenant_id FK (cascade), lease_id FK (cascade), schedule_id FK (cascade), period_start, period_end, amount DECIMAL(12,2), late_fee DECIMAL(12,2) default 0 (added `2026_09_09_000026`, slice 5 — recomputed deterministically by `RentService::accrueLateFees()` from `late_fees.*` config), status ENUM(draft,due,paid,overdue,cancelled,refunded) default draft, invoice_no unique (`RNT-YYYY-NNNN` from `numbering.rent_invoice.*`), reminded_at nullable, timestamps; indexes (lease_id), (tenant_id, status), (period_start, status). One per calendar month (`buildPeriods`), first/last clamped to the term; explicit state machine (`RentInvoice::STATUSES`/`TRANSITIONS`); `paid`/`refunded` settlement lands with the payment slice (Wave 4 slice 4).
+- **payments (IMPLEMENTED, Wave 4 slice 4)**: id, invoice_id FK (rent_invoices, cascade), paid_by FK (auth_users, cascade), received_by FK (auth_users, nullable, nullOnDelete), amount DECIMAL(12,2), method ENUM(cash,bank,mobile,online), reference VARCHAR(255) nullable, pop_path VARCHAR(255) nullable, receipt_no VARCHAR(40) unique nullable, status ENUM(pending,settled,rejected,refunded) default pending, paid_at timestamp nullable, timestamps; indexes (invoice_id), (paid_by), (status, created_at). Explicit state machine (pending→[settled,rejected], settled→[refunded], rejected/refunded terminal) enforced in `PaymentService`; one pending/settled payment per invoice blocks re-pay (NFR-02); settlement moves the invoice to `paid` and issues the unique `RCT-` receipt; FKs target `auth_users` (the app's real user store) not `users`.
+- **deposits (planned, Phase 2)**: id, lease_id FK, amount DECIMAL(12,2), status ENUM(held,returned,forfeited), deductions JSON, returned_at.
 
 ### maintenance_requests + maintenance_actions
 - **maintenance_requests**: id, property_id FK, tenant_id FK, category ENUM(plumbing,electrical,appliance,structural,pest,safety,other), priority ENUM(low,medium,high,emergency), title, description, status ENUM(reported,assigned,in_progress,completed,closed,declined), approved_quote DECIMAL(12,2) NULL, assigned_contractor_id FK nullable, resolved_at, timestamps.
@@ -179,16 +183,26 @@ Writes on every allowed transition (matrix in `Property::TRANSITIONS`).
 - **contractors**: id, user_id FK nullable, business_name, contact, service_area JSON, status ENUM(unverified,vetting,verified,suspended), rating_avg DECIMAL(3,2), jobs_completed INT.
 - **contractor_trades**: id, contractor_id FK, trade, rate.
 
-### subscription_plans + subscriptions + subscription_invoices + subscription_history
-- **subscription_plans**: id, name, listing_limit INT, featured_slots INT, support_tier, analytics_enabled BOOLEAN, price DECIMAL(12,2), billing_cycle ENUM(monthly,annual), status.
-- **subscriptions**: id, owner_id FK, plan_id FK, status ENUM(active,grace,suspended,cancelled), starts_at, ends_at, trial_ends_at.
-- **subscription_invoices**: id, subscription_id FK, amount, status, invoice_no, paid_at.
-- **subscription_history**: id, subscription_id FK, event, details JSON, created_at.
+### subscription_plans + subscription_features + subscription_plan_features + subscriptions + subscription_invoices + subscription_history
 
-### ad_packages + ad_placements + ad_events
-- **ad_packages**: id, name, placement_type, price, duration, description.
-- **ad_placements**: id, property_id FK, owner_id FK, package_id FK, starts_at, ends_at, status, amount.
-- **ad_events**: id, placement_id FK, event_type ENUM(impression,click,enquiry,application), created_at.
+- **subscription_plans (IMPLEMENTED, Wave 4 — config-driven)**: id, name, code VARCHAR nullable, description nullable, price DECIMAL(12,2), currency VARCHAR(3) default base-currency config, billing_frequency VARCHAR(20) default `monthly` (one_time/daily/weekly/monthly/quarterly/semi_annual/annual/custom), billing_interval SMALLINT default 1, trial_days SMALLINT default 0, grace_days SMALLINT nullable (null → `subscriptions.grace_period_days` config), listing_limit SMALLINT nullable (null = unlimited), featured_slots SMALLINT default 0, status VARCHAR(20) default `active` (active/archived), start_date/end_date nullable timestamps (sale window), timestamps. (Support tier + analytics boolean replaced by Feature-Catalogue grants.)
+- **subscription_features (IMPLEMENTED, Wave 4)**: id, code VARCHAR(40) unique (PROPERTY_LISTING, PROPERTY_ANALYTICS, ADVANCED_SEARCH, TENANT_MESSAGING, VIEWING_MANAGEMENT, APPLICATION_MANAGEMENT, RENT_COLLECTION, MAINTENANCE, FINANCIAL_REPORTS, FEATURED_LISTINGS, MULTIPLE_USERS, MULTIPLE_BRANCHES, API_ACCESS, DEDICATED_SUPPORT), label, description nullable, status, timestamps.
+- **subscription_plan_features (IMPLEMENTED, Wave 4)**: id, plan_id FK (cascade), feature_id FK (cascade), unique (plan_id, feature_id).
+- **subscriptions (IMPLEMENTED, Wave 4)**: id, owner_id FK (auth_users, cascade), plan_id FK (restrict), status VARCHAR(20) default `active` (active/grace/suspended/cancelled), starts_at timestamp, ends_at timestamp nullable (cycle end), cycle VARCHAR(20) (billing_frequency snapshot), details JSON nullable (pending_downgrade_to, pending_upgrade_to, grace_until), timestamps; index (owner_id, status). `pending_upgrade_to` carries an `apply_at_renewal` upgrade to be settled by `SubscriptionService::applyCycleEnd`. Note the `billing_cycle` column on subscription_plans (Wave 3 sandbox-era snapshot) coexists with `billing_frequency`/`billing_interval` planned for M9; the seeded plans and `ensureFor`/`startFreshSubscription` write `billing_cycle`.
+- **subscription_invoices (IMPLEMENTED, Wave 4)**: id, subscription_id FK (cascade), amount DECIMAL(12,2), status VARCHAR(20) default `pending` (pending/paid/cancelled/refunded), invoice_no VARCHAR unique (numbering from `numbering.*` config), receipt_no VARCHAR unique nullable, paid_at timestamp nullable, details JSON nullable, timestamps; index (status).
+- **subscription_history (IMPLEMENTED, Wave 4)**: id, subscription_id FK (cascade), event VARCHAR (subscribed/renewed/upgraded/downgraded/switched/grace_period/suspended/cancelled), details JSON nullable, created_at timestamp; index (subscription_id, created_at). Single table name (no plural) — model pins `$table = 'subscription_history'`.
+
+### system_configurations + configuration_audits (Module 24 — Configuration Engine)
+
+- **system_configurations**: id, group_name VARCHAR(50) indexed, key VARCHAR(100) unique (`group.key`), type VARCHAR(20) (string/integer/boolean/decimal/json), value TEXT nullable, label VARCHAR, description nullable, risk VARCHAR(20) default `low` (low/medium/high/critical), is_editable BOOLEAN default true, status VARCHAR(20) default `active`, timestamps.
+- **configuration_audits**: id, configuration_id FK nullable (nullOnDelete — keep history when a key is removed), key VARCHAR(100), old_value TEXT nullable, new_value TEXT nullable, changed_by FK nullable (auth_users, nullOnDelete), reason VARCHAR nullable, approved_by FK nullable, effective_from timestamp nullable, created_at. **Every change writes a row (old/new/by/at/why/approval).**
+
+Escaping the `group` column name (a SQL keyword in some SQLite versions) is handled by naming the column `group_name`. All commercial values (grace, proration mode, suspension behaviour, numbering prefixes/padding, cycle-day map, renewal reminders, over-limit copy, payment/POP/approval, late fees, featured pricing) live here and are read via `ConfigurationService` — never hard-coded.
+
+### ad_packages + ad_placements + ad_events (Module 13 — Featured ads, Wave 4 slice 6)
+- **ad_packages (IMPLEMENTED, Wave 4 slice 6)**: id, code VARCHAR(40) unique, name VARCHAR(100), placement_type ENUM(featured,top,homepage,premium_badge) default `featured`, price DECIMAL(12,2), duration_days SMALLINT UNSIGNED default 30, description VARCHAR(255) nullable, is_active BOOLEAN default true, timestamps.
+- **ad_placements (IMPLEMENTED, Wave 4 slice 6)**: id, property_id FK → properties (cascade), owner_id FK → auth_users (cascade), package_id FK nullable → ad_packages (nullOnDelete), amount DECIMAL(12,2) (price snapshot), starts_at/ends_at/paused_at/paid_at nullable timestamps, status ENUM(reserved,active,paused,expired,cancelled) default `reserved`, credit_amount DECIMAL(12,2) default 0.00 (prorated refund on cancel), admin_note VARCHAR(500) nullable, timestamps; indexes (property_id), (owner_id), (status), (status, ends_at). State machine: reserved→active→expired/cancelled; `paused` freezes the window (resume extends `ends_at`).
+- **ad_events (IMPLEMENTED, Wave 4 slice 6)**: id, placement_id FK → ad_placements (cascade), event_type ENUM(impression,click,enquiry,application), created_at (useCurrent, no updated_at); indexes (placement_id), (placement_id, event_type). Attribution stats only — no personal data (NFR-03).
 
 ### verification_cases + verification_documents
 - **verification_cases**: id, subject_type ENUM(owner,property,listing), subject_id, owner_id FK, status ENUM(unverified,pending,verified,revoked), submitted_at, reviewed_by FK, decision_at, decision_note.

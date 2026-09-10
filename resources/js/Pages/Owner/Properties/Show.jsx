@@ -12,6 +12,8 @@ import {
     Pencil,
     Trash2,
     FileText,
+    ChevronLeft,
+    ChevronRight,
 } from 'lucide-react';
 import MainLayout from '@/Layouts/MainLayout';
 import StatusBadge from '@/Components/Shared/StatusBadge';
@@ -47,7 +49,7 @@ const formatPrice = (value) => '$' + Number(value).toLocaleString();
 
 const formatArea = (value, unit = 'm²') => (value ? `${Number(value).toLocaleString()} ${unit}` : null);
 
-export default function PropertyShow({ auth, property }) {
+export default function PropertyShow({ auth, property, navigation = {} }) {
     const changeStatus = (target) => {
         router.put(route('owner.properties.status', property.id), { status: target }, {
             preserveScroll: true,
@@ -70,10 +72,41 @@ export default function PropertyShow({ auth, property }) {
         <MainLayout title={property.title} auth={auth}>
             <Head title={property.title} />
 
-            <div className="mb-6">
-                <Link href={route('owner.properties.index')} className="mb-2 inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:text-primary/80">
+            <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+                <Link href={route('owner.properties.index')} className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:text-primary/80">
                     <ArrowLeft className="h-4 w-4" /> Back to My Properties
                 </Link>
+
+                {navigation && (
+                    <div className="flex items-center gap-2">
+                        {navigation.prev ? (
+                            <Link
+                                href={route('owner.properties.show', navigation.prev)}
+                                preserveScroll
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-bold text-foreground shadow-sm transition-colors hover:border-primary/40 hover:text-primary"
+                            >
+                                <ChevronLeft className="h-3.5 w-3.5" /> Previous
+                            </Link>
+                        ) : (
+                            <span className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-muted-foreground opacity-50">
+                                <ChevronLeft className="h-3.5 w-3.5" /> Previous
+                            </span>
+                        )}
+                        {navigation.next ? (
+                            <Link
+                                href={route('owner.properties.show', navigation.next)}
+                                preserveScroll
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-bold text-foreground shadow-sm transition-colors hover:border-primary/40 hover:text-primary"
+                            >
+                                Next <ChevronRight className="h-3.5 w-3.5" />
+                            </Link>
+                        ) : (
+                            <span className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-muted-foreground opacity-50">
+                                Next <ChevronRight className="h-3.5 w-3.5" />
+                            </span>
+                        )}
+                    </div>
+                )}
             </div>
 
             <div className="mb-6 grid gap-4 lg:grid-cols-[1.4fr_1fr]">

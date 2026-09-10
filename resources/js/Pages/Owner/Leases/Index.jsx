@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
-import { FileSignature, MapPin, UserRound, CalendarDays, Coins, BadgeCheck, ArrowRight, CheckCircle2, Send, RefreshCw, CalendarPlus } from 'lucide-react';
+import { FileSignature, MapPin, UserRound, CalendarDays, Coins, BadgeCheck, ArrowRight, CheckCircle2, Send, RefreshCw, CalendarPlus, FileText } from 'lucide-react';
 import MainLayout from '@/Layouts/MainLayout';
 import PropertyArt from '@/Components/Shared/PropertyArt';
 import StatusBadge from '@/Components/Shared/StatusBadge';
@@ -154,6 +154,24 @@ export default function OwnerLeasesIndex({ leases = [] }) {
                                             {lease.status === 'sent' && (ownerSigned ? 'You signed — awaiting the tenant' : 'Awaiting your signature')}
                                             {lease.status === 'active' && 'Both parties signed — tenant moved in to an occupied property'}
                                         </span>
+                                    </div>
+                                )}
+
+                                {lease.document && (
+                                    <div className="flex flex-wrap items-center gap-2.5 border-t border-border bg-muted/30 px-5 py-2.5">
+                                        <Link
+                                            href={route('documents.show', lease.document.id)}
+                                            className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:text-primary/80"
+                                        >
+                                            <FileText className="h-3.5 w-3.5" /> View agreement
+                                        </Link>
+                                        <a
+                                            href={route('documents.download', lease.document.id)}
+                                            className="inline-flex items-center gap-1.5 text-xs font-bold text-muted-foreground hover:text-foreground"
+                                        >
+                                            Download
+                                        </a>
+                                        <span className="ml-auto text-xs font-medium text-muted-foreground">Agreement v{lease.document.version} stored</span>
                                     </div>
                                 )}
 

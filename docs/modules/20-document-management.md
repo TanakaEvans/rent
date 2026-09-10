@@ -1,6 +1,8 @@
 # Module 20 - Document Management
 
 > Phase: Phase 2 | Primary actors: Owner (uploader), Tenant (uploader), Admin (registry & retention)
+>
+> **M20-lite (Wave 3 slice 5 — DONE):** the full binary repository is deferred, but the lease-agreement document slice landed with Wave 3. A `documents` table exists (`2026_09_09_000015`) and the signed lease agreement is auto-stored as a plain-text snapshot on lease activation (`DocumentService::storeLeaseAgreement`) with a version counter (single row, re-store bumps version in place; full `document_versions` history table deferred). Owner + tenant portals list their documents and both parties (and admins) can view/download via `documents.show` / `documents.download`; strangers get a 404, not a 403. Binary/pdf uploads, retention, pre-signed links and the version history table ship with the full M20 module (further waves).
 
 ## 1. Purpose
 

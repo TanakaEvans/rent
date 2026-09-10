@@ -7,6 +7,8 @@ use App\Models\Lease;
 use App\Models\RentalApplication;
 use App\Models\Role;
 use App\Models\User;
+use App\Models\Document;
+use App\Services\DocumentService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Notifications\DatabaseNotification;
@@ -970,5 +972,173 @@ class CommitTest extends TestCase
         $leases = $response->inertiaProps('leases');
         $renewalEntry = collect($leases)->first(fn ($entry) => $entry['lease_no'] === 'LSE-2026-9901');
         $this->assertSame('LSE-2026-9900', $renewalEntry['renewed_from']['lease_no']);
+    }
+
+    private function activateLease(Property $property, ?User $tenant = null, ?string $leaseNo = null, ?User $signAsOwner = null, ?string $ownerPayload = 'O. Dzimba'): Lease
+    {
+        $lease = $this->makeLease($property, $tenant, 'sent');
+        if ($leaseNo) {
+            $lease->update(['lease_no' => $leaseNo]);
+        }
+
+        $this->actingAs($signAsOwner ?? $this->owner())->post('/owner/leases/'.$lease->id.'/sign', ['signature' => $ownerPayload])->assertRedirect();
+        $this->actingAs(($tenant ?? $this->tenant()))->post('/tenant/leases/'.$lease->id.'/sign', ['signature' => 'T. Gwese'])->assertRedirect();
+
+        return $lease->fresh();
+    }
+
+    public function test_both_signatures_store_an_agreement_document(): void
+    {
+        Notification::fake();
+        $property = $this->makeProperty(null, 'reserved');
+        $lease = $this->activateLease($property, null, 'LSE-2026-8101');
+
+        $document = Document::where('lease_id', $lease->id)->latest('version')->first();
+        $this->assertNotNull($document);
+        $this->assertSame('lease_agreement', $document->type);
+        $this->assertSame('text/plain', $document->mime);
+        $this->assertSame(1, $document->version);
+        $this->assertSame('Lease Agreement LSE-2026-8101', $document->name);
+        $this->assertStringContainsString('DZIMBA LEASE AGREEMENT', $document->content);
+        $this->assertStringContainsString('LSE-2026-8101', $document->content);
+        $this->assertStringContainsString('O. Dzimba', $document->content);
+        $this->assertStringContainsString('T. Gwese', $document->content);
+        $this->assertSame(strlen($document->content), $document->size);
+    }
+
+    public function test_signing_a_renewal_stores_its_own_agreement(): void
+    {
+        $property = $this->makeProperty(null, 'occupied');
+        $lease = $this->makeLease($property, null, 'active');
+        $lease->update(['end_date' => now()->addDays(30)->toDateString()]);
+
+        $this->actingAs($this->owner())->post('/owner/leases/'.$lease->id.'/renew', [])->assertRedirect();
+        $renewal = Lease::where('renewed_from_id', $lease->id)->first();
+        $this->assertSame('draft', $renewal->status);
+
+        $this->actingAs($this->owner())->post('/owner/leases/'.$renewal->id.'/send', [])->assertRedirect();
+        $this->actingAs($this->owner())->post('/owner/leases/'.$renewal->id.'/sign', [])->assertRedirect();
+        $this->actingAs($this->tenant())->post('/tenant/leases/'.$renewal->id.'/sign', [])->assertRedirect();
+
+        $document = Document::where('lease_id', $renewal->id)->latest('version')->first();
+        $this->assertNotNull($document);
+        $this->assertSame(1, $document->version);
+        $this->assertStringContainsString($renewal->fresh()->lease_no, $document->content);
+        $this->assertStringContainsString('ACTIVE', strtoupper($document->content));
+    }
+
+    public function test_owner_and_tenant_can_view_their_agreement(): void
+    {
+        Notification::fake();
+        $property = $this->makeProperty(null, 'reserved');
+        $lease = $this->activateLease($property);
+        $document = $lease->document;
+
+        $this->actingAs($this->owner())
+            ->get('/documents/'.$document->id)
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->component('Documents/Show')->where('document.content', $document->content));
+
+        $this->actingAs($this->tenant())
+            ->get('/documents/'.$document->id)
+            ->assertOk();
+    }
+
+    public function test_tenant_can_download_their_agreement(): void
+    {
+        Notification::fake();
+        $property = $this->makeProperty(null, 'reserved');
+        $lease = $this->activateLease($property);
+        $document = $lease->document;
+
+        $this->actingAs($this->tenant())
+            ->get('/documents/'.$document->id.'/download')
+            ->assertOk()
+            ->assertHeader('Content-Type', 'text/plain; charset=utf-8')
+            ->assertHeader('Content-Disposition', 'attachment; filename="'.strtolower($lease->lease_no).'-agreement-v1.txt"')
+            ->assertSeeText('DZIMBA LEASE AGREEMENT');
+    }
+
+    public function test_other_tenants_and_owners_get_a_404_on_a_document(): void
+    {
+        Notification::fake();
+        $property = $this->makeProperty(null, 'reserved');
+        $lease = $this->activateLease($property);
+        $document = $lease->document;
+
+        $this->actingAs($this->newTenant())->get('/documents/'.$document->id)->assertNotFound();
+        $this->actingAs($this->newOwner())->get('/documents/'.$document->id)->assertNotFound();
+        $this->actingAs($this->newOwner())->get('/documents/'.$document->id.'/download')->assertNotFound();
+    }
+
+    public function test_admin_can_view_any_document(): void
+    {
+        Notification::fake();
+        $property = $this->makeProperty(null, 'reserved');
+        $lease = $this->activateLease($property);
+        $document = $lease->document;
+
+        $admin = User::where('username', 'admin')->first();
+        $this->actingAs($admin)->get('/documents/'.$document->id)->assertOk();
+        $this->actingAs($admin)->get('/documents/'.$document->id.'/download')->assertOk();
+    }
+
+    public function test_owner_document_index_is_scoped_to_their_properties(): void
+    {
+        Notification::fake();
+        $secondOwner = $this->newOwner();
+        $secondTenant = $this->newTenant();
+        $this->activateLease($this->makeProperty(null, 'reserved'));
+        $theirs = $this->activateLease($this->makeProperty($secondOwner, 'reserved'), $secondTenant, null, $secondOwner, 'O. Second');
+
+        $this->actingAs($this->owner())
+            ->get('/owner/documents')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->component('Owner/Documents/Index')->has('documents', 1));
+
+        $this->actingAs($secondOwner)
+            ->get('/owner/documents')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->component('Owner/Documents/Index')->where('documents.0.lease.lease_no', $theirs->lease_no));
+    }
+
+    public function test_tenant_document_index_is_scoped_to_their_leases(): void
+    {
+        Notification::fake();
+        $this->activateLease($this->makeProperty(null, 'reserved'));
+        $this->activateLease($this->makeProperty(null, 'reserved'), null);
+
+        $this->actingAs($this->tenant())
+            ->get('/tenant/documents')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->component('Tenant/Documents')->has('documents', 2));
+
+        $this->actingAs($this->newTenant())
+            ->get('/tenant/documents')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->component('Tenant/Documents')->has('documents', 0));
+    }
+
+    public function test_re_storing_an_agreement_bumps_the_version(): void
+    {
+        Notification::fake();
+        $property = $this->makeProperty(null, 'reserved');
+        $lease = $this->activateLease($property);
+
+        app(DocumentService::class)->storeLeaseAgreement($lease);
+        app(DocumentService::class)->storeLeaseAgreement($lease);
+
+        $document = Document::where('lease_id', $lease->id)->latest('version')->first();
+        $this->assertSame(3, $document->version);
+        $this->assertDatabaseCount('documents', 1);
+        $this->assertSame(strlen($document->content), $document->size);
+    }
+
+    public function test_guests_are_redirected_to_login_for_document_routes(): void
+    {
+        $this->get('/owner/documents')->assertRedirect(route('login'));
+        $this->get('/tenant/documents')->assertRedirect(route('login'));
+        $this->get('/documents/1')->assertRedirect(route('login'));
+        $this->get('/documents/1/download')->assertRedirect(route('login'));
     }
 }

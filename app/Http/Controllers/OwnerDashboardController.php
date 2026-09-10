@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Enquiry;
 use App\Models\Property;
 use App\Models\ViewingRequest;
+use App\Services\FinancialSummaryService;
+use App\Services\SubscriptionService;
 use Inertia\Inertia;
 
 class OwnerDashboardController extends Controller
@@ -12,7 +14,7 @@ class OwnerDashboardController extends Controller
     /**
      * Show the property owner dashboard.
      */
-    public function index()
+    public function index(SubscriptionService $subscriptions, FinancialSummaryService $financial)
     {
         $user = auth()->user();
 
@@ -21,13 +23,6 @@ class OwnerDashboardController extends Controller
             ->latest()
             ->get();
 
-        $rentDue = 0;
-        foreach ($properties as $property) {
-            if ($property->status === 'occupied' && $property->price) {
-                $rentDue += (float) $property->price;
-            }
-        }
-
         $openEnquiries = Enquiry::whereHas('property', fn ($q) => $q->where('owner_id', $user->id))
             ->where('status', '!=', 'closed')
             ->count();
@@ -35,6 +30,9 @@ class OwnerDashboardController extends Controller
         $pendingViewings = ViewingRequest::whereHas('property', fn ($q) => $q->where('owner_id', $user->id))
             ->whereNotIn('status', ['declined', 'completed', 'cancelled', 'no-show'])
             ->count();
+
+        $current = $subscriptions->ensureFor($user);
+        $finances = $financial->ownerIndex($user);
 
         return Inertia::render('Owner/Dashboard', [
             'stats' => [
@@ -45,7 +43,19 @@ class OwnerDashboardController extends Controller
                 'applications' => $properties->sum('applications_count'),
                 'enquiries' => $openEnquiries,
                 'viewings' => $pendingViewings,
-                'rent_due' => $rentDue,
+                'rent_due' => $finances['outstanding_total'],
+                'monthly_income' => $finances['monthly_income'],
+                'occupancy_rate' => $finances['occupancy_rate'],
+            ],
+            'financial' => $finances,
+            'subscription' => [
+                'plan_name' => $current->plan?->name,
+                'price' => $current->plan?->price,
+                'billing_cycle' => $current->cycle,
+                'status' => $current->status,
+                'ends_at' => $current->ends_at?->toDateString(),
+                'usage' => $subscriptions->publishedCount($user),
+                'limit' => $subscriptions->effectiveLimit($user),
             ],
             'properties' => $properties,
         ]);

@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7cc4e8"/><stop offset="1" stop-color="#dff1fb"/>
+    </linearGradient>
+    <linearGradient id="wall" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f2c59b"/><stop offset="1" stop-color="#d9a06a"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#sky)"/>
+  <circle cx="665" cy="105" r="48" fill="#ffe08a"/>
+  <ellipse cx="400" cy="560" rx="430" ry="120" fill="#9dc57f"/>
+  <path d="M240 480 L400 300 L560 480 Z" fill="#8a5a3b"/>
+  <rect x="270" y="330" width="260" height="190" rx="6" fill="url(#wall)"/>
+  <rect x="248" y="340" width="22" height="74" fill="#7a4c30"/>
+  <path d="M285 470 V390 H400 V470" fill="none" stroke="#7a4c30" stroke-width="6"/>
+  <rect x="310" y="365" width="46" height="44" rx="3" fill="#bae1f0" stroke="#7a4c30" stroke-width="3"/>
+  <rect x="370" y="365" width="46" height="44" rx="3" fill="#bae1f0" stroke="#7a4c30" stroke-width="3"/>
+  <rect x="430" y="365" width="46" height="44" rx="3" fill="#bae1f0" stroke="#7a4c30" stroke-width="3"/>
+  <rect x="440" y="430" width="52" height="74" rx="3" fill="#7a4c30"/>
+  <rect x="452" y="455" width="28" height="34" rx="2" fill="#c8e6c9"/>
+  <circle cx="150" cy="430" r="46" fill="#5e8f4e"/>
+  <circle cx="665" cy="440" r="54" fill="#5e8f4e"/>
+  <circle cx="210" cy="452" r="28" fill="#6da05b"/>
+  <path d="M430 460 h120 v30 h-120 Z" fill="#6a4a32"/>
+</svg>

@@ -12,6 +12,10 @@ use Illuminate\Validation\ValidationException;
 
 class ApplicationService
 {
+    public function __construct(private readonly AdPlacementService $advertisements)
+    {
+    }
+
     /**
      * Statuses that count as an active (open) application for deduplication.
      */
@@ -39,6 +43,7 @@ class ApplicationService
             'status' => 'pending',
         ]);
 
+        $this->advertisements->trackForProperty($property, 'application');
         $property->owner->notify(new NewApplicationNotification($application));
 
         return $application;

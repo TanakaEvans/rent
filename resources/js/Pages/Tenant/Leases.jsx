@@ -42,12 +42,12 @@ export default function TenantLeases({ leases = [] }) {
                             <section key={lease.id} className="surface overflow-hidden">
                                 <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-muted/30 px-5 py-3.5">
                                     <div className="flex items-center gap-3">
-                                        <Link href={route('marketplace.show', lease.property?.id)} className="h-11 w-14 shrink-0 overflow-hidden rounded-lg">
+                                        <Link href={route('property.show', lease.property?.id)} className="h-11 w-14 shrink-0 overflow-hidden rounded-lg">
                                             <PropertyArt property={lease.property} />
                                         </Link>
                                         <div className="min-w-0">
                                             <p className="font-mono text-sm font-extrabold tracking-tight text-foreground">{lease.lease_no}</p>
-                                            <Link href={route('marketplace.show', lease.property?.id)} className="inline-flex items-center gap-1 truncate text-sm font-bold text-foreground hover:text-primary">
+                                            <Link href={route('property.show', lease.property?.id)} className="inline-flex items-center gap-1 truncate text-sm font-bold text-foreground hover:text-primary">
                                                 {lease.property?.title} <ArrowUpRight className="h-3.5 w-3.5" />
                                             </Link>
                                         </div>
@@ -131,6 +131,24 @@ export default function TenantLeases({ leases = [] }) {
                                     </div>
                                 )}
 
+                                {lease.document && (
+                                    <div className="flex flex-wrap items-center gap-2.5 border-t border-border bg-muted/30 px-5 py-2.5">
+                                        <Link
+                                            href={route('documents.show', lease.document.id)}
+                                            className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:text-primary/80"
+                                        >
+                                            <FileText className="h-3.5 w-3.5" /> View agreement
+                                        </Link>
+                                        <a
+                                            href={route('documents.download', lease.document.id)}
+                                            className="inline-flex items-center gap-1.5 text-xs font-bold text-muted-foreground hover:text-foreground"
+                                        >
+                                            Download
+                                        </a>
+                                        <span className="ml-auto text-xs font-medium text-muted-foreground">Agreement v{lease.document.version} stored</span>
+                                    </div>
+                                )}
+
                                 <div className="border-t border-border bg-muted/30 px-5 py-3.5">
                                     {lease.status === 'draft' && (
                                         <p className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
@@ -144,9 +162,14 @@ export default function TenantLeases({ leases = [] }) {
                                         </div>
                                     )}
                                     {lease.status === 'active' && (
-                                        <p className="flex items-center gap-1.5 text-sm font-medium text-emerald-700">
-                                            <CheckCircle2 className="h-4 w-4" /> Lease active — rent schedules and payments arrive in a later phase.
-                                        </p>
+                                        <div className="flex flex-wrap items-center gap-2.5">
+                                            <p className="flex items-center gap-1.5 text-sm font-medium text-emerald-700">
+                                                <CheckCircle2 className="h-4 w-4" /> Lease active — rent is invoiced monthly.
+                                            </p>
+                                            <Link href={route('tenant.rent.index')} className="inline-flex items-center gap-1 text-xs font-bold text-primary hover:text-primary/80">
+                                                View rent invoices <ArrowUpRight className="h-3.5 w-3.5" />
+                                            </Link>
+                                        </div>
                                     )}
                                     {lease.status === 'renewed' && (
                                         <p className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground">

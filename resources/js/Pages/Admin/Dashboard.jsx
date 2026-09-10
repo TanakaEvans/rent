@@ -5,19 +5,19 @@ import StatCard from '@/Components/Shared/StatCard';
 
 export default function AdminDashboard({ stats = {} }) {
     const marketplaceCards = [
-        { key: 'total_properties', label: 'Total Properties', value: stats.total_properties ?? 0, icon: Home, tone: 'emerald' },
-        { key: 'listed_properties', label: 'Live Listings', value: stats.listed_properties ?? 0, icon: KeyRound, tone: 'teal' },
-        { key: 'verified_properties', label: 'Verified Properties', value: stats.verified_properties ?? 0, icon: BadgeCheck, tone: 'sky' },
+        { key: 'total_properties', label: 'Total Properties', value: stats.total_properties ?? 0, icon: Home, tone: 'emerald', routeName: 'home' },
+        { key: 'listed_properties', label: 'Live Listings', value: stats.listed_properties ?? 0, icon: KeyRound, tone: 'teal', routeName: 'home' },
+        { key: 'verified_properties', label: 'Verified Properties', value: stats.verified_properties ?? 0, icon: BadgeCheck, tone: 'sky', routeName: 'home' },
         { key: 'total_applications', label: 'Applications', value: stats.total_applications ?? 0, icon: FileText, tone: 'violet' },
     ];
 
     const platformCards = [
-        { key: 'total_users', label: 'Total Users', value: stats.total_users ?? 0, icon: Users, tone: 'indigo' },
-        { key: 'active_users', label: 'Active Users', value: stats.active_users ?? 0, icon: UserCheck, tone: 'emerald' },
-        { key: 'total_roles', label: 'User Roles', value: stats.total_roles ?? 0, icon: ShieldCheck, tone: 'amber' },
-        { key: 'total_employees', label: 'Employees', value: stats.total_employees ?? 0, icon: Briefcase, tone: 'rose' },
-        { key: 'total_branches', label: 'Branches', value: stats.total_branches ?? 0, icon: Building2, tone: 'teal' },
-        { key: 'total_departments', label: 'Departments', value: stats.total_departments ?? 0, icon: Network, tone: 'sky' },
+        { key: 'total_users', label: 'Total Users', value: stats.total_users ?? 0, icon: Users, tone: 'indigo', routeName: 'auth.users.index' },
+        { key: 'active_users', label: 'Active Users', value: stats.active_users ?? 0, icon: UserCheck, tone: 'emerald', routeName: 'auth.users.index' },
+        { key: 'total_roles', label: 'User Roles', value: stats.total_roles ?? 0, icon: ShieldCheck, tone: 'amber', routeName: 'auth.roles.index' },
+        { key: 'total_employees', label: 'Employees', value: stats.total_employees ?? 0, icon: Briefcase, tone: 'rose', routeName: 'admin.employees.index' },
+        { key: 'total_branches', label: 'Branches', value: stats.total_branches ?? 0, icon: Building2, tone: 'teal', routeName: 'admin.branches.index' },
+        { key: 'total_departments', label: 'Departments', value: stats.total_departments ?? 0, icon: Network, tone: 'sky', routeName: 'admin.departments.index' },
     ];
 
     return (

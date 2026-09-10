@@ -223,6 +223,7 @@ class LeaseService
             'signatures.user:id,name',
             'renewedFrom:id,lease_no,status',
             'renewals:id,lease_no,status',
+            'document:id,lease_id,name,type,version',
         ])->whereHas('property', fn ($query) => $query->where('owner_id', $owner->id))
             ->latest()
             ->get();
@@ -239,6 +240,7 @@ class LeaseService
             'signatures.user:id,name',
             'renewedFrom:id,lease_no,status',
             'renewals:id,lease_no,status',
+            'document:id,lease_id,name,type,version',
         ])->where('tenant_id', $tenant->id)
             ->latest()
             ->get();
@@ -322,6 +324,10 @@ class LeaseService
                         ]);
                     }
                 }
+
+                app(DocumentService::class)->storeLeaseAgreement($lease);
+
+                app(RentService::class)->generateFor($lease);
 
                 $counterpart = $user->id === $lease->property->owner_id ? $lease->tenant : $lease->property->owner;
                 $counterpart->notify(new LeaseSignedNotification($lease->fresh(['property'])));

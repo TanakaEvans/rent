@@ -138,6 +138,31 @@ class Lease extends Model
     }
 
     /**
+     * The stored agreement document for this lease (M20-lite). A lease keeps a
+     * single row whose version bumps on re-store.
+     */
+    public function document()
+    {
+        return $this->hasOne(Document::class);
+    }
+
+    /**
+     * The generated rent schedule for this lease (Wave 4, M9).
+     */
+    public function rentSchedule()
+    {
+        return $this->hasOne(RentSchedule::class);
+    }
+
+    /**
+     * The rent invoices raised against this lease (Wave 4, M9).
+     */
+    public function rentInvoices()
+    {
+        return $this->hasMany(RentInvoice::class);
+    }
+
+    /**
      * Append an audit entry to the lease trail.
      */
     public function recordHistory(string $action, ?User $performer, ?array $details = []): void

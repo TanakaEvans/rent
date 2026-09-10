@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600">
+  <defs>
+    <linearGradient id="sky3" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7fb9db"/><stop offset="1" stop-color="#e4f2fa"/>
+    </linearGradient>
+    <linearGradient id="brick" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e5b583"/><stop offset="1" stop-color="#c8905c"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#sky3)"/>
+  <ellipse cx="400" cy="565" rx="430" ry="115" fill="#b3d99b"/>
+  <rect x="120" y="240" width="560" height="300" rx="6" fill="url(#brick)"/>
+  <path d="M120 290 L400 190 L680 290 Z" fill="#7a4c30"/>
+  <path d="M196 240 L196 210 H264 V240" fill="#7a4c30"/>
+  <path d="M536 240 L536 210 H604 V240" fill="#7a4c30"/>
+  <rect x="150" y="310" width="52" height="44" rx="3" fill="#b7e2f2" stroke="#91623a" stroke-width="3"/>
+  <rect x="244" y="310" width="52" height="44" rx="3" fill="#b7e2f2" stroke="#91623a" stroke-width="3"/>
+  <rect x="338" y="310" width="52" height="44" rx="3" fill="#b7e2f2" stroke="#91623a" stroke-width="3"/>
+  <rect x="432" y="310" width="52" height="44" rx="3" fill="#b7e2f2" stroke="#91623a" stroke-width="3"/>
+  <rect x="526" y="310" width="52" height="44" rx="3" fill="#b7e2f2" stroke="#91623a" stroke-width="3"/>
+  <rect x="150" y="400" width="52" height="44" rx="3" fill="#b7e2f2" stroke="#91623a" stroke-width="3"/>
+  <rect x="244" y="400" width="52" height="44" rx="3" fill="#b7e2f2" stroke="#91623a" stroke-width="3"/>
+  <rect x="338" y="400" width="52" height="44" rx="3" fill="#b7e2f2" stroke="#91623a" stroke-width="3"/>
+  <rect x="432" y="400" width="52" height="44" rx="3" fill="#b7e2f2" stroke="#91623a" stroke-width="3"/>
+  <rect x="526" y="400" width="52" height="44" rx="3" fill="#b7e2f2" stroke="#91623a" stroke-width="3"/>
+  <circle cx="90" cy="420" r="40" fill="#5e8f4e"/>
+  <circle cx="330" cy="150" r="20" fill="#ffe08a"/>
+  <path d="M330 470 h140 v70 h-140 Z" fill="#6a4a32"/>
+</svg>

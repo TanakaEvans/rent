@@ -14,12 +14,18 @@ import {
     Building,
     Network,
     Blocks,
+    CreditCard,
+    Banknote,
+    Settings2,
     LogOut,
     ChevronDown,
     CheckCircle2,
     AlertCircle,
     TriangleAlert,
     X,
+    BarChart3,
+    Flag,
+    Megaphone,
 } from 'lucide-react';
 import Brand from '@/Components/Shared/Brand';
 import { cn } from '@/lib/utils';
@@ -54,6 +60,8 @@ const navSections = [
         items: [
             { label: 'Admin Dashboard', icon: LayoutDashboard, route: 'admin.dashboard', pattern: 'admin.dashboard' },
             { label: 'Marketplace', icon: Home, route: 'home', pattern: 'home' },
+            { label: 'Marketplace Analytics', icon: BarChart3, route: 'admin.marketplace.analytics', pattern: 'admin.marketplace.analytics' },
+            { label: 'Marketplace Reports', icon: Flag, route: 'admin.marketplace.reports.index', pattern: 'admin.marketplace.reports.*' },
         ],
     },
     {
@@ -80,6 +88,15 @@ const navSections = [
             { label: 'Branches', icon: Building, route: 'admin.branches.index', pattern: 'admin.branches.*' },
             { label: 'Departments', icon: Network, route: 'admin.departments.index', pattern: 'admin.departments.*' },
             { label: 'Sections', icon: Blocks, route: 'admin.sections.index', pattern: 'admin.sections.*' },
+        ],
+    },
+    {
+        label: 'Subscriptions & Billing',
+        items: [
+            { label: 'Subscription Plans', icon: CreditCard, route: 'admin.subscriptions.plans.index', pattern: 'admin.subscriptions.plans.*' },
+            { label: 'Payment Approvals', icon: Banknote, route: 'admin.rent.payments.index', pattern: 'admin.rent.payments.*' },
+            { label: 'Configuration Centre', icon: Settings2, route: 'admin.configuration.index', pattern: 'admin.configuration.*' },
+            { label: 'Ad Placements', icon: Megaphone, route: 'admin.advertising.index', pattern: 'admin.advertising.*' },
         ],
     },
 ];

@@ -44,7 +44,7 @@ class PropertyController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'title' => 'nullable|string|max:200',
+            'title' => 'required|string|max:200',
             'description' => 'nullable|string',
             'property_type' => 'required|in:house,flat,townhouse,cottage,room,commercial,land',
             'bedrooms' => 'required|integer|min:0|max:50',
@@ -75,10 +75,24 @@ class PropertyController extends Controller
      */
     public function show(int $id)
     {
-        $property = $this->properties->findOwned($id, auth()->user());
+        $owner = auth()->user();
+        $property = $this->properties->findOwned($id, $owner);
+
+        $siblings = Property::where('owner_id', $owner->id)
+            ->orderByDesc('id')
+            ->pluck('id')
+            ->all();
+
+        $position = array_search($property->id, $siblings, true);
+
+        $navigation = [
+            'prev' => $position > 0 ? $siblings[$position - 1] : null,
+            'next' => $position !== false && $position < count($siblings) - 1 ? $siblings[$position + 1] : null,
+        ];
 
         return Inertia::render('Owner/Properties/Show', [
             'property' => $property,
+            'navigation' => $navigation,
         ]);
     }
 
@@ -100,7 +114,7 @@ class PropertyController extends Controller
     public function update(Request $request, int $id)
     {
         $validated = $request->validate([
-            'title' => 'nullable|string|max:200',
+            'title' => 'required|string|max:200',
             'description' => 'nullable|string',
             'property_type' => 'required|in:house,flat,townhouse,cottage,room,commercial,land',
             'bedrooms' => 'required|integer|min:0|max:50',
@@ -149,5 +163,18 @@ class PropertyController extends Controller
 
         return redirect()->route('owner.properties.show', $property)
             ->with('success', 'Property status updated to '.Property::STATUSES[$property->status].'.');
+    }
+
+    /**
+     * Renew a listing for another validity period (Marketplace §41).
+     */
+    public function renew(Request $request, int $id)
+    {
+        $property = $this->properties->findOwned($id, $request->user());
+
+        $renewed = app(\App\Services\ListingLifecycleService::class)->renew($property, $request->user());
+
+        return redirect()->route('owner.properties.show', $renewed)
+            ->with('success', 'Listing renewed. It will stay live until '.$renewed->expires_at->format('d M Y').'.');
     }
 }

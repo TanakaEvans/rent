@@ -562,4 +562,380 @@ class ListingAndDiscoverTest extends TestCase
     {
         $this->actingAs($this->owner())->get('/tenant/favourites')->assertForbidden();
     }
+
+    public function test_marketplace_keyword_search_matches_title_suburb_and_description(): void
+    {
+        $owner = $this->owner();
+
+        $hitA = Property::create([
+            'owner_id' => $owner->id,
+            'title' => 'Serene Kamfinsa Cottage',
+            'description' => 'Quiet garden cottage near the river.',
+            'property_type' => 'cottage',
+            'bedrooms' => 1,
+            'bathrooms' => 1,
+            'price' => 350,
+            'status' => 'available',
+            'suburb' => 'Kamfinsa',
+            'city' => 'Harare',
+        ]);
+        $hitB = Property::create([
+            'owner_id' => $owner->id,
+            'title' => 'Bright office space',
+            'description' => 'Located on the tranquil Avondale river bank',
+            'property_type' => 'commercial',
+            'bedrooms' => 0,
+            'bathrooms' => 1,
+            'price' => 1200,
+            'status' => 'available',
+            'suburb' => 'Avondale',
+            'city' => 'Harare',
+        ]);
+        Property::create([
+            'owner_id' => $owner->id,
+            'title' => 'Downtown warehouse',
+            'description' => 'Industrial unit.',
+            'property_type' => 'commercial',
+            'bedrooms' => 0,
+            'bathrooms' => 0,
+            'price' => 2200,
+            'status' => 'available',
+            'suburb' => 'Willowvale',
+            'city' => 'Harare',
+        ]);
+
+        $this->get('/?q=tranquil')->assertOk()->assertInertia(fn ($page) => $page
+            ->component('Marketplace/Index')
+            ->has('properties', 1)
+            ->where('properties.0.id', $hitB->id));
+
+        $this->get('/?q=Kamfinsa')->assertOk()->assertInertia(fn ($page) => $page
+            ->component('Marketplace/Index')
+            ->has('properties', 1)
+            ->where('properties.0.id', $hitA->id));
+    }
+
+    public function test_marketplace_radius_filter_limits_results_around_a_point(): void
+    {
+        $owner = $this->owner();
+        $point = ['lat' => -17.8292, 'lng' => 31.0522];
+
+        $near = Property::create([
+            'owner_id' => $owner->id,
+            'title' => 'City centre flat',
+            'property_type' => 'flat',
+            'bedrooms' => 2,
+            'bathrooms' => 1,
+            'price' => 600,
+            'status' => 'available',
+            'suburb' => 'City Centre',
+            'city' => 'Harare',
+            'latitude' => -17.8292,
+            'longitude' => 31.0522,
+        ]);
+        $far = Property::create([
+            'owner_id' => $owner->id,
+            'title' => 'Rural homestead',
+            'property_type' => 'house',
+            'bedrooms' => 4,
+            'bathrooms' => 2,
+            'price' => 400,
+            'status' => 'available',
+            'suburb' => 'Kwe Kwe',
+            'city' => 'Gweru',
+            'latitude' => -19.45,
+            'longitude' => 29.82,
+        ]);
+
+        $this->get('/?lat='.$point['lat'].'&lng='.$point['lng'].'&radius_km=5')->assertOk();
+
+        $page = $this->get('/?lat='.$point['lat'].'&lng='.$point['lng'].'&radius_km=5')->viewData('page');
+        $ids = array_column($page['props']['properties'], 'id');
+        $this->assertContains($near->id, $ids);
+        $this->assertNotContains($far->id, $ids);
+        $this->assertSame('available', $far->fresh()->status);
+    }
+
+    public function test_marketplace_sorts_by_price_per_square_metre(): void
+    {
+        $owner = $this->owner();
+
+        Property::create([
+            'owner_id' => $owner->id,
+            'title' => 'Big but cheap per square',
+            'property_type' => 'house',
+            'bedrooms' => 4,
+            'bathrooms' => 2,
+            'price' => 800,
+            'building_size' => 200,
+            'status' => 'available',
+            'suburb' => 'UnitPrice Lane',
+            'city' => 'Harare',
+        ]);
+        Property::create([
+            'owner_id' => $owner->id,
+            'title' => 'Small but hefty per square',
+            'property_type' => 'flat',
+            'bedrooms' => 2,
+            'bathrooms' => 1,
+            'price' => 600,
+            'building_size' => 100,
+            'status' => 'available',
+            'suburb' => 'UnitPrice Lane',
+            'city' => 'Harare',
+        ]);
+
+        $this->get('/?sort=price_per_m2&sort_direction=asc&suburb=UnitPrice+Lane')->assertOk()->assertInertia(fn ($page) => $page
+            ->component('Marketplace/Index')
+            ->where('properties.0.title', 'Big but cheap per square'));
+    }
+
+    public function test_search_suggestions_return_places_and_property_titles(): void
+    {
+        $owner = $this->owner();
+        Property::create([
+            'owner_id' => $owner->id,
+            'title' => 'Sunny Hatfield Cottage',
+            'property_type' => 'cottage',
+            'bedrooms' => 2,
+            'bathrooms' => 1,
+            'price' => 420,
+            'status' => 'available',
+            'suburb' => 'Hatfield',
+            'city' => 'Harare',
+        ]);
+
+        $response = $this->get('/search/suggestions?q=Hatfield')->assertOk()->assertJson([]);
+
+        $payload = json_decode($response->getContent(), true);
+        $this->assertNotEmpty($payload);
+        $this->assertTrue(collect($payload)->contains(fn ($item) => $item['type'] === 'suburb' && $item['label'] === 'Hatfield'));
+        $this->assertTrue(collect($payload)->contains(fn ($item) => $item['type'] === 'title' && $item['label'] === 'Sunny Hatfield Cottage'));
+    }
+
+    public function test_tenant_can_create_rename_toggle_and_delete_a_saved_search(): void
+    {
+        $tenant = $this->tenant();
+
+        $this->actingAs($tenant)
+            ->post('/tenant/saved-searches', [
+                'name' => 'Harare flats',
+                'criteria' => ['city' => 'Harare', 'property_type' => 'flat'],
+                'notify' => 1,
+            ])
+            ->assertRedirect(route('tenant.saved-searches.index'));
+
+        $search = $tenant->savedSearches()->firstOrFail();
+        $this->assertTrue($search->notify);
+
+        $this->actingAs($tenant)
+            ->put('/tenant/saved-searches/'.$search->id, ['name' => 'Cheap Harare flats'])
+            ->assertRedirect(route('tenant.saved-searches.index'));
+
+        $this->assertSame('Cheap Harare flats', $search->fresh()->name);
+
+        $this->actingAs($tenant)
+            ->put('/tenant/saved-searches/'.$search->id, ['notify' => 0])
+            ->assertRedirect(route('tenant.saved-searches.index'));
+        $this->assertFalse($search->fresh()->notify);
+
+        $this->actingAs($tenant)
+            ->delete('/tenant/saved-searches/'.$search->id)
+            ->assertRedirect(route('tenant.saved-searches.index'));
+
+        $this->assertDatabaseMissing('saved_searches', ['id' => $search->id]);
+    }
+
+    public function test_saved_search_index_reports_a_live_match_count(): void
+    {
+        $tenant = $this->tenant();
+        $owner = $this->owner();
+
+        Property::create([
+            'owner_id' => $owner->id,
+            'title' => 'The Alley House',
+            'property_type' => 'house',
+            'bedrooms' => 3,
+            'bathrooms' => 2,
+            'price' => 850,
+            'status' => 'available',
+            'suburb' => 'SavedSearch Alley',
+            'city' => 'Harare',
+        ]);
+        Property::create([
+            'owner_id' => $owner->id,
+            'title' => 'The Alley Flat',
+            'property_type' => 'flat',
+            'bedrooms' => 2,
+            'bathrooms' => 1,
+            'price' => 650,
+            'status' => 'unavailable',
+            'suburb' => 'SavedSearch Alley',
+            'city' => 'Harare',
+        ]);
+
+        $this->actingAs($tenant)
+            ->post('/tenant/saved-searches', [
+                'name' => 'Alley homes',
+                'criteria' => ['suburb' => 'SavedSearch Alley'],
+                'notify' => 0,
+            ])
+            ->assertRedirect(route('tenant.saved-searches.index'));
+
+        $page = $this->actingAs($tenant)
+            ->get('/tenant/saved-searches')
+            ->assertOk()
+            ->viewData('page');
+
+        $mine = collect($page['props']['searches'])->firstWhere('name', 'Alley homes');
+        $this->assertNotNull($mine, 'Saved search should be listed on the tenant page.');
+        $this->assertSame(1, $mine['match_count'], 'Only the listed property should match.');
+    }
+
+    public function test_tenant_cannot_modify_another_tenants_saved_search(): void
+    {
+        $tenant = $this->tenant();
+        $stranger = User::factory()->create(['name' => 'Search Stranger', 'password_changed_at' => now()]);
+        $stranger->roles()->attach(\App\Models\Role::where('name', 'Tenant')->first()->id);
+
+        $search = $stranger->savedSearches()->create([
+            'name' => 'Private criteria',
+            'criteria' => ['city' => 'Mutare'],
+            'notify' => false,
+        ]);
+
+        $this->actingAs($tenant)
+            ->put('/tenant/saved-searches/'.$search->id, ['name' => 'Hi'])
+            ->assertNotFound();
+
+        $this->actingAs($tenant)
+            ->delete('/tenant/saved-searches/'.$search->id)
+            ->assertNotFound();
+
+        $this->assertDatabaseHas('saved_searches', ['id' => $search->id, 'name' => 'Private criteria']);
+    }
+
+    public function test_listing_lifecycle_expires_overdue_listings_with_history(): void
+    {
+        $owner = User::factory()->create(['name' => 'Lifecycle Owner', 'password_changed_at' => now()]);
+        $owner->roles()->attach(\App\Models\Role::where('name', 'Owner')->first()->id);
+
+        $overdue = Property::create([
+            'owner_id' => $owner->id,
+            'title' => 'Overdue listing',
+            'property_type' => 'house',
+            'bedrooms' => 3,
+            'bathrooms' => 2,
+            'price' => 700,
+            'status' => 'available',
+            'suburb' => 'Greendale',
+            'city' => 'Harare',
+            'expires_at' => now()->subDay(),
+        ]);
+
+        $this->artisan('marketplace:housekeeping')->assertSuccessful();
+
+        $this->assertSame('unavailable', $overdue->fresh()->status);
+        $this->assertDatabaseHas('property_history', [
+            'property_id' => $overdue->id,
+            'from_status' => 'available',
+            'to_status' => 'unavailable',
+            'note' => 'Listing expired',
+        ]);
+    }
+
+    public function test_expiry_reminder_notifies_owners_within_the_configured_window(): void
+    {
+        $owner = User::factory()->create(['name' => 'Reminder Owner', 'password_changed_at' => now()]);
+        $owner->roles()->attach(\App\Models\Role::where('name', 'Owner')->first()->id);
+
+        Property::create([
+            'owner_id' => $owner->id,
+            'title' => 'Due in a fortnight',
+            'property_type' => 'flat',
+            'bedrooms' => 1,
+            'bathrooms' => 1,
+            'price' => 350,
+            'status' => 'available',
+            'suburb' => 'Mabelreign',
+            'city' => 'Harare',
+            'expires_at' => now()->addDays(14),
+        ]);
+        Property::create([
+            'owner_id' => $owner->id,
+            'title' => 'Expiring far away',
+            'property_type' => 'flat',
+            'bedrooms' => 1,
+            'bathrooms' => 1,
+            'price' => 380,
+            'status' => 'available',
+            'suburb' => 'Mabelreign',
+            'city' => 'Harare',
+            'expires_at' => now()->addDays(45),
+        ]);
+
+        $this->artisan('marketplace:housekeeping')->assertSuccessful();
+
+        $types = $owner->notifications->map(fn ($n) => $n->type)->unique();
+        $this->assertTrue($types->contains(\App\Notifications\ListingExpiryReminderNotification::class));
+        $this->assertSame(1, $owner->unreadNotifications()->count());
+    }
+
+    public function test_owner_can_renew_a_recently_expired_listing(): void
+    {
+        $owner = User::factory()->create(['name' => 'Renewer', 'password_changed_at' => now()]);
+        $owner->roles()->attach(\App\Models\Role::where('name', 'Owner')->first()->id);
+
+        $expired = Property::create([
+            'owner_id' => $owner->id,
+            'title' => 'Renew me',
+            'property_type' => 'house',
+            'bedrooms' => 2,
+            'bathrooms' => 1,
+            'price' => 500,
+            'status' => 'unavailable',
+            'suburb' => 'Ridgeview',
+            'city' => 'Harare',
+            'expires_at' => now()->subDays(2),
+        ]);
+
+        $this->actingAs($owner)
+            ->post('/owner/properties/'.$expired->id.'/renew')
+            ->assertRedirect(route('owner.properties.show', $expired->id));
+
+        $fresh = $expired->fresh();
+        $this->assertSame('available', $fresh->status);
+        $this->assertTrue($fresh->expires_at->isAfter(now()));
+        $this->assertDatabaseHas('property_history', [
+            'property_id' => $expired->id,
+            'from_status' => 'unavailable',
+            'to_status' => 'available',
+            'note' => 'Listing renewed',
+        ]);
+    }
+
+    public function test_expired_listing_outside_the_grace_window_cannot_be_renewed(): void
+    {
+        $owner = User::factory()->create(['name' => 'Too Late', 'password_changed_at' => now()]);
+        $owner->roles()->attach(\App\Models\Role::where('name', 'Owner')->first()->id);
+
+        $expired = Property::create([
+            'owner_id' => $owner->id,
+            'title' => 'Lapsed long ago',
+            'property_type' => 'house',
+            'bedrooms' => 2,
+            'bathrooms' => 1,
+            'price' => 500,
+            'status' => 'unavailable',
+            'suburb' => 'Ridgeview',
+            'city' => 'Harare',
+            'expires_at' => now()->subDays(10),
+        ]);
+
+        $this->actingAs($owner)
+            ->post('/owner/properties/'.$expired->id.'/renew')
+            ->assertSessionHasErrors('status');
+
+        $this->assertSame('unavailable', $expired->fresh()->status);
+    }
 }

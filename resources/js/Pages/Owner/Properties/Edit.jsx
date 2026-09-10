@@ -81,7 +81,7 @@ export default function PropertyEdit({ auth, property }) {
                         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                             <div className="md:col-span-2">
                                 <label className="field-label">Title</label>
-                                <input type="text" className="field" placeholder="e.g. 3 Bedroom House in Borrowdale" value={data.title} onChange={(e) => setData('title', e.target.value)} />
+                                <input type="text" className="field" placeholder="e.g. 3 Bedroom House in Borrowdale" required value={data.title} onChange={(e) => setData('title', e.target.value)} />
                                 {errors.title && <p className="mt-1 text-xs font-medium text-rose-600">{errors.title}</p>}
                             </div>
 

@@ -26,6 +26,7 @@ class PropertyHistory extends Model
         'from_status',
         'to_status',
         'changed_by',
+        'note',
     ];
 
     /**

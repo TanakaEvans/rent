@@ -38,6 +38,7 @@ This folder contains the detailed requirements and design documentation for the 
 | [21 - Database Design](21-database-design.md) | Full data model, columns and relationships. |
 | [22 - System Workflow](22-system-workflow.md) | End-to-end lifecycle and pseudo workflows. |
 | [23 - Implementation Plan](23-implementation-plan.md) | Phased build plan, priorities and sequencing. |
+| [24 - System Configuration](24-system-configuration.md) | **Configuration-driven engine**: every commercial/billing rule is data, changed by staff, never code. |
 
 ## Module Map
 
@@ -83,6 +84,7 @@ Dzimba is laid out in four areas:
 | 18 Admin/System Management | **Primary user** | - | - |
 | 19 Complaints & Disputes | Resolve | Respond | Report |
 | 20 Document Management | Registry | Upload | Upload |
+| 24 System Configuration | **Primary user** (Config Centre) | - | - |
 
 ## Status Legend
 
@@ -100,6 +102,6 @@ Already present in the codebase:
 
 - `auth_users`, `auth_roles`, `auth_user_roles`, `auth_login_logs` - authentication and roles.
 - `companies`, `branches`, `departments`, `employees`, `sections`, `system_settings` - system administration.
-- `properties`, `property_favourites`, `rental_applications` - core marketplace MVP tables.
+- `properties`, `property_favourites`, `rental_applications`, `property_history`, `property_views`, `saved_searches`, `reports` - marketplace tables.
 - Roles: `Superuser`, `Admin`, `Owner`, `Tenant`, `Staff`.
-- Routes/UI: public marketplace `/`, login, `/dashboard`, `/admin/dashboard`, `/owner`, `/tenant`.
+- Routes/UI: public marketplace `/` (search + filters + map + saved searches + lifecycle + trust/reports + owner/admin analytics — the Property Marketplace batch B1-B6 is DONE, full suite 295 green), login, `/dashboard`, `/admin/dashboard`, `/owner`, `/tenant`.

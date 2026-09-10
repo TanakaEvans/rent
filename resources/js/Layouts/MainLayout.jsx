@@ -20,6 +20,13 @@ import {
     Bell,
     ClipboardCheck,
     FileSignature,
+    FolderOpen,
+    BadgeDollarSign,
+    Receipt,
+    Save,
+    Flag,
+    BarChart3,
+    Megaphone,
 } from 'lucide-react';
 import Brand from '@/Components/Shared/Brand';
 import { cn } from '@/lib/utils';
@@ -83,26 +90,86 @@ export default function MainLayout({ children, title = 'Dashboard', auth, flash,
 
     const logout = () => router.post(route('logout'));
 
-    const navItems = [];
-    if (isAdmin) navItems.push({ label: 'Admin Dashboard', icon: LayoutDashboard, route: 'admin.dashboard', pattern: 'admin.dashboard' });
-    if (isOwner) navItems.push({ label: 'Owner Dashboard', icon: LayoutDashboard, route: 'owner.dashboard', pattern: 'owner.dashboard' });
-    if (isOwner) navItems.push({ label: 'My Properties', icon: Building2, route: 'owner.properties.index', pattern: 'owner.properties.*' });
-    if (isOwner) navItems.push({ label: 'Enquiry Inbox', icon: MessageSquareText, route: 'owner.enquiries.index', pattern: 'owner.enquiries.*' });
-    if (isOwner) navItems.push({ label: 'Viewing Requests', icon: CalendarClock, route: 'owner.viewings.index', pattern: 'owner.viewings.*' });
-    if (isOwner) navItems.push({ label: 'Applications', icon: ClipboardCheck, route: 'owner.applications.index', pattern: 'owner.applications.*' });
-    if (isOwner) navItems.push({ label: 'Leases', icon: FileSignature, route: 'owner.leases.index', pattern: 'owner.leases.*' });
-    if (isTenant) navItems.push({ label: 'Tenant Dashboard', icon: LayoutDashboard, route: 'tenant.dashboard', pattern: 'tenant.dashboard' });
-    if (isTenant) navItems.push({ label: 'My Favourites', icon: Heart, route: 'tenant.favourites.index', pattern: 'tenant.favourites.*' });
-    if (isTenant) navItems.push({ label: 'My Enquiries', icon: MessageSquareText, route: 'tenant.enquiries.index', pattern: 'tenant.enquiries.*' });
-    if (isTenant) navItems.push({ label: 'My Viewings', icon: CalendarClock, route: 'tenant.viewings.index', pattern: 'tenant.viewings.*' });
-    if (isTenant) navItems.push({ label: 'My Applications', icon: ClipboardCheck, route: 'tenant.applications.index', pattern: 'tenant.applications.*' });
-    if (isTenant) navItems.push({ label: 'My Leases', icon: FileSignature, route: 'tenant.leases.index', pattern: 'tenant.leases.*' });
-    if (isAdmin) {
-        navItems.push({ label: 'System Users', icon: Users, route: 'auth.users.index', pattern: 'auth.users.*' });
-        navItems.push({ label: 'User Roles', icon: ShieldCheck, route: 'auth.roles.index', pattern: 'auth.roles.*' });
-        navItems.push({ label: 'Users with Roles', icon: ListChecks, route: 'auth.roles.users-report', pattern: 'auth.roles.users-report' });
-        navItems.push({ label: 'Auth Management', icon: KeyRound, route: 'auth.management', pattern: 'auth.management' });
+    const ownerSections = [];
+    if (isOwner) {
+        ownerSections.push(
+            {
+                label: 'Owner',
+                items: [
+                    { label: 'Owner Dashboard', icon: LayoutDashboard, route: 'owner.dashboard', pattern: 'owner.dashboard' },
+                    { label: 'My Properties', icon: Building2, route: 'owner.properties.index', pattern: 'owner.properties.*' },
+                    { label: 'Analytics', icon: BarChart3, route: 'owner.analytics.index', pattern: 'owner.analytics.*' },
+                    { label: 'Advertising', icon: Megaphone, route: 'owner.advertising.index', pattern: 'owner.advertising.*' },
+                ],
+            },
+            {
+                label: 'Tenant Activity',
+                items: [
+                    { label: 'Enquiry Inbox', icon: MessageSquareText, route: 'owner.enquiries.index', pattern: 'owner.enquiries.*' },
+                    { label: 'Viewing Requests', icon: CalendarClock, route: 'owner.viewings.index', pattern: 'owner.viewings.*' },
+                    { label: 'Applications', icon: ClipboardCheck, route: 'owner.applications.index', pattern: 'owner.applications.*' },
+                ],
+            },
+            {
+                label: 'Billing & Documents',
+                items: [
+                    { label: 'Rent & Income', icon: Receipt, route: 'owner.rent.index', pattern: 'owner.rent.*' },
+                    { label: 'Leases', icon: FileSignature, route: 'owner.leases.index', pattern: 'owner.leases.*' },
+                    { label: 'Documents', icon: FolderOpen, route: 'owner.documents.index', pattern: 'owner.documents.*' },
+                    { label: 'Plan & Billing', icon: BadgeDollarSign, route: 'owner.subscriptions.index', pattern: 'owner.subscriptions.*' },
+                ],
+            },
+        );
     }
+
+    const tenantSections = [];
+    if (isTenant) {
+        tenantSections.push(
+            {
+                label: 'Tenant',
+                items: [
+                    { label: 'Tenant Dashboard', icon: LayoutDashboard, route: 'tenant.dashboard', pattern: 'tenant.dashboard' },
+                ],
+            },
+            {
+                label: 'My Activity',
+                items: [
+                    { label: 'My Favourites', icon: Heart, route: 'tenant.favourites.index', pattern: 'tenant.favourites.*' },
+                    { label: 'Saved Searches', icon: Save, route: 'tenant.saved-searches.index', pattern: 'tenant.saved-searches.*' },
+                    { label: 'My Enquiries', icon: MessageSquareText, route: 'tenant.enquiries.index', pattern: 'tenant.enquiries.*' },
+                    { label: 'My Viewings', icon: CalendarClock, route: 'tenant.viewings.index', pattern: 'tenant.viewings.*' },
+                    { label: 'My Applications', icon: ClipboardCheck, route: 'tenant.applications.index', pattern: 'tenant.applications.*' },
+                    { label: 'My Reports', icon: Flag, route: 'tenant.reports.index', pattern: 'tenant.reports.*' },
+                ],
+            },
+            {
+                label: 'Billing & Documents',
+                items: [
+                    { label: 'My Rent', icon: Receipt, route: 'tenant.rent.index', pattern: 'tenant.rent.*' },
+                    { label: 'My Leases', icon: FileSignature, route: 'tenant.leases.index', pattern: 'tenant.leases.*' },
+                    { label: 'My Documents', icon: FolderOpen, route: 'tenant.documents.index', pattern: 'tenant.documents.*' },
+                ],
+            },
+        );
+    }
+
+    const adminSections = [];
+    if (isAdmin) {
+        adminSections.push(
+            {
+                label: 'Administration',
+                items: [
+                    { label: 'Admin Dashboard', icon: LayoutDashboard, route: 'admin.dashboard', pattern: 'admin.dashboard' },
+                    { label: 'System Users', icon: Users, route: 'auth.users.index', pattern: 'auth.users.*' },
+                    { label: 'User Roles', icon: ShieldCheck, route: 'auth.roles.index', pattern: 'auth.roles.*' },
+                    { label: 'Users with Roles', icon: ListChecks, route: 'auth.roles.users-report', pattern: 'auth.roles.users-report' },
+                    { label: 'Auth Management', icon: KeyRound, route: 'auth.management', pattern: 'auth.management' },
+                ],
+            },
+        );
+    }
+
+    const roleSections = [...adminSections, ...ownerSections, ...tenantSections];
 
     const toastStyles = {
         success: { icon: CheckCircle2, classes: 'border-emerald-200 bg-emerald-50 text-emerald-800' },
@@ -142,22 +209,26 @@ export default function MainLayout({ children, title = 'Dashboard', auth, flash,
                             </Link>
                         </div>
 
-                        {navItems.length > 0 && (
+                        {roleSections.length > 0 && (
                             <div>
-                                <div className="mb-2 px-3.5 text-[11px] font-bold uppercase tracking-[0.16em] text-sidebar-foreground/40">My Workspace</div>
-                                <div className="space-y-1">
-                                    {navItems.map((item) => {
-                                        const active = isCurrentRoute(item.pattern);
-                                        const Icon = item.icon;
-                                        return (
-                                            <Link key={item.route} href={safeRoute(item.route)} className={navLinkClass(active)}>
-                                                {activeBar(active)}
-                                                <Icon className="h-4.5 w-4.5 text-emerald-400" strokeWidth={1.9} />
-                                                {item.label}
-                                            </Link>
-                                        );
-                                    })}
-                                </div>
+                                {roleSections.map((section) => (
+                                    <div key={section.label} className="mb-6 last:mb-0">
+                                        <div className="mb-2 px-3.5 text-[11px] font-bold uppercase tracking-[0.16em] text-sidebar-foreground/40">{section.label}</div>
+                                        <div className="space-y-1">
+                                            {section.items.map((item) => {
+                                                const active = isCurrentRoute(item.pattern);
+                                                const Icon = item.icon;
+                                                return (
+                                                    <Link key={item.route} href={safeRoute(item.route)} className={navLinkClass(active)}>
+                                                        {activeBar(active)}
+                                                        <Icon className="h-4.5 w-4.5 text-emerald-400" strokeWidth={1.9} />
+                                                        {item.label}
+                                                    </Link>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
                         )}
                     </div>

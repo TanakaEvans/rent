@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600">
+  <defs>
+    <linearGradient id="sky4" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f2b8a0"/><stop offset="1" stop-color="#fbe9df"/>
+    </linearGradient>
+    <linearGradient id="cottage" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#efe0c2"/><stop offset="1" stop-color="#cdb287"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#sky4)"/>
+  <circle cx="620" cy="120" r="40" fill="#ffd97a"/>
+  <ellipse cx="400" cy="570" rx="430" ry="120" fill="#a3c98a"/>
+  <rect x="320" y="300" width="160" height="150" rx="6" fill="url(#cottage)"/>
+  <path d="M300 330 L400 215 L500 330 Z" fill="#7d5a38"/>
+  <rect x="480" y="360" width="60" height="90" fill="#eedcc0"/>
+  <rect x="385" y="355" width="36" height="34" rx="2" fill="#f7d7a8" stroke="#7d5a38" stroke-width="3"/>
+  <path d="M395 355 L405 335 L415 355 Z" fill="#7d5a38"/>
+  <rect x="345" y="410" width="34" height="40" rx="2" fill="#7d5a38"/>
+  <circle cx="180" cy="150" r="14" fill="#5e8f4e"/>
+  <circle cx="205" cy="185" r="18" fill="#6da05b"/>
+  <circle cx="520" cy="170" r="22" fill="#5e8f4e"/>
+  <path d="M240 470 q90 -40 180 0 q90 40 180 0" fill="none" stroke="#d8e0b0" stroke-width="6"/>
+  <circle cx="330" cy="332" r="26" fill="#b3d99b"/>
+</svg>

@@ -36,6 +36,9 @@ class Property extends Model
         'featured',
         'verified',
         'available_from',
+        'latitude',
+        'longitude',
+        'expires_at',
     ];
 
     /**
@@ -55,6 +58,9 @@ class Property extends Model
             'verified' => 'boolean',
             'amenities' => 'array',
             'available_from' => 'date',
+            'latitude' => 'decimal:7',
+            'longitude' => 'decimal:7',
+            'expires_at' => 'datetime',
         ];
     }
 
@@ -163,6 +169,22 @@ class Property extends Model
     public function images()
     {
         return $this->hasMany(PropertyImage::class)->orderBy('sort_order');
+    }
+
+    /**
+     * Get the marketplace views for this property.
+     */
+    public function views()
+    {
+        return $this->hasMany(PropertyView::class);
+    }
+
+    /**
+     * Get the marketplace reports raised against this property.
+     */
+    public function reports()
+    {
+        return $this->hasMany(Report::class)->where('subject_type', 'property');
     }
 
     /**

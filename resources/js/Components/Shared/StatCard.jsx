@@ -1,4 +1,5 @@
 import PropTypes from 'prop-types';
+import { Link } from '@inertiajs/react';
 import { ArrowDownRight, ArrowUpRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -13,9 +14,22 @@ const iconTones = {
     indigo: 'bg-indigo-100 text-indigo-700 ring-indigo-600/10',
 };
 
-export default function StatCard({ icon: Icon, label, value, hint, tone = 'emerald', trend }) {
+const safeRoute = (name, params = {}) => {
+    try { return route(name, params); } catch { return null; }
+};
+
+export default function StatCard({ icon: Icon, label, value, hint, tone = 'emerald', trend, href, routeName, routeParams }) {
+    const linkHref = href || (routeName ? safeRoute(routeName, routeParams) : null);
+    const Tag = linkHref ? Link : 'div';
+
     return (
-        <div className="surface group relative overflow-hidden p-5 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_16px_40px_-16px_rgba(16,60,45,0.28)]">
+        <Tag
+            {...(linkHref ? { href: linkHref } : {})}
+            className={cn(
+                'surface group relative overflow-hidden p-5 transition-all duration-300',
+                linkHref && 'hover:-translate-y-0.5 hover:shadow-[0_16px_40px_-16px_rgba(16,60,45,0.28)] cursor-pointer'
+            )}
+        >
             <span className={cn('absolute inset-x-0 top-0 h-0.5 opacity-0 transition-opacity group-hover:opacity-100 brand-gradient')} />
             <div className="flex items-start justify-between gap-3">
                 {Icon && (
@@ -40,7 +54,8 @@ export default function StatCard({ icon: Icon, label, value, hint, tone = 'emera
                 <div className="mt-0.5 text-[26px] font-extrabold leading-none tracking-tight text-foreground">{value}</div>
                 {hint && <div className="mt-1.5 text-xs text-muted-foreground/80">{hint}</div>}
             </div>
-        </div>
+            {linkHref && <span className="absolute bottom-3 right-3 text-[11px] font-bold text-primary/60 opacity-0 transition-opacity group-hover:opacity-100">View →</span>}
+        </Tag>
     );
 }
 
@@ -51,4 +66,7 @@ StatCard.propTypes = {
     hint: PropTypes.string,
     tone: PropTypes.oneOf(['emerald', 'teal', 'amber', 'rose', 'sky', 'violet', 'slate', 'indigo']),
     trend: PropTypes.shape({ value: PropTypes.node, direction: PropTypes.oneOf(['up', 'down']) }),
+    href: PropTypes.string,
+    routeName: PropTypes.string,
+    routeParams: PropTypes.object,
 };
