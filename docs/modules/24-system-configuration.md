@@ -69,6 +69,7 @@ The admin ⚙️ Configuration Centre groups every setting. Groups land in waves
 | `applications` | fee, validity_days, required_documents, max_applications, owner_approval, admin_approval, withdrawal_rules |
 | `viewings` | fee, max_requests, cancellation_window, reschedule_rules, confirmation, reminder_timing, no_show_rules |
 | `notifications` | event→channels map, per-event timing (immediately / days-before), templates (admin-editable, placeholders `{{customer_name}}`, `{{invoice_number}}`, `{{amount}}`, `{{expiry_date}}` …) |
+| `maintenance` | **request_no.padding** (5 — `MR-YYYY-NNNNN`), **categories** (JSON: plumbing/electrical/appliance/structural/pest/safety/other), **escalation_enabled** (master switch for the SLA sweep), **sla.low/medium/high/emergency** hours (168/96/48/24) |
 
 ### 3.1 Configuration data model
 
@@ -171,3 +172,5 @@ Pending Actions (owner registrations, property verifications, POPs, payment appr
 4. **Payment (M9)** — ✅ DONE (slice 4): `payments.*` methods/POP/threshold + `numbering.receipt.*` receipts, read through `ConfigurationService` by `PaymentService`.
 5. **Arrears, late fees & statements (M9)** — ✅ DONE (slice 5): `late_fees.*` + statement config; late fees + income aggregation read every rule through `ConfigurationService`.
 6. **Featured & advertising (M13)** — ✅ DONE (slice 6): `featured.*` pricing/duration/window/slot/spend-cap config + `ad_packages` catalogue + `ads:expire` placement-window cron; `AdPlacementService` reads every rule through `ConfigurationService`.
+
+> **Wave 5 slice 1 — DONE (2026-09-10).** Maintenance is fully config-driven: new `maintenance.*` keys — `request_no.padding` (5), `categories` (JSON), `escalation_enabled` (bool master switch), `sla.low_hours`/`medium_hours`/`high_hours`/`emergency_hours` (168/96/48/24). `MaintenanceService` computes every SLA window from config — zero SLA numbers in code. See §1.5 and `10-maintenance.md`. Next: Wave 5 slice 2 (Maintenance assignment, M11).

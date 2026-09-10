@@ -13,6 +13,8 @@ class DatabaseSeeder extends Seeder
             SubscriptionPlanSeeder::class,
             PropertySeeder::class,
             AdvertisingSeeder::class,
+            ContractorSeeder::class,
+            MaintenanceSeeder::class,
             ConfigSeeder::class,
         ]);
     }

@@ -321,6 +321,64 @@ final class ConfigurationService
                 'risk' => 'medium',
             ],
 
+            // Maintenance report & triage (Module 10)
+            'maintenance.request_no.padding' => [
+                'group' => 'maintenance',
+                'type' => 'integer',
+                'value' => 5,
+                'label' => 'Request number padding',
+                'description' => 'Zero-padding of the MR sequence number.',
+                'risk' => 'low',
+            ],
+            'maintenance.categories' => [
+                'group' => 'maintenance',
+                'type' => 'json',
+                'value' => ['plumbing', 'electrical', 'appliance', 'structural', 'pest', 'safety', 'other'],
+                'label' => 'Report categories',
+                'description' => 'Fault categories a tenant may choose when reporting (plumbing | electrical | appliance | structural | pest | safety | other).',
+                'risk' => 'low',
+            ],
+            'maintenance.escalation_enabled' => [
+                'group' => 'maintenance',
+                'type' => 'boolean',
+                'value' => true,
+                'label' => 'SLA escalation enabled',
+                'description' => 'When on, the daily sweep escalates first-response breaches to staff.',
+                'risk' => 'medium',
+            ],
+            'maintenance.sla.low_hours' => [
+                'group' => 'maintenance',
+                'type' => 'integer',
+                'value' => 168,
+                'label' => 'Low priority SLA (hours)',
+                'description' => 'First-response SLA window for low-priority requests.',
+                'risk' => 'medium',
+            ],
+            'maintenance.sla.medium_hours' => [
+                'group' => 'maintenance',
+                'type' => 'integer',
+                'value' => 96,
+                'label' => 'Medium priority SLA (hours)',
+                'description' => 'First-response SLA window for medium-priority requests.',
+                'risk' => 'medium',
+            ],
+            'maintenance.sla.high_hours' => [
+                'group' => 'maintenance',
+                'type' => 'integer',
+                'value' => 48,
+                'label' => 'High priority SLA (hours)',
+                'description' => 'First-response SLA window for high-priority requests.',
+                'risk' => 'medium',
+            ],
+            'maintenance.sla.emergency_hours' => [
+                'group' => 'maintenance',
+                'type' => 'integer',
+                'value' => 24,
+                'label' => 'Emergency priority SLA (hours)',
+                'description' => 'First-response SLA window for emergency requests (NFR-01: 24h).',
+                'risk' => 'high',
+            ],
+
             // Rent & payments
             'payments.methods' => [
                 'group' => 'payments',

@@ -27,6 +27,7 @@ import {
     Flag,
     BarChart3,
     Megaphone,
+    Wrench,
 } from 'lucide-react';
 import Brand from '@/Components/Shared/Brand';
 import { cn } from '@/lib/utils';
@@ -69,6 +70,7 @@ export default function MainLayout({ children, title = 'Dashboard', auth, flash,
     const isAdmin = ['Admin', 'Superuser'].some((r) => roles.includes(r));
     const isOwner = roles.includes('Owner');
     const isTenant = roles.includes('Tenant');
+    const isContractor = roles.includes('Contractor');
 
     useEffect(() => {
         const entries = Object.entries(flash || {}).filter(([, v]) => v);
@@ -108,6 +110,7 @@ export default function MainLayout({ children, title = 'Dashboard', auth, flash,
                     { label: 'Enquiry Inbox', icon: MessageSquareText, route: 'owner.enquiries.index', pattern: 'owner.enquiries.*' },
                     { label: 'Viewing Requests', icon: CalendarClock, route: 'owner.viewings.index', pattern: 'owner.viewings.*' },
                     { label: 'Applications', icon: ClipboardCheck, route: 'owner.applications.index', pattern: 'owner.applications.*' },
+                    { label: 'Maintenance', icon: Wrench, route: 'owner.maintenance.index', pattern: 'owner.maintenance.*' },
                 ],
             },
             {
@@ -140,6 +143,7 @@ export default function MainLayout({ children, title = 'Dashboard', auth, flash,
                     { label: 'My Viewings', icon: CalendarClock, route: 'tenant.viewings.index', pattern: 'tenant.viewings.*' },
                     { label: 'My Applications', icon: ClipboardCheck, route: 'tenant.applications.index', pattern: 'tenant.applications.*' },
                     { label: 'My Reports', icon: Flag, route: 'tenant.reports.index', pattern: 'tenant.reports.*' },
+                    { label: 'Maintenance', icon: Wrench, route: 'tenant.maintenance.index', pattern: 'tenant.maintenance.*' },
                 ],
             },
             {
@@ -169,7 +173,19 @@ export default function MainLayout({ children, title = 'Dashboard', auth, flash,
         );
     }
 
-    const roleSections = [...adminSections, ...ownerSections, ...tenantSections];
+    const contractorSections = [];
+    if (isContractor) {
+        contractorSections.push(
+            {
+                label: 'Contractor',
+                items: [
+                    { label: 'My Jobs', icon: Wrench, route: 'contractor.maintenance.index', pattern: 'contractor.maintenance.*' },
+                ],
+            },
+        );
+    }
+
+    const roleSections = [...adminSections, ...ownerSections, ...tenantSections, ...contractorSections];
 
     const toastStyles = {
         success: { icon: CheckCircle2, classes: 'border-emerald-200 bg-emerald-50 text-emerald-800' },

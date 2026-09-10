@@ -39,7 +39,7 @@ auth_users (owner) ───< properties >───< property_favourites >──
                          ├──< enquiries              (IMPLEMENTED, Wave 2)
                          ├──< leases                 (IMPLEMENTED, Wave 3) ─< lease_history ─< lease_signatures (slice 3); renewals self-link ─`renewed_from` (slice 4) ─< documents (slice 5, M20-lite)
                          ├──< rent_schedules         (IMPLEMENTED, Wave 4) ─< rent_invoices (slice 3) ─< payments (slice 4)
-                         └──< maintenance_requests   (Phase 2) ─< maintenance_actions
+                         └──< maintenance_requests   (IMPLEMENTED, Wave 5) ─< maintenance_actions
 
 auth_users ─< notifications (IMPLEMENTED, Wave 2 - morphed)
 
@@ -176,12 +176,12 @@ Writes on every allowed transition (matrix in `Property::TRANSITIONS`).
 - **deposits (planned, Phase 2)**: id, lease_id FK, amount DECIMAL(12,2), status ENUM(held,returned,forfeited), deductions JSON, returned_at.
 
 ### maintenance_requests + maintenance_actions
-- **maintenance_requests**: id, property_id FK, tenant_id FK, category ENUM(plumbing,electrical,appliance,structural,pest,safety,other), priority ENUM(low,medium,high,emergency), title, description, status ENUM(reported,assigned,in_progress,completed,closed,declined), approved_quote DECIMAL(12,2) NULL, assigned_contractor_id FK nullable, resolved_at, timestamps.
-- **maintenance_actions**: id, request_id FK, actor_id FK, action, notes, created_at.
+- **maintenance_requests (IMPLEMENTED, Wave 5 slices 1-3 - `2026_09_09_000028/000029/000030`)**: id, request_no VARCHAR(20) unique (`MR-YYYY-NNNNN`), property_id FK cascade, tenant_id FK cascade, category ENUM(plumbing,electrical,appliance,structural,pest,safety,other), priority ENUM(low,medium,high,emergency), title VARCHAR(120), description text, status ENUM(reported,assigned,in_progress,completed,closed,declined) default `reported`, sla_due_at nullable timestamp, escalated_at nullable timestamp, **approved_quote DECIMAL(12,2) nullable (slice 2)**, **assigned_contractor_id FK → contractors nullOnDelete nullable, index (slice 2)**, **tenant_confirmed_at nullable timestamp (slice 3)**, **resolved_at nullable timestamp (slice 3)**, index (status, sla_due_at), timestamps.
+- **maintenance_actions (IMPLEMENTED, Wave 5 slice 1)**: id, request_id FK cascade, actor_id FK auth_users nullable (null on system sweeps), action VARCHAR(40), notes VARCHAR(500) nullable, created_at (immutable timeline — UPDATED_AT null).
 
 ### contractors + contractor_trades
-- **contractors**: id, user_id FK nullable, business_name, contact, service_area JSON, status ENUM(unverified,vetting,verified,suspended), rating_avg DECIMAL(3,2), jobs_completed INT.
-- **contractor_trades**: id, contractor_id FK, trade, rate.
+- **contractors (IMPLEMENTED, Wave 5 slice 2 - `2026_09_09_000029`)**: id, user_id FK auth_users nullable (nullOnDelete), business_name VARCHAR(120), contact VARCHAR(120), service_area JSON, status ENUM(unverified,vetting,verified,suspended) default unverified, rating_avg DECIMAL(3,2) default 0, jobs_completed INT unsigned default 0, **verified_at nullable timestamp (slice 2)**, index (user_id, status), timestamps.
+- **contractor_trades (IMPLEMENTED, Wave 5 slice 2)**: id, contractor_id FK cascade, trade VARCHAR(60), rate DECIMAL(10,2) nullable, timestamps.
 
 ### subscription_plans + subscription_features + subscription_plan_features + subscriptions + subscription_invoices + subscription_history
 

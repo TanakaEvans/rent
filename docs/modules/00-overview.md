@@ -73,8 +73,8 @@ Dzimba is laid out in four areas:
 | 07 Rental Applications | Oversee | Review/accept | Submit |
 | 08 Lease & Agreements | Templates | Create/sign | Sign |
 | 09 Rent & Payments | Platform payouts | Collect | Pay |
-| 10 Maintenance | Escalation | Assign/approve | Report |
-| 11 Contractors | Registry + ratings | Hire | - |
+| 10 Maintenance | Escalation | Assign/approve/close | Report + confirm |
+| 11 Contractors | Registry | Hire / assign / rate | Receive job brief |
 | 12 Subscriptions | **Primary user** | Subscribe/upgrade | - |
 | 13 Featured & Advertising | Pricing/approve | Buy | See badges |
 | 14 Verification | **Primary user** | Submit evidence | See badges |
@@ -103,5 +103,6 @@ Already present in the codebase:
 - `auth_users`, `auth_roles`, `auth_user_roles`, `auth_login_logs` - authentication and roles.
 - `companies`, `branches`, `departments`, `employees`, `sections`, `system_settings` - system administration.
 - `properties`, `property_favourites`, `rental_applications`, `property_history`, `property_views`, `saved_searches`, `reports` - marketplace tables.
-- Roles: `Superuser`, `Admin`, `Owner`, `Tenant`, `Staff`.
+- Roles: `Superuser`, `Admin`, `Owner`, `Tenant`, `Staff`, `Contractor` (Wave 5 slice 2 — job-desk users, not platform subscribers).
+- Maintenance + Contractors (Wave 5 slices 1-3): `maintenance_requests`/`maintenance_actions` + `contractors`/`contractor_trades`, SLA sweep, escalation queue, contractor registry, verified-only assignment with approved quote, full life-cycle (assign → start → complete → tenant confirm → owner close, `resolved_at`) — full suite 394 green.
 - Routes/UI: public marketplace `/` (search + filters + map + saved searches + lifecycle + trust/reports + owner/admin analytics — the Property Marketplace batch B1-B6 is DONE, full suite 295 green), login, `/dashboard`, `/admin/dashboard`, `/owner`, `/tenant`.

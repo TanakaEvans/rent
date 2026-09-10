@@ -26,6 +26,7 @@ import {
     BarChart3,
     Flag,
     Megaphone,
+    Wrench,
 } from 'lucide-react';
 import Brand from '@/Components/Shared/Brand';
 import { cn } from '@/lib/utils';
@@ -62,6 +63,8 @@ const navSections = [
             { label: 'Marketplace', icon: Home, route: 'home', pattern: 'home' },
             { label: 'Marketplace Analytics', icon: BarChart3, route: 'admin.marketplace.analytics', pattern: 'admin.marketplace.analytics' },
             { label: 'Marketplace Reports', icon: Flag, route: 'admin.marketplace.reports.index', pattern: 'admin.marketplace.reports.*' },
+            { label: 'Maintenance Escalations', icon: Wrench, route: 'admin.maintenance.escalations.index', pattern: 'admin.maintenance.escalations.*' },
+            { label: 'Contractor Registry', icon: Briefcase, route: 'admin.contractors.index', pattern: 'admin.contractors.*' },
         ],
     },
     {

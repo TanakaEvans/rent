@@ -81,6 +81,10 @@ class LoginController extends Controller
             return route('tenant.dashboard');
         }
 
+        if ($user->hasRole('Contractor')) {
+            return route('contractor.maintenance.index');
+        }
+
         return route('dashboard');
     }
 

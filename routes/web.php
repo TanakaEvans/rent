@@ -33,6 +33,8 @@ use App\Http\Controllers\AdminReportController;
 use App\Http\Controllers\AdminMarketplaceAnalyticsController;
 use App\Http\Controllers\OwnerAnalyticsController;
 use App\Http\Controllers\AdPlacementController;
+use App\Http\Controllers\MaintenanceController;
+use App\Http\Controllers\ContractorController;
 use App\Http\Middleware\EnsurePasswordIsChanged;
 use App\Http\Middleware\EnsureHasRole;
 
@@ -243,6 +245,26 @@ Route::middleware(['auth', EnsurePasswordIsChanged::class, EnsureHasRole::class]
         Route::post('/owner/advertising', [AdPlacementController::class, 'store'])
             ->name('owner.advertising.store')
             ->defaults('description', 'Book a promotion for one of my listings');
+
+        // Maintenance report & triage (M10, Wave 5 slice 1)
+        Route::get('/owner/maintenance', [MaintenanceController::class, 'ownerIndex'])
+            ->name('owner.maintenance.index')
+            ->defaults('description', 'Triage maintenance requests on my properties');
+        // Maintenance assignment (M11, Wave 5 slice 2)
+        Route::post('/owner/maintenance/{maintenanceRequest}/assign', [MaintenanceController::class, 'ownerAssign'])
+            ->name('owner.maintenance.assign')
+            ->whereNumber('maintenanceRequest')
+            ->defaults('description', 'Assign a verified contractor to a maintenance request');
+        // Maintenance track & close (Wave 5 slice 3)
+        Route::post('/owner/maintenance/{maintenanceRequest}/close', [MaintenanceController::class, 'ownerClose'])
+            ->name('owner.maintenance.close')
+            ->whereNumber('maintenanceRequest')
+            ->defaults('description', 'Close a repaired maintenance request');
+        // Contractor ratings (M11, Wave 5 slice 4)
+        Route::post('/owner/maintenance/{maintenanceRequest}/rate', [MaintenanceController::class, 'ownerRate'])
+            ->name('owner.maintenance.rate')
+            ->whereNumber('maintenanceRequest')
+            ->defaults('description', 'Rate the contractor behind a closed job');
     });
 
     Route::middleware('role:Tenant')->group(function () {
@@ -324,6 +346,36 @@ Route::middleware(['auth', EnsurePasswordIsChanged::class, EnsureHasRole::class]
         Route::get('/tenant/reports', [MarketplaceReportController::class, 'index'])
             ->name('tenant.reports.index')
             ->defaults('description', 'View my marketplace reports');
+
+        // Maintenance report & triage (M10, Wave 5 slice 1)
+        Route::get('/tenant/maintenance', [MaintenanceController::class, 'tenantIndex'])
+            ->name('tenant.maintenance.index')
+            ->defaults('description', 'Report and track maintenance issues');
+        Route::post('/tenant/maintenance', [MaintenanceController::class, 'store'])
+            ->name('tenant.maintenance.store')
+            ->defaults('description', 'Submit a maintenance request');
+        // Maintenance track & close (Wave 5 slice 3)
+        Route::post('/tenant/maintenance/{maintenanceRequest}/confirm', [MaintenanceController::class, 'tenantConfirm'])
+            ->name('tenant.maintenance.confirm')
+            ->whereNumber('maintenanceRequest')
+            ->defaults('description', 'Confirm a completed maintenance fix');
+    });
+
+    // Contractor portal (M11, Wave 5 slice 2) — registered tradespeople scope
+    Route::middleware('role:Contractor')->group(function () {
+        // Contractor is not a platform subscriber; their scope is the job desk only.
+        Route::get('/contractor/maintenance', [ContractorController::class, 'contractorIndex'])
+            ->name('contractor.maintenance.index')
+            ->defaults('description', 'View my assigned maintenance jobs');
+        // Maintenance track & close (Wave 5 slice 3)
+        Route::post('/contractor/maintenance/{maintenanceRequest}/start', [ContractorController::class, 'startJob'])
+            ->name('contractor.maintenance.start')
+            ->whereNumber('maintenanceRequest')
+            ->defaults('description', 'Start work on an assigned maintenance job');
+        Route::post('/contractor/maintenance/{maintenanceRequest}/complete', [ContractorController::class, 'completeJob'])
+            ->name('contractor.maintenance.complete')
+            ->whereNumber('maintenanceRequest')
+            ->defaults('description', 'Mark an in-progress maintenance job complete');
     });
 
     // Force Change Password Routes
@@ -579,5 +631,26 @@ Route::prefix('auth')->name('auth.')->middleware('admin')->group(function () {
             ->name('advertising.resume')
             ->whereNumber('placement')
             ->defaults('description', 'Resume a paused placement and extend its window');
+
+        // Maintenance escalations (M10, Wave 5 slice 1)
+        Route::get('maintenance/escalations', [MaintenanceController::class, 'adminEscalations'])
+            ->name('maintenance.escalations.index')
+            ->defaults('description', 'Staff queue of maintenance requests past their first-response SLA');
+        Route::post('maintenance/escalations/{maintenanceRequest}/ack', [MaintenanceController::class, 'adminAcknowledge'])
+            ->name('maintenance.escalations.ack')
+            ->whereNumber('maintenanceRequest')
+            ->defaults('description', 'Take ownership of an escalated maintenance request');
+
+        // Contractor registry (M11, Wave 5 slice 2)
+        Route::get('contractors', [ContractorController::class, 'adminIndex'])
+            ->name('contractors.index')
+            ->defaults('description', 'Register and verify contractor profiles');
+        Route::post('contractors', [ContractorController::class, 'adminStore'])
+            ->name('contractors.store')
+            ->defaults('description', 'Register a new tradesperson');
+        Route::post('contractors/{contractor}/status', [ContractorController::class, 'adminStatus'])
+            ->name('contractors.status')
+            ->whereNumber('contractor')
+            ->defaults('description', 'Update a contractor registry status');
     });
 });

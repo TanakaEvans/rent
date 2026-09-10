@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Models\AdPlacement;
+use App\Models\Contractor;
+use App\Models\MaintenanceRequest;
 use App\Models\User;
 use App\Models\Role;
 use App\Models\Property;
@@ -789,5 +791,293 @@ class DzimbaAccessControlTest extends TestCase
     public function test_guest_cannot_access_admin_advertising(): void
     {
         $this->get('/admin/advertising')->assertRedirect(route('login'));
+    }
+
+    // ---------- Wave 5 slice 1: maintenance report & triage ----------
+
+    public function test_owner_can_access_maintenance_triage(): void
+    {
+        $this->actingAs(User::where('username', 'owner')->first())->get('/owner/maintenance')->assertOk();
+    }
+
+    public function test_tenant_cannot_access_owner_maintenance(): void
+    {
+        $tenant = User::where('username', 'tenant')->first();
+        $this->actingAs($tenant)->get('/owner/maintenance')->assertForbidden();
+    }
+
+    public function test_guest_redirected_from_owner_maintenance(): void
+    {
+        $this->get('/owner/maintenance')->assertRedirect(route('login'));
+    }
+
+    public function test_tenant_can_access_own_maintenance(): void
+    {
+        $this->actingAs(User::where('username', 'tenant')->first())->get('/tenant/maintenance')->assertOk();
+    }
+
+    public function test_owner_cannot_access_tenant_maintenance(): void
+    {
+        $owner = User::where('username', 'owner')->first();
+        $this->actingAs($owner)->get('/tenant/maintenance')->assertForbidden();
+        $this->actingAs($owner)->post('/tenant/maintenance', [])->assertForbidden();
+    }
+
+    public function test_guest_redirected_from_tenant_maintenance(): void
+    {
+        $this->get('/tenant/maintenance')->assertRedirect(route('login'));
+        $this->post('/tenant/maintenance', [])->assertRedirect(route('login'));
+    }
+
+    public function test_admin_can_access_maintenance_escalations(): void
+    {
+        $this->actingAs(User::where('username', 'admin')->first())->get('/admin/maintenance/escalations')->assertOk();
+    }
+
+    public function test_owner_and_tenant_cannot_access_maintenance_escalations(): void
+    {
+        $owner = User::where('username', 'owner')->first();
+        $tenant = User::where('username', 'tenant')->first();
+        $this->actingAs($owner)->get('/admin/maintenance/escalations')->assertForbidden();
+        $this->actingAs($tenant)->get('/admin/maintenance/escalations')->assertForbidden();
+    }
+
+    public function test_tenant_cannot_acknowledge_an_escalation(): void
+    {
+        $escalated = MaintenanceRequest::whereNotNull('escalated_at')->first();
+        $this->assertNotNull($escalated, 'Expected a seeded escalated maintenance request.');
+
+        $tenant = User::where('username', 'tenant')->first();
+        $this->actingAs($tenant)
+            ->post(route('admin.maintenance.escalations.ack', ['maintenanceRequest' => $escalated->id]))
+            ->assertForbidden();
+    }
+
+    public function test_guest_redirected_from_maintenance_escalations(): void
+    {
+        $this->get('/admin/maintenance/escalations')->assertRedirect(route('login'));
+        $this->post('/admin/maintenance/escalations/1/ack', [])->assertRedirect(route('login'));
+    }
+
+    // ---------- Wave 5 slice 2: maintenance assignment (M11) ----------
+
+    public function test_owner_can_assign_maintenance(): void
+    {
+        $request = MaintenanceRequest::where('request_no', 'MR-2026-00002')->firstOrFail();
+        $contractor = Contractor::where('business_name', 'Bulawayo Plumbing Co.')->firstOrFail();
+
+        $owner = User::where('username', 'owner')->first();
+        $this->actingAs($owner)
+            ->post(route('owner.maintenance.assign', ['maintenanceRequest' => $request->id]), [
+                'contractor_id' => $contractor->id,
+                'approved_quote' => '85',
+            ])
+            ->assertRedirect();
+    }
+
+    public function test_tenant_cannot_assign_maintenance(): void
+    {
+        $request = MaintenanceRequest::where('request_no', 'MR-2026-00002')->firstOrFail();
+        $tenant = User::where('username', 'tenant')->first();
+        $this->actingAs($tenant)
+            ->post(route('owner.maintenance.assign', ['maintenanceRequest' => $request->id]), [])
+            ->assertForbidden();
+    }
+
+    public function test_guest_redirected_from_maintenance_assign(): void
+    {
+        $this->post('/owner/maintenance/1/assign', [])->assertRedirect(route('login'));
+    }
+
+    public function test_admin_can_manage_contractor_registry(): void
+    {
+        $admin = User::where('username', 'admin')->first();
+        $this->actingAs($admin)->get('/admin/contractors')->assertOk();
+
+        $this->actingAs($admin)
+            ->post('/admin/contractors', [
+                'business_name' => 'Registry Electricians',
+                'contact' => '0711 222 333',
+                'service_area' => ['Bulawayo'],
+                'trades' => [['trade' => 'Electrical', 'rate' => '35']],
+            ])
+            ->assertRedirect();
+
+        $contractor = Contractor::where('business_name', 'Registry Electricians')->firstOrFail();
+        $this->actingAs($admin)
+            ->post(route('admin.contractors.status', ['contractor' => $contractor->id]), ['status' => 'verified'])
+            ->assertRedirect();
+    }
+
+    public function test_owner_and_tenant_cannot_manage_contractor_registry(): void
+    {
+        $owner = User::where('username', 'owner')->first();
+        $tenant = User::where('username', 'tenant')->first();
+
+        foreach ([$owner, $tenant] as $user) {
+            $this->actingAs($user)->get('/admin/contractors')->assertForbidden();
+            $this->actingAs($user)->post('/admin/contractors', [])->assertForbidden();
+            $this->actingAs($user)->post('/admin/contractors/1/status', ['status' => 'verified'])->assertForbidden();
+        }
+    }
+
+    public function test_guest_redirected_from_contractor_registry(): void
+    {
+        $this->get('/admin/contractors')->assertRedirect(route('login'));
+        $this->post('/admin/contractors', [])->assertRedirect(route('login'));
+        $this->post('/admin/contractors/1/status', ['status' => 'verified'])->assertRedirect(route('login'));
+    }
+
+    public function test_contractor_can_access_their_jobs(): void
+    {
+        $contractor = User::where('username', 'contractor')->first();
+        $this->actingAs($contractor)->get('/contractor/maintenance')->assertOk();
+    }
+
+    public function test_owner_and_tenant_cannot_access_contractor_jobs(): void
+    {
+        $owner = User::where('username', 'owner')->first();
+        $tenant = User::where('username', 'tenant')->first();
+
+        foreach ([$owner, $tenant] as $user) {
+            $this->actingAs($user)->get('/contractor/maintenance')->assertForbidden();
+        }
+    }
+
+    public function test_guest_redirected_from_contractor_jobs(): void
+    {
+        $this->get('/contractor/maintenance')->assertRedirect(route('login'));
+    }
+
+    // ---------- Wave 5 slice 3: track & close ----------
+
+    public function test_contractor_can_start_and_complete_their_job(): void
+    {
+        $contractor = User::where('username', 'contractor')->first();
+        $request = MaintenanceRequest::where('request_no', 'MR-2026-00001')->firstOrFail();
+
+        $this->actingAs($contractor)
+            ->post(route('contractor.maintenance.start', ['maintenanceRequest' => $request->id]))
+            ->assertRedirect();
+
+        $this->actingAs($contractor)
+            ->post(route('contractor.maintenance.complete', ['maintenanceRequest' => $request->id]), ['notes' => 'Fixed.'])
+            ->assertRedirect();
+    }
+
+    public function test_owner_and_tenant_cannot_start_or_complete_jobs(): void
+    {
+        $owner = User::where('username', 'owner')->first();
+        $tenant = User::where('username', 'tenant')->first();
+        $request = MaintenanceRequest::where('request_no', 'MR-2026-00001')->firstOrFail();
+
+        foreach ([$owner, $tenant] as $user) {
+            $this->actingAs($user)
+                ->post(route('contractor.maintenance.start', ['maintenanceRequest' => $request->id]))
+                ->assertForbidden();
+            $this->actingAs($user)
+                ->post(route('contractor.maintenance.complete', ['maintenanceRequest' => $request->id]), ['notes' => 'Fixed.'])
+                ->assertForbidden();
+        }
+    }
+
+    public function test_guest_redirected_from_contractor_job_actions(): void
+    {
+        $this->post('/contractor/maintenance/1/start', [])->assertRedirect(route('login'));
+        $this->post('/contractor/maintenance/1/complete', ['notes' => 'Fixed.'])->assertRedirect(route('login'));
+    }
+
+    public function test_tenant_can_confirm_their_completed_fix(): void
+    {
+        $tenant = User::where('username', 'tenant')->first();
+        $request = MaintenanceRequest::where('request_no', 'MR-2026-00001')->firstOrFail();
+        $request->update(['status' => 'completed']);
+
+        $this->actingAs($tenant)
+            ->post(route('tenant.maintenance.confirm', ['maintenanceRequest' => $request->id]))
+            ->assertRedirect();
+    }
+
+    public function test_owner_and_contractor_cannot_confirm_fixes(): void
+    {
+        $owner = User::where('username', 'owner')->first();
+        $contractor = User::where('username', 'contractor')->first();
+        $request = MaintenanceRequest::where('request_no', 'MR-2026-00001')->firstOrFail();
+        $request->update(['status' => 'completed']);
+
+        foreach ([$owner, $contractor] as $user) {
+            $this->actingAs($user)
+                ->post(route('tenant.maintenance.confirm', ['maintenanceRequest' => $request->id]))
+                ->assertForbidden();
+        }
+    }
+
+    public function test_guest_redirected_from_tenant_confirm(): void
+    {
+        $this->post('/tenant/maintenance/1/confirm', [])->assertRedirect(route('login'));
+    }
+
+    public function test_owner_can_close_after_tenant_confirmation(): void
+    {
+        $owner = User::where('username', 'owner')->first();
+        $request = MaintenanceRequest::where('request_no', 'MR-2026-00001')->firstOrFail();
+        $request->update(['status' => 'completed', 'tenant_confirmed_at' => now()]);
+
+        $this->actingAs($owner)
+            ->post(route('owner.maintenance.close', ['maintenanceRequest' => $request->id]))
+            ->assertRedirect();
+        $this->assertSame('closed', $request->fresh()->status);
+    }
+
+    public function test_tenant_and_contractor_cannot_close_requests(): void
+    {
+        $tenant = User::where('username', 'tenant')->first();
+        $contractor = User::where('username', 'contractor')->first();
+        $request = MaintenanceRequest::where('request_no', 'MR-2026-00001')->firstOrFail();
+        $request->update(['status' => 'completed', 'tenant_confirmed_at' => now()]);
+
+        foreach ([$tenant, $contractor] as $user) {
+            $this->actingAs($user)
+                ->post(route('owner.maintenance.close', ['maintenanceRequest' => $request->id]))
+                ->assertForbidden();
+        }
+    }
+
+    public function test_guest_redirected_from_owner_close(): void
+    {
+        $this->post('/owner/maintenance/1/close', [])->assertRedirect(route('login'));
+    }
+
+    // ---------- Wave 5 slice 4: contractor ratings ----------
+
+    public function test_owner_can_rate_a_closed_request(): void
+    {
+        $owner = User::where('username', 'owner')->first();
+        $request = MaintenanceRequest::where('request_no', 'MR-2026-00001')->firstOrFail();
+        $request->update(['status' => 'closed', 'tenant_confirmed_at' => now()]);
+
+        $this->actingAs($owner)
+            ->post(route('owner.maintenance.rate', ['maintenanceRequest' => $request->id]), ['rating' => 5, 'note' => null])
+            ->assertRedirect();
+        $this->assertDatabaseHas('contractor_ratings', ['request_id' => $request->id]);
+    }
+
+    public function test_tenant_and_contractor_cannot_rate_jobs(): void
+    {
+        $tenant = User::where('username', 'tenant')->first();
+        $contractor = User::where('username', 'contractor')->first();
+        $request = MaintenanceRequest::where('request_no', 'MR-2026-00001')->firstOrFail();
+        $request->update(['status' => 'closed', 'tenant_confirmed_at' => now()]);
+
+        foreach ([$tenant, $contractor] as $user) {
+            $this->actingAs($user)
+                ->post(route('owner.maintenance.rate', ['maintenanceRequest' => $request->id]), ['rating' => 5])
+                ->assertForbidden();
+        }
+    }
+
+    public function test_guest_redirected_from_owner_rate(): void
+    {
+        $this->post('/owner/maintenance/1/rate', ['rating' => 5])->assertRedirect(route('login'));
     }
 }

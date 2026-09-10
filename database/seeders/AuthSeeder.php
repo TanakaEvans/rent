@@ -17,6 +17,7 @@ class AuthSeeder extends Seeder
             ['name' => 'Owner', 'description' => 'Property owner/landlord portal access'],
             ['name' => 'Tenant', 'description' => 'Tenant portal access to search and apply for properties'],
             ['name' => 'Staff', 'description' => 'Access to administrative functions'],
+            ['name' => 'Contractor', 'description' => 'Verified tradesperson contractor portal access (jobs only)'],
         ];
 
         foreach ($roles as $role) {
@@ -77,6 +78,13 @@ class AuthSeeder extends Seeder
                 'email' => 'staff@dzimba.local',
                 'username' => 'staff',
                 'role' => 'Admin',
+            ],
+            [
+                'name' => 'Demo Contractor',
+                'email' => 'contractor@dzimba.local',
+                'username' => 'contractor',
+                'role' => 'Contractor',
+                'verified' => true,
             ],
         ];
 

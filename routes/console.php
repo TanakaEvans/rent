@@ -13,3 +13,5 @@ Schedule::command('subscriptions:expire')->daily();
 Schedule::command('marketplace:housekeeping')->daily();
 
 Schedule::command('ads:expire')->daily();
+
+Schedule::command('maintenance:escalate')->dailyAt('06:00');
