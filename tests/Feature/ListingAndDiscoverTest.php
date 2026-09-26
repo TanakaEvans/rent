@@ -5,6 +5,8 @@ namespace Tests\Feature;
 use App\Models\Property;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class ListingAndDiscoverTest extends TestCase
@@ -15,6 +17,7 @@ class ListingAndDiscoverTest extends TestCase
     {
         parent::setUp();
         $this->seed();
+        Storage::fake('public');
     }
 
     private function owner(): User
@@ -39,13 +42,27 @@ class ListingAndDiscoverTest extends TestCase
             'land_size' => 900,
             'price' => 750,
             'deposit' => 750,
+            'currency' => 'USD',
+            'payment_terms' => 'monthly',
             'furnished' => false,
+            'negotiable' => false,
+            'security_type' => 'fenced',
+            'children_allowed' => true,
+            'pets_allowed' => false,
+            'smoking_allowed' => false,
+            'parties_allowed' => false,
+            'minimum_stay' => 12,
+            'preferred_tenant' => 'any',
+            'landlord_type' => 'direct',
+            'contact_preference' => 'platform',
+            'show_phone' => false,
             'status' => 'available',
             'suburb' => 'Marlborough',
             'zone' => 'Harare West',
             'city' => 'Harare',
             'address' => '12 Marlborough Drive',
             'amenities' => ['borehole', 'garden'],
+            'cover' => UploadedFile::fake()->image('cover.jpg'),
             'available_from' => now()->addDays(14)->toDateString(),
         ], $overrides);
     }
@@ -336,7 +353,7 @@ class ListingAndDiscoverTest extends TestCase
             ->assertOk()
             ->assertInertia(fn ($page) => $page
                 ->component('Marketplace/Index')
-                ->has('properties', 2));
+                ->has('properties', 3));
     }
 
     public function test_marketplace_filter_combination_returns_exact_set(): void
@@ -345,7 +362,7 @@ class ListingAndDiscoverTest extends TestCase
             ->assertOk()
             ->assertInertia(fn ($page) => $page
                 ->component('Marketplace/Index')
-                ->has('properties', 2));
+                ->has('properties', 3));
     }
 
     public function test_marketplace_filters_by_furnished(): void
@@ -360,7 +377,7 @@ class ListingAndDiscoverTest extends TestCase
             ->assertOk()
             ->assertInertia(fn ($page) => $page
                 ->component('Marketplace/Index')
-                ->has('properties', 2));
+                ->has('properties', 3));
     }
 
     public function test_marketplace_bedrooms_and_bathrooms_use_at_least_semantics(): void
@@ -391,11 +408,11 @@ class ListingAndDiscoverTest extends TestCase
 
     public function test_marketplace_ignores_invalid_filter_values(): void
     {
-        $this->get('/?price=not-a-number&property_type=castle&bedrooms=abc')
+        $this->get('/?price=not-a-number&property_type=castle&bedrooms=abc&payment_terms=biweekly&security_type=laser&parking_type=valet&preferred_tenant=aliens')
             ->assertOk()
             ->assertInertia(fn ($page) => $page
                 ->component('Marketplace/Index')
-                ->has('properties', 5));
+                ->has('properties', 6));
     }
 
     public function test_marketplace_paginates_results(): void
@@ -419,7 +436,7 @@ class ListingAndDiscoverTest extends TestCase
             ->assertInertia(fn ($page) => $page
                 ->component('Marketplace/Index')
                 ->has('properties', 12)
-                ->where('total', 18)
+                ->where('total', 19)
                 ->where('pagination.last_page', 2)
                 ->where('pagination.current_page', 1));
 
@@ -427,7 +444,7 @@ class ListingAndDiscoverTest extends TestCase
             ->assertOk()
             ->assertInertia(fn ($page) => $page
                 ->component('Marketplace/Index')
-                ->has('properties', 6)
+                ->has('properties', 7)
                 ->where('pagination.current_page', 2));
     }
 
@@ -937,5 +954,192 @@ class ListingAndDiscoverTest extends TestCase
             ->assertSessionHasErrors('status');
 
         $this->assertSame('unavailable', $expired->fresh()->status);
+    }
+
+    // ---- S2 wave: marketplace filters over the S1 taxonomy + Top-rated ----
+
+    private function s2Property(User $owner, string $title, array $overrides = []): Property
+    {
+        return Property::create(array_merge([
+            'owner_id' => $owner->id,
+            'title' => $title,
+            'property_type' => 'house',
+            'bedrooms' => 2,
+            'bathrooms' => 1,
+            'price' => 520,
+            'currency' => 'USD',
+            'payment_terms' => 'monthly',
+            'status' => 'available',
+            'suburb' => 'S2 Filters',
+            'city' => 'Harare',
+        ], $overrides));
+    }
+
+    public function test_marketplace_filters_by_payment_terms(): void
+    {
+        $owner = $this->owner();
+        $quarterly = $this->s2Property($owner, 'S2 Quarterly', ['payment_terms' => 'quarterly']);
+        $yearly = $this->s2Property($owner, 'S2 Yearly', ['payment_terms' => 'yearly']);
+
+        $this->get('/?suburb=S2+Filters&payment_terms=quarterly')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Marketplace/Index')
+                ->has('properties', 1)
+                ->where('properties.0.id', $quarterly->id));
+
+        $this->get('/?suburb=S2+Filters&payment_terms=yearly')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Marketplace/Index')
+                ->has('properties', 1)
+                ->where('properties.0.id', $yearly->id));
+    }
+
+    public function test_marketplace_filters_by_security_type(): void
+    {
+        $owner = $this->owner();
+        $gated = $this->s2Property($owner, 'S2 Gated', ['security_type' => 'gated']);
+        $fenced = $this->s2Property($owner, 'S2 Fenced', ['security_type' => 'fenced']);
+
+        $this->get('/?suburb=S2+Filters&security_type=gated')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Marketplace/Index')
+                ->has('properties', 1)
+                ->where('properties.0.id', $gated->id));
+
+        $this->get('/?suburb=S2+Filters&security_type=fenced')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Marketplace/Index')
+                ->has('properties', 1)
+                ->where('properties.0.id', $fenced->id));
+    }
+
+    public function test_marketplace_filters_by_parking_type(): void
+    {
+        $owner = $this->owner();
+        $secure = $this->s2Property($owner, 'S2 Secure Parking', ['parking_type' => 'secure']);
+        $street = $this->s2Property($owner, 'S2 Street Parking', ['parking_type' => 'street']);
+
+        $this->get('/?suburb=S2+Filters&parking_type=secure')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Marketplace/Index')
+                ->has('properties', 1)
+                ->where('properties.0.id', $secure->id));
+
+        $this->get('/?suburb=S2+Filters&parking_type=street')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Marketplace/Index')
+                ->has('properties', 1)
+                ->where('properties.0.id', $street->id));
+    }
+
+    public function test_marketplace_filters_by_preferred_tenant(): void
+    {
+        $owner = $this->owner();
+        $professionals = $this->s2Property($owner, 'S2 Professionals', ['preferred_tenant' => 'professionals']);
+        $students = $this->s2Property($owner, 'S2 Students', ['preferred_tenant' => 'students']);
+
+        $this->get('/?suburb=S2+Filters&preferred_tenant=professionals')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Marketplace/Index')
+                ->has('properties', 1)
+                ->where('properties.0.id', $professionals->id));
+
+        $this->get('/?suburb=S2+Filters&preferred_tenant=students')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Marketplace/Index')
+                ->has('properties', 1)
+                ->where('properties.0.id', $students->id));
+    }
+
+    public function test_marketplace_isolates_apartment_as_its_own_type(): void
+    {
+        $this->get('/?property_type=apartment')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Marketplace/Index')
+                ->has('properties', 1)
+                ->where('properties.0.title', '2 Bedroom Apartment in Avondale'));
+
+        $this->get('/?property_type=flat')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Marketplace/Index')
+                ->has('properties', 1)
+                ->where('properties.0.title', '2 Bedroom Flat with Generator Backup'));
+    }
+
+    public function test_marketplace_sorts_by_owner_top_rating_then_recency(): void
+    {
+        $star = User::factory()->create(['name' => 'Star Landlord', 'password_changed_at' => now(), 'rating_avg' => 5.0, 'ratings_count' => 20]);
+        $solid = User::factory()->create(['name' => 'Solid Landlord', 'password_changed_at' => now(), 'rating_avg' => 3.5, 'ratings_count' => 6]);
+        $unrated = User::factory()->create(['name' => 'New Landlord', 'password_changed_at' => now()]);
+
+        $starProperty = $this->s2Property($star, 'S2 Top Rated Five');
+        $solidProperty = $this->s2Property($solid, 'S2 Top Rated Three');
+        $unratedProperty = $this->s2Property($unrated, 'S2 Top Rated Zero');
+
+        $this->get('/?suburb=S2+Filters&sort=top_rated')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Marketplace/Index')
+                ->where('properties.0.id', $starProperty->id)
+                ->where('properties.1.id', $solidProperty->id)
+                ->where('properties.2.id', $unratedProperty->id));
+    }
+
+    public function test_top_rated_sort_keeps_featured_listings_first(): void
+    {
+        $star = User::factory()->create(['name' => 'Star Two', 'password_changed_at' => now(), 'rating_avg' => 5.0, 'ratings_count' => 10]);
+        $modest = User::factory()->create(['name' => 'Modest Two', 'password_changed_at' => now(), 'rating_avg' => 2.0, 'ratings_count' => 3]);
+
+        $starProperty = $this->s2Property($star, 'S2 Star Featured Test');
+        $modestFeatured = $this->s2Property($modest, 'S2 Modest Featured', ['featured' => true]);
+
+        $this->get('/?suburb=S2+Filters&sort=top_rated')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Marketplace/Index')
+                ->where('properties.0.id', $modestFeatured->id)
+                ->where('properties.1.id', $starProperty->id));
+    }
+
+    public function test_marketplace_exposes_owner_verification_and_badge_tier(): void
+    {
+        $goldOwner = User::factory()->create([
+            'name' => 'Gold Verified Owner',
+            'password_changed_at' => now(),
+            'verified' => true,
+            'verified_at' => now(),
+            'badge_tier' => 'gold',
+            'rating_avg' => 4.9,
+            'ratings_count' => 40,
+        ]);
+
+        $property = $this->s2Property($goldOwner, 'S2 Gold Listing', ['suburb' => 'S2 Badge Lane']);
+
+        $this->get('/?suburb=S2+Badge+Lane')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Marketplace/Index')
+                ->has('properties', 1)
+                ->where('properties.0.id', $property->id)
+                ->where('properties.0.owner.verified', true)
+                ->where('properties.0.owner.badge_tier', 'gold'));
+    }
+
+    public function test_natural_language_parse_isolates_apartment_from_flat(): void
+    {
+        $parser = app(\App\Services\NaturalLanguageSearchService::class);
+
+        $this->assertSame('apartment', $parser->parse('2 bed apartment in Avondale under $700')['property_type'] ?? null);
+        $this->assertSame('flat', $parser->parse('modern flat in Gunhill')['property_type'] ?? null);
     }
 }

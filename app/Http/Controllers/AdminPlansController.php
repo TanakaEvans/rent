@@ -3,10 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Models\SubscriptionPlan;
+use App\Services\ConfigurationService;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 class AdminPlansController extends Controller
 {
+    public function __construct(private readonly ConfigurationService $config)
+    {
+    }
+
     /**
      * List subscription plans with subscriber counts.
      */
@@ -36,7 +42,7 @@ class AdminPlansController extends Controller
             'billing_cycle' => 'required|in:monthly,annual',
         ]);
 
-        $validated['listing_limit'] = $validated['listing_limit'] === null ? null : (int) $validated['listing_limit'];
+        $validated['listing_limit'] = isset($validated['listing_limit']) ? (int) $validated['listing_limit'] : null;
         $validated['featured_slots'] = (int) ($validated['featured_slots'] ?? 0);
         $validated['support_tier'] = $validated['support_tier'] ?? 'standard';
 
@@ -61,7 +67,13 @@ class AdminPlansController extends Controller
             'billing_cycle' => 'required|in:monthly,annual',
         ]);
 
-        $validated['listing_limit'] = $validated['listing_limit'] === null ? null : (int) $validated['listing_limit'];
+        if ($this->isDefaultPlan($plan) && $validated['name'] !== $plan->name) {
+            throw ValidationException::withMessages([
+                'name' => 'The '.$plan->name.' plan is the default plan new owners are placed on and cannot be renamed. Change the default plan in the Configuration Centre first.',
+            ]);
+        }
+
+        $validated['listing_limit'] = isset($validated['listing_limit']) ? (int) $validated['listing_limit'] : null;
         $validated['featured_slots'] = (int) ($validated['featured_slots'] ?? 0);
         $validated['support_tier'] = $validated['support_tier'] ?? 'standard';
 
@@ -74,9 +86,17 @@ class AdminPlansController extends Controller
     /**
      * Archive a subscription plan. Plans still in use are archived (kept for
      * history and existing subscribers); unused plans are removed outright.
+     * The configured default plan (`subscriptions.default_plan`) is never
+     * archived or deleted — owners are auto-subscribed to it.
      */
     public function destroy(SubscriptionPlan $plan)
     {
+        if ($this->isDefaultPlan($plan)) {
+            throw ValidationException::withMessages([
+                'plan' => 'The '.$plan->name.' plan is the default plan new owners are placed on and cannot be archived or deleted. Change the default plan in the Configuration Centre first.',
+            ]);
+        }
+
         if ($plan->subscriptions()->exists()) {
             $plan->update(['status' => 'archived']);
         } else {
@@ -85,6 +105,14 @@ class AdminPlansController extends Controller
 
         return redirect()->route('admin.subscriptions.plans.index')
             ->with('success', 'Subscription plan removed.');
+    }
+
+    /**
+     * Whether the plan is the one named by `subscriptions.default_plan`.
+     */
+    private function isDefaultPlan(SubscriptionPlan $plan): bool
+    {
+        return $plan->name === (string) $this->config->get('subscriptions.default_plan', 'Free');
     }
 
     /**

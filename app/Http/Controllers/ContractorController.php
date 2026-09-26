@@ -28,6 +28,8 @@ class ContractorController extends Controller
     {
         return Inertia::render('Admin/Contractors/Index', [
             'contractors' => $this->service->listForAdmin(),
+            'stats' => $this->service->registryStats(),
+            'transitions' => Contractor::TRANSITIONS,
         ]);
     }
 
@@ -45,11 +47,29 @@ class ContractorController extends Controller
             'trades.*.trade' => ['required', 'string', 'max:60'],
             'trades.*.rate' => ['nullable', 'numeric', 'min:0', 'max:99999999.99'],
             'user_id' => ['nullable', 'integer', 'exists:auth_users,id'],
+            'user_email' => ['nullable', 'string', 'email', 'max:255'],
         ]);
 
-        $this->service->register($validated);
+        $contractor = $this->service->register($validated, $request->user());
 
-        return redirect()->back()->with('success', 'Contractor registered — profile is now under vetting.');
+        return redirect()->back()->with('success', $contractor->user_id !== null
+            ? 'Contractor registered and login linked — profile is now under vetting.'
+            : 'Contractor registered — profile is now under vetting.');
+    }
+
+    /**
+     * Link an existing account (by email) to a contractor profile and grant
+     * it the Contractor role (opens the "My Jobs" desk).
+     */
+    public function adminLink(Request $request, Contractor $contractor)
+    {
+        $validated = $request->validate([
+            'user_email' => ['required', 'string', 'email', 'max:255'],
+        ]);
+
+        $this->service->linkLogin($contractor, $validated['user_email'], $request->user());
+
+        return redirect()->back()->with('success', 'Login linked — the account can now open My Jobs.');
     }
 
     /**

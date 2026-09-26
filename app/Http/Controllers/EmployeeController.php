@@ -7,14 +7,20 @@ use App\Models\Department;
 use App\Models\Employee;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\AuthService;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
 class EmployeeController extends Controller
 {
+    public function __construct(private readonly AuthService $authService)
+    {
+    }
+
     public function index(Request $request)
     {
         $query = Employee::with(['branch', 'department', 'user.roles']);
@@ -83,13 +89,12 @@ class EmployeeController extends Controller
             'national_id' => 'nullable|string|max:50',
             'email' => [
                 'nullable',
+                // Implicit rule: a closure alone never runs on an empty value
+                'required_if_accepted:create_user_account',
                 'email',
-                'max:255',
+                'max:150',
                 function ($attribute, $value, $fail) use ($request) {
                     if ($request->boolean('create_user_account')) {
-                        if (empty($value)) {
-                            $fail('An email address is required when creating a system user account.');
-                        }
                         if (User::where('email', $value)->exists()) {
                             $fail('This email address is already associated with an existing system user account.');
                         }
@@ -115,7 +120,13 @@ class EmployeeController extends Controller
             'create_user_account' => 'boolean',
             'role_ids' => 'nullable|array',
             'role_ids.*' => 'exists:auth_roles,id',
+        ], [
+            'email.required_if_accepted' => 'An email address is required when creating a system user account.',
         ]);
+
+        if ($request->boolean('create_user_account')) {
+            $this->authService->guardGrant($request->user(), $validated['role_ids'] ?? [], 'role_ids');
+        }
 
         DB::beginTransaction();
 
@@ -145,10 +156,7 @@ class EmployeeController extends Controller
 
                 $userId = $user->id;
 
-                // Assign roles
-                if (! empty($request->role_ids)) {
-                    $user->roles()->sync($request->role_ids);
-                }
+                $this->authService->grantInitialRoles($request->user(), $user, $validated['role_ids'] ?? []);
             }
 
             // Create employee
@@ -223,16 +231,13 @@ class EmployeeController extends Controller
 
     public function edit(Employee $employee)
     {
-        $employee->load(['user.roles']);
-        $branches = Branch::with('departments')->where('status', 'active')->get();
-        $departments = Department::where('status', 'active')->get();
-        $roles = Role::orderBy('name')->get();
+        $branches = Branch::where('status', 'active')->orderBy('name')->get();
+        $departments = Department::where('status', 'active')->orderBy('name')->get();
 
         return Inertia::render('Admin/Employees/Edit', [
             'employee' => $employee,
             'branches' => $branches,
             'departments' => $departments,
-            'roles' => $roles,
         ]);
     }
 
@@ -246,7 +251,10 @@ class EmployeeController extends Controller
             'gender' => 'nullable|in:male,female,other',
             'date_of_birth' => 'nullable|date',
             'national_id' => 'nullable|string|max:50',
-            'email' => 'nullable|email|max:255',
+            // A linked sign-in account needs a unique email address.
+            'email' => $employee->user_id
+                ? ['required', 'email', 'max:150', Rule::unique('auth_users', 'email')->ignore($employee->user_id)]
+                : ['nullable', 'email', 'max:255'],
             'phone' => 'nullable|string|max:50',
             'alt_phone' => 'nullable|string|max:50',
             'address' => 'nullable|string',
@@ -262,6 +270,9 @@ class EmployeeController extends Controller
             'emergency_contact_name' => 'nullable|string|max:255',
             'emergency_contact_phone' => 'nullable|string|max:50',
             'status' => 'required|in:active,inactive,terminated,suspended',
+        ], [
+            'email.required' => 'This employee has a system user account, so an email address is required.',
+            'email.unique' => 'This email address is already used by another system user account.',
         ]);
 
         $employee->update($validated);
@@ -341,29 +352,33 @@ class EmployeeController extends Controller
         }
 
         $validated = $request->validate([
-            'username' => 'required|string|max:255|unique:auth_users,username',
+            'email' => 'required|email|max:150|unique:auth_users,email',
+            'username' => 'required|string|max:100|unique:auth_users,username',
             'password' => 'required|string|min:8',
             'role_ids' => 'nullable|array',
             'role_ids.*' => 'exists:auth_roles,id',
+        ], [
+            'email.required' => 'A system user account needs an email address. Add one for this employee.',
+            'email.unique' => 'This email address is already used by another system user account.',
         ]);
+
+        $this->authService->guardGrant($request->user(), $validated['role_ids'] ?? [], 'role_ids');
 
         DB::beginTransaction();
 
         try {
+            // password_changed_at stays null: the employee must replace this password at first sign-in
             $user = User::create([
                 'name' => $employee->full_name,
-                'email' => $employee->email,
+                'email' => $validated['email'],
                 'username' => $validated['username'],
                 'password' => Hash::make($validated['password']),
                 'status' => 'active',
             ]);
 
-            // Assign roles
-            if (! empty($request->role_ids)) {
-                $user->roles()->sync($request->role_ids);
-            }
+            $this->authService->grantInitialRoles($request->user(), $user, $validated['role_ids'] ?? []);
 
-            $employee->update(['user_id' => $user->id]);
+            $employee->update(['user_id' => $user->id, 'email' => $validated['email']]);
 
             DB::commit();
 

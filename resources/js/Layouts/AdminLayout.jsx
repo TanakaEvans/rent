@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import {
     Home,
     LayoutDashboard,
@@ -27,6 +27,9 @@ import {
     Flag,
     Megaphone,
     Wrench,
+    IdCard,
+    BookOpen,
+    KeyRound,
 } from 'lucide-react';
 import Brand from '@/Components/Shared/Brand';
 import { cn } from '@/lib/utils';
@@ -50,10 +53,10 @@ const isCurrentRoute = (pattern) => {
 const navLinkClass = (active) =>
     cn(
         'group relative flex items-center gap-3 rounded-lg px-3.5 py-2 text-sm font-medium transition-all duration-200',
-        active ? 'bg-sidebar-accent text-emerald-300' : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-white'
+        active ? 'bg-sidebar-accent text-white' : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-white'
     );
 
-const activeBar = (active) => active && <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full brand-gradient" />;
+const activeBar = (active) => active && <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-pitch" />;
 
 const navSections = [
     {
@@ -65,6 +68,7 @@ const navSections = [
             { label: 'Marketplace Reports', icon: Flag, route: 'admin.marketplace.reports.index', pattern: 'admin.marketplace.reports.*' },
             { label: 'Maintenance Escalations', icon: Wrench, route: 'admin.maintenance.escalations.index', pattern: 'admin.maintenance.escalations.*' },
             { label: 'Contractor Registry', icon: Briefcase, route: 'admin.contractors.index', pattern: 'admin.contractors.*' },
+            { label: 'KYC Review', icon: IdCard, route: 'admin.kyc.index', pattern: 'admin.kyc.*' },
         ],
     },
     {
@@ -102,15 +106,25 @@ const navSections = [
             { label: 'Ad Placements', icon: Megaphone, route: 'admin.advertising.index', pattern: 'admin.advertising.*' },
         ],
     },
+    {
+        label: 'Help',
+        items: [
+            { label: 'Admin Guide', icon: BookOpen, route: 'admin.help', pattern: 'admin.help' },
+        ],
+    },
 ];
 
 const toastStyles = {
-    success: { icon: CheckCircle2, classes: 'border-emerald-200 bg-emerald-50 text-emerald-800' },
+    success: { icon: CheckCircle2, classes: 'border-green-200 bg-green-50 text-green-800' },
     error: { icon: AlertCircle, classes: 'border-rose-200 bg-rose-50 text-rose-800' },
     warning: { icon: TriangleAlert, classes: 'border-amber-200 bg-amber-50 text-amber-800' },
 };
 
-export default function AdminLayout({ children, title = 'Dashboard', auth, flash }) {
+export default function AdminLayout({ children, title = 'Dashboard', ...overrides }) {
+    // Shared Inertia props (auth, flash) are the source of truth; a page may still override them.
+    const shared = usePage().props;
+    const auth = overrides.auth ?? shared.auth;
+    const flash = overrides.flash ?? shared.flash;
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [profileOpen, setProfileOpen] = useState(false);
     const [toasts, setToasts] = useState([]);
@@ -163,7 +177,7 @@ export default function AdminLayout({ children, title = 'Dashboard', auth, flash
                                         return (
                                             <Link key={item.route} href={safeRoute(item.route)} className={navLinkClass(active)}>
                                                 {activeBar(active)}
-                                                <Icon className="h-4.5 w-4.5 text-emerald-400" strokeWidth={1.9} />
+                                                <Icon className="h-4.5 w-4.5 text-white/70" strokeWidth={1.9} />
                                                 {item.label}
                                             </Link>
                                         );
@@ -175,7 +189,7 @@ export default function AdminLayout({ children, title = 'Dashboard', auth, flash
 
                     <div className="border-t border-sidebar-border p-4">
                         <div className="flex items-center gap-3 rounded-xl bg-sidebar-accent/70 p-3">
-                            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 text-sm font-extrabold text-white shadow-inner">
+                            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-pitch text-sm font-extrabold text-brand">
                                 {(auth?.user?.name || 'A').charAt(0).toUpperCase()}
                             </span>
                             <div className="min-w-0 flex-1">
@@ -219,7 +233,11 @@ export default function AdminLayout({ children, title = 'Dashboard', auth, flash
                                             <div className="truncate text-sm font-bold text-foreground">{auth?.user?.name}</div>
                                             <div className="truncate text-xs text-muted-foreground">{auth?.user?.email}</div>
                                         </div>
-                                        <button onClick={logout} className="m-2 flex w-[calc(100%-1rem)] items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-semibold text-rose-600 transition-colors hover:bg-rose-50">
+                                        <Link href={safeRoute('password.change')} className="mx-2 mt-2 flex w-[calc(100%-1rem)] items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-muted">
+                                            <KeyRound className="h-4 w-4" />
+                                            Change password
+                                        </Link>
+                                        <button onClick={logout} className="mx-2 mb-2 flex w-[calc(100%-1rem)] items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-semibold text-rose-600 transition-colors hover:bg-rose-50">
                                             <LogOut className="h-4 w-4" />
                                             Sign out
                                         </button>

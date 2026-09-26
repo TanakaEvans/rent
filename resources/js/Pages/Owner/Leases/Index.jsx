@@ -1,17 +1,22 @@
 import { useState } from 'react';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
-import { FileSignature, MapPin, UserRound, CalendarDays, Coins, BadgeCheck, ArrowRight, CheckCircle2, Send, RefreshCw, CalendarPlus, FileText } from 'lucide-react';
+import { FileSignature, MapPin, UserRound, CalendarDays, Coins, BadgeCheck, ArrowRight, CheckCircle2, Send, RefreshCw, CalendarPlus, FileText, CircleStop } from 'lucide-react';
 import MainLayout from '@/Layouts/MainLayout';
 import PropertyArt from '@/Components/Shared/PropertyArt';
 import StatusBadge from '@/Components/Shared/StatusBadge';
 import EmptyState from '@/Components/Shared/EmptyState';
 import LeaseSignPad from '@/Components/Shared/LeaseSignPad';
+import ActionErrors from '@/Components/Shared/ActionErrors';
+import { formatPrice, priceSuffix } from '@/lib/listing';
 
-const money = (value) => new Intl.NumberFormat('en-ZW', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 2,
-}).format(Number(value || 0));
+const leaseCurrency = (lease) => lease.currency || lease.property?.currency || 'USD';
+const leaseTerm = (lease) => lease.payment_terms?.frequency || lease.property?.payment_terms || 'monthly';
+
+const today = () => {
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+};
 
 const fmt = (value) => (value ? new Date(value).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
 
@@ -19,6 +24,27 @@ export default function OwnerLeasesIndex({ leases = [] }) {
     const { user } = usePage().props.auth;
     const [openRenewId, setOpenRenewId] = useState(null);
     const renewForm = useForm({ start_date: '', end_date: '' });
+    const [openEndId, setOpenEndId] = useState(null);
+    const endForm = useForm({ terminated_on: today(), reason: '' });
+
+    const openEnd = (lease) => {
+        if (openEndId === lease.id) {
+            setOpenEndId(null);
+            return;
+        }
+        endForm.setData({ terminated_on: today(), reason: '' });
+        endForm.clearErrors();
+        setOpenEndId(lease.id);
+        setOpenRenewId(null);
+    };
+
+    const submitEnd = (lease) => {
+        if (!confirm(`End lease ${lease.lease_no}? The tenant will be notified and the property freed up. This cannot be undone.`)) return;
+        endForm.post(route('owner.leases.terminate', lease.id), {
+            preserveScroll: true,
+            onSuccess: () => setOpenEndId(null),
+        });
+    };
 
     const openRenew = (lease) => {
         if (openRenewId === lease.id) {
@@ -29,7 +55,9 @@ export default function OwnerLeasesIndex({ leases = [] }) {
             start_date: lease.end_date ? String(lease.end_date).slice(0, 10) : '',
             end_date: '',
         });
+        renewForm.clearErrors();
         setOpenRenewId(lease.id);
+        setOpenEndId(null);
     };
 
     const submitRenew = (leaseId) => {
@@ -46,6 +74,8 @@ export default function OwnerLeasesIndex({ leases = [] }) {
                     Draft agreements from approved applications — send them, wait for both signatures, and the property moves to occupied.
                 </p>
             </div>
+
+            <ActionErrors exclude={['start_date', 'end_date', 'terminated_on', 'reason', 'signature']} className="mb-5" />
 
             {leases.length === 0 ? (
                 <EmptyState
@@ -121,8 +151,8 @@ export default function OwnerLeasesIndex({ leases = [] }) {
                                         </span>
                                         <div>
                                             <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Terms</p>
-                                            <p className="text-sm font-bold text-foreground">{money(lease.rent_amount)} / month</p>
-                                            <p className="text-xs text-muted-foreground">Deposit {money(lease.deposit_amount)}</p>
+                                            <p className="text-sm font-bold text-foreground">{formatPrice(lease.rent_amount, leaseCurrency(lease))}{priceSuffix(leaseTerm(lease))}</p>
+                                            <p className="text-xs text-muted-foreground">Deposit {formatPrice(lease.deposit_amount || 0, leaseCurrency(lease))}</p>
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2.5">
@@ -136,7 +166,9 @@ export default function OwnerLeasesIndex({ leases = [] }) {
                                                 {lease.status === 'draft' && 'Ready to send'}
                                                 {lease.status === 'sent' && 'Awaiting both signatures'}
                                                 {lease.status === 'active' && 'Active — property occupied'}
-                                                {['signed', 'renewed', 'terminated'].includes(lease.status) && 'See agreement status'}
+                                                {lease.status === 'signed' && 'Signed by both parties'}
+                                                {lease.status === 'renewed' && 'Superseded by its renewal'}
+                                                {lease.status === 'terminated' && (lease.terminated_on ? `Ended ${fmt(lease.terminated_on)}` : 'Ended')}
                                             </p>
                                         </div>
                                     </div>
@@ -155,6 +187,12 @@ export default function OwnerLeasesIndex({ leases = [] }) {
                                             {lease.status === 'active' && 'Both parties signed — tenant moved in to an occupied property'}
                                         </span>
                                     </div>
+                                )}
+
+                                {lease.status === 'terminated' && lease.termination_reason && (
+                                    <p className="border-t border-border bg-rose-50/60 px-5 py-2.5 text-xs font-medium text-rose-800">
+                                        Ended on {fmt(lease.terminated_on)} — {lease.termination_reason}
+                                    </p>
                                 )}
 
                                 {lease.document && (
@@ -195,14 +233,70 @@ export default function OwnerLeasesIndex({ leases = [] }) {
                                         <div>
                                             <div className="flex flex-wrap items-center justify-between gap-3">
                                                 <p className="text-sm font-medium text-emerald-700">Lease active — this property is occupied and no longer listed.</p>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => openRenew(lease)}
-                                                    className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/[0.06] px-4 text-sm font-bold text-primary transition hover:bg-primary/15"
-                                                >
-                                                    <RefreshCw className={openRenewId === lease.id ? 'h-4 w-4 rotate-180 transition' : 'h-4 w-4'} /> Renew lease
-                                                </button>
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => openRenew(lease)}
+                                                        className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/[0.06] px-4 text-sm font-bold text-primary transition hover:bg-primary/15"
+                                                    >
+                                                        <RefreshCw className={openRenewId === lease.id ? 'h-4 w-4 rotate-180 transition' : 'h-4 w-4'} /> Renew lease
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => openEnd(lease)}
+                                                        className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-4 text-sm font-bold text-rose-700 transition hover:bg-rose-100"
+                                                    >
+                                                        <CircleStop className="h-4 w-4" /> End lease
+                                                    </button>
+                                                </div>
                                             </div>
+                                            {openEndId === lease.id && (
+                                                <form
+                                                    onSubmit={(e) => {
+                                                        e.preventDefault();
+                                                        submitEnd(lease);
+                                                    }}
+                                                    className="mt-3 grid gap-3 rounded-xl border border-rose-200 bg-rose-50/50 p-4 sm:grid-cols-[1fr_2fr_auto]"
+                                                >
+                                                    <label className="block">
+                                                        <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Lease ended on</span>
+                                                        <input
+                                                            type="date"
+                                                            required
+                                                            max={today()}
+                                                            value={endForm.data.terminated_on}
+                                                            onChange={(e) => endForm.setData('terminated_on', e.target.value)}
+                                                            className="field w-full"
+                                                        />
+                                                        {endForm.errors.terminated_on && <span className="mt-1 block text-xs font-semibold text-rose-600">{endForm.errors.terminated_on}</span>}
+                                                    </label>
+                                                    <label className="block">
+                                                        <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Reason (shared with the tenant)</span>
+                                                        <input
+                                                            type="text"
+                                                            required
+                                                            maxLength={1000}
+                                                            value={endForm.data.reason}
+                                                            onChange={(e) => endForm.setData('reason', e.target.value)}
+                                                            placeholder="e.g. Tenant moved out by mutual agreement"
+                                                            className="field w-full"
+                                                        />
+                                                        {endForm.errors.reason && <span className="mt-1 block text-xs font-semibold text-rose-600">{endForm.errors.reason}</span>}
+                                                    </label>
+                                                    <div className="flex items-end">
+                                                        <button
+                                                            type="submit"
+                                                            disabled={endForm.processing || !endForm.data.reason.trim()}
+                                                            className="inline-flex h-10 items-center gap-1.5 rounded-lg bg-rose-600 px-4 text-sm font-bold text-white transition hover:bg-rose-700 disabled:opacity-60"
+                                                        >
+                                                            <CircleStop className="h-4 w-4" /> {endForm.processing ? 'Ending…' : 'End lease'}
+                                                        </button>
+                                                    </div>
+                                                    <p className="text-xs text-muted-foreground sm:col-span-3">
+                                                        The property goes back to Available (or Unavailable if your plan has no free listing slot). Both of you are notified.
+                                                    </p>
+                                                </form>
+                                            )}
                                             {openRenewId === lease.id && (
                                                 <form
                                                     onSubmit={(e) => {

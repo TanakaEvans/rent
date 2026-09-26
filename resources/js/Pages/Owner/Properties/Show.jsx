@@ -14,22 +14,24 @@ import {
     FileText,
     ChevronLeft,
     ChevronRight,
+    RefreshCw,
 } from 'lucide-react';
 import MainLayout from '@/Layouts/MainLayout';
 import StatusBadge from '@/Components/Shared/StatusBadge';
 import PropertyArt from '@/Components/Shared/PropertyArt';
+import ActionErrors from '@/Components/Shared/ActionErrors';
 import { Button, buttonVariants } from '@/Components/ui/button';
 import { cn } from '@/lib/utils';
-
-const typeLabels = {
-    house: 'House',
-    flat: 'Flat / Apartment',
-    townhouse: 'Townhouse',
-    cottage: 'Cottage',
-    room: 'Room',
-    commercial: 'Commercial',
-    land: 'Land',
-};
+import {
+    TYPE_LABELS as typeLabels,
+    formatPrice,
+    priceSuffix,
+    optionLabel,
+    PAYMENT_TERM_LABELS,
+    PARKING_TYPES,
+    SECURITY_TYPES,
+    PREFERRED_TENANTS,
+} from '@/lib/listing';
 
 const statusLabels = {
     available: 'Available',
@@ -45,22 +47,28 @@ const transitions = {
     unavailable: ['available'],
 };
 
-const formatPrice = (value) => '$' + Number(value).toLocaleString();
-
 const formatArea = (value, unit = 'm²') => (value ? `${Number(value).toLocaleString()} ${unit}` : null);
 
-export default function PropertyShow({ auth, property, navigation = {} }) {
+const formatDay = (value) => new Date(value).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+
+export default function PropertyShow({ auth, property, navigation = {}, listing = {}, deleteBlockedReason = null }) {
     const changeStatus = (target) => {
         router.put(route('owner.properties.status', property.id), { status: target }, {
             preserveScroll: true,
         });
     };
 
+    const renew = () => {
+        router.post(route('owner.properties.renew', property.id), {}, { preserveScroll: true });
+    };
+
     const destroy = () => {
         if (confirm(`Delete "${property.title}"? This cannot be undone.`)) {
-            router.delete(route('owner.properties.destroy', property.id));
+            router.delete(route('owner.properties.destroy', property.id), { preserveScroll: true });
         }
     };
+
+    const targets = (transitions[property.status] || []).filter((target) => !(target === 'available' && listing.lapsed));
 
     const location = [property.suburb, property.zone, property.city].filter(Boolean).join(', ');
     const areas = [
@@ -136,10 +144,10 @@ export default function PropertyShow({ auth, property, navigation = {} }) {
                     )}
 
                     <div className="mt-5 flex flex-wrap items-baseline gap-2">
-                        <span className="text-3xl font-extrabold tracking-tight text-foreground">{formatPrice(property.price)}</span>
-                        <span className="text-sm font-medium text-muted-foreground">/ month</span>
+                        <span className="text-3xl font-extrabold tracking-tight text-foreground">{formatPrice(property.price, property.currency)}</span>
+                        <span className="text-sm font-medium text-muted-foreground">{priceSuffix(property.payment_terms)}</span>
                         {property.deposit > 0 && (
-                            <span className="ml-1 text-xs font-semibold text-muted-foreground">Deposit {formatPrice(property.deposit)}</span>
+                            <span className="ml-1 text-xs font-semibold text-muted-foreground">Deposit {formatPrice(property.deposit, property.currency)}</span>
                         )}
                     </div>
 
@@ -177,10 +185,15 @@ export default function PropertyShow({ auth, property, navigation = {} }) {
                         <Link href={route('owner.viewing-slots.index', property.id)} className={cn(buttonVariants({ variant: 'outline' }), 'border-primary/30 text-primary hover:bg-primary hover:text-white')}>
                             <CalendarClock className="h-4 w-4" /> Viewing Slots
                         </Link>
-                        <Button variant="ghost" onClick={destroy} className="text-rose-600 hover:bg-rose-50 hover:text-rose-700">
-                            <Trash2 className="h-4 w-4" /> Delete Property
-                        </Button>
+                        {deleteBlockedReason ? (
+                            <p className="rounded-lg bg-muted/60 px-3 py-2 text-xs text-muted-foreground">{deleteBlockedReason}</p>
+                        ) : (
+                            <Button variant="ghost" onClick={destroy} className="text-rose-600 hover:bg-rose-50 hover:text-rose-700">
+                                <Trash2 className="h-4 w-4" /> Delete Property
+                            </Button>
+                        )}
                     </div>
+                    <ActionErrors only={['property']} className="mt-3" />
                 </div>
             </div>
 
@@ -209,11 +222,31 @@ export default function PropertyShow({ auth, property, navigation = {} }) {
                         <h3 className="mb-1 text-sm font-extrabold uppercase tracking-wider text-muted-foreground">Listing Status</h3>
                         <div className="mt-2 inline-block"><StatusBadge status={property.status} /></div>
 
-                        {transitions[property.status]?.length > 0 && (
+                        {listing.expires_at && (property.status === 'available' || listing.expired) && (
+                            <p className="mt-3 flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                                <CalendarClock className="h-4 w-4 text-primary" />
+                                {listing.expired ? `Expired on ${formatDay(listing.expires_at)}` : `Listed until ${formatDay(listing.expires_at)}`}
+                            </p>
+                        )}
+                        {listing.renew_until && (
+                            <p className="mt-1 text-xs text-muted-foreground">Renew by {formatDay(listing.renew_until)} to put it back on the marketplace.</p>
+                        )}
+                        {listing.lapsed && (
+                            <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+                                The {listing.grace_days}-day renewal window has closed. Review and save the details with Edit Property, then set it to Available to publish it again.
+                            </p>
+                        )}
+                        {listing.can_renew && (
+                            <Button size="sm" className="mt-3" onClick={renew}>
+                                <RefreshCw className="h-4 w-4" /> Renew listing
+                            </Button>
+                        )}
+
+                        {targets.length > 0 && (
                             <>
                                 <p className="mt-3 text-xs text-muted-foreground">Move this listing to:</p>
                                 <div className="mt-2 flex flex-wrap gap-2">
-                                    {transitions[property.status].map((target) => (
+                                    {targets.map((target) => (
                                         <Button key={target} variant="outline" size="sm" onClick={() => changeStatus(target)}>
                                             {statusLabels[target] || target}
                                         </Button>
@@ -221,6 +254,7 @@ export default function PropertyShow({ auth, property, navigation = {} }) {
                                 </div>
                             </>
                         )}
+                        <ActionErrors only={['status']} className="mt-3" />
                     </div>
 
                     {/* Change history */}
@@ -252,8 +286,8 @@ export default function PropertyShow({ auth, property, navigation = {} }) {
                         <h3 className="mb-3 text-sm font-extrabold uppercase tracking-wider text-muted-foreground">Applications</h3>
                         <div className="text-3xl font-extrabold text-foreground">{property.applications_count ?? 0}</div>
                         <p className="mt-1 text-xs text-muted-foreground">Tenant applications on this listing.</p>
-                        <Link href={route('owner.dashboard')} className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'mt-4')}>
-                            <FileText className="h-4 w-4" /> View Dashboard
+                        <Link href={route('owner.applications.index')} className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'mt-4')}>
+                            <FileText className="h-4 w-4" /> View Applications
                         </Link>
                     </div>
 
@@ -264,6 +298,62 @@ export default function PropertyShow({ auth, property, navigation = {} }) {
                                 <dt className="text-muted-foreground">Type</dt>
                                 <dd className="font-bold capitalize text-foreground">{typeLabels[property.property_type] || property.property_type}</dd>
                             </div>
+                            <div className="flex justify-between gap-3">
+                                <dt className="text-muted-foreground">Currency</dt>
+                                <dd className="font-bold text-foreground">{property.currency || 'USD'}</dd>
+                            </div>
+                            <div className="flex justify-between gap-3">
+                                <dt className="text-muted-foreground">Payment terms</dt>
+                                <dd className="font-bold capitalize text-foreground">{PAYMENT_TERM_LABELS[property.payment_terms] || property.payment_terms}</dd>
+                            </div>
+                            {property.water_cost != null && (
+                                <div className="flex justify-between gap-3">
+                                    <dt className="text-muted-foreground">Water / month</dt>
+                                    <dd className="font-bold text-foreground">{formatPrice(property.water_cost, property.currency)}</dd>
+                                </div>
+                            )}
+                            {property.electricity_cost != null && (
+                                <div className="flex justify-between gap-3">
+                                    <dt className="text-muted-foreground">Electricity / month</dt>
+                                    <dd className="font-bold text-foreground">{formatPrice(property.electricity_cost, property.currency)}</dd>
+                                </div>
+                            )}
+                            {property.trash_cost != null && (
+                                <div className="flex justify-between gap-3">
+                                    <dt className="text-muted-foreground">Refuse / month</dt>
+                                    <dd className="font-bold text-foreground">{formatPrice(property.trash_cost, property.currency)}</dd>
+                                </div>
+                            )}
+                            <div className="flex justify-between gap-3">
+                                <dt className="text-muted-foreground">Security</dt>
+                                <dd className="font-bold capitalize text-foreground">{optionLabel(SECURITY_TYPES, property.security_type) || '—'}</dd>
+                            </div>
+                            <div className="flex justify-between gap-3">
+                                <dt className="text-muted-foreground">Parking</dt>
+                                <dd className="font-bold capitalize text-foreground">{optionLabel(PARKING_TYPES, property.parking_type) || '—'}</dd>
+                            </div>
+                            <div className="flex justify-between gap-3">
+                                <dt className="text-muted-foreground">Preferred tenant</dt>
+                                <dd className="font-bold capitalize text-foreground">{optionLabel(PREFERRED_TENANTS, property.preferred_tenant) || '—'}</dd>
+                            </div>
+                            {property.minimum_stay != null && (
+                                <div className="flex justify-between gap-3">
+                                    <dt className="text-muted-foreground">Minimum stay</dt>
+                                    <dd className="font-bold text-foreground">{property.minimum_stay} months</dd>
+                                </div>
+                            )}
+                            {property.year_built && (
+                                <div className="flex justify-between gap-3">
+                                    <dt className="text-muted-foreground">Year built</dt>
+                                    <dd className="font-bold text-foreground">{property.year_built}</dd>
+                                </div>
+                            )}
+                            {property.landmark && (
+                                <div className="flex justify-between gap-3">
+                                    <dt className="text-muted-foreground">Landmark</dt>
+                                    <dd className="text-right font-bold text-foreground">{property.landmark}</dd>
+                                </div>
+                            )}
                             <div className="flex justify-between gap-3">
                                 <dt className="text-muted-foreground">Address</dt>
                                 <dd className="text-right font-bold text-foreground">{property.address || '—'}</dd>

@@ -5,31 +5,23 @@ import StatCard from '@/Components/Shared/StatCard';
 import StatusBadge from '@/Components/Shared/StatusBadge';
 import PropertyArt from '@/Components/Shared/PropertyArt';
 import EmptyState from '@/Components/Shared/EmptyState';
-import { Button, buttonVariants } from '@/Components/ui/button';
+import { buttonVariants } from '@/Components/ui/button';
 import { cn } from '@/lib/utils';
-
-const typeLabels = {
-    house: 'House',
-    flat: 'Flat / Apartment',
-    townhouse: 'Townhouse',
-    cottage: 'Cottage',
-    room: 'Room',
-    commercial: 'Commercial',
-    land: 'Land',
-};
-
-const formatPrice = (value) => '$' + Number(value).toLocaleString();
+import { TYPE_LABELS as typeLabels, formatPrice, priceSuffix } from '@/lib/listing';
 
 const quickLinks = [
     { label: 'List a Property', description: 'Add a new listing', href: route('owner.properties.create'), icon: HomeIcon },
     { label: 'Applications', description: 'Review tenant applications', href: route('owner.applications.index'), icon: FileText },
     { label: 'Enquiries', description: 'Read tenant messages', href: route('owner.enquiries.index'), icon: MessageSquareText },
     { label: 'Viewings', description: 'Schedule and confirm viewing requests', href: route('owner.viewings.index'), icon: CalendarCheck },
-    { label: 'Rent & Receipts', description: 'Issue receipts and manage rent', href: route('owner.rent.index'), icon: Wallet },
+    { label: 'Rent & Receipts', description: 'Track rent invoices, payments and receipts', href: route('owner.rent.index'), icon: Wallet },
     { label: 'Plan & Billing', description: 'Manage your subscription', href: route('owner.subscriptions.index'), icon: Sparkles },
 ];
 
-export default function OwnerDashboard({ stats = {}, subscription = null, properties = [] }) {
+export default function OwnerDashboard({ stats = {}, financial = {}, subscription = null, properties = [] }) {
+    const trend = financial.income_trend || [];
+    const trendMax = Math.max(...trend.map((point) => Number(point.income) || 0), 0);
+
     const statCards = [
         { key: 'total_properties', label: 'My Properties', value: stats.total_properties ?? 0, icon: HomeIcon, tone: 'emerald', routeName: 'owner.properties.index' },
         { key: 'available', label: 'Available', value: stats.available ?? 0, icon: KeyRound, tone: 'teal', routeName: 'owner.properties.index' },
@@ -97,6 +89,33 @@ export default function OwnerDashboard({ stats = {}, subscription = null, proper
                             Manage Plan <ArrowRight className="h-4 w-4" />
                         </Link>
                     </div>
+                </section>
+            )}
+
+            {trend.length > 0 && (
+                <section className="surface mt-6 p-5">
+                    <div className="flex flex-wrap items-end justify-between gap-2">
+                        <h3 className="text-sm font-extrabold uppercase tracking-wider text-muted-foreground">Rent collected — last 6 months</h3>
+                        <Link href={route('owner.rent.index')} className="text-xs font-bold text-primary hover:text-primary/80">View rent</Link>
+                    </div>
+                    {trendMax > 0 ? (
+                        <ol className="mt-4 grid grid-cols-6 items-end gap-2">
+                            {trend.map((point) => {
+                                const value = Number(point.income) || 0;
+                                return (
+                                    <li key={point.month} className="flex flex-col items-center gap-1.5">
+                                        <span className="text-[10px] font-bold text-muted-foreground">{formatPrice(value)}</span>
+                                        <span className="flex h-24 w-full items-end overflow-hidden rounded-md bg-muted/60">
+                                            <span className="brand-gradient block w-full rounded-md" style={{ height: `${Math.max((value / trendMax) * 100, value > 0 ? 4 : 0)}%` }} />
+                                        </span>
+                                        <span className="text-[11px] font-semibold text-muted-foreground">{point.label}</span>
+                                    </li>
+                                );
+                            })}
+                        </ol>
+                    ) : (
+                        <p className="mt-3 text-sm text-muted-foreground">No rent collected in the last 6 months yet. Settled payments will show here month by month.</p>
+                    )}
                 </section>
             )}
 
@@ -177,7 +196,7 @@ export default function OwnerDashboard({ stats = {}, subscription = null, proper
                                             <td className="px-5 py-3.5 text-muted-foreground">
                                                 {[property.suburb, property.zone, property.city].filter(Boolean).join(', ') || '—'}
                                             </td>
-                                            <td className="px-5 py-3.5 font-bold text-foreground">{formatPrice(property.price)}</td>
+                                            <td className="px-5 py-3.5 font-bold text-foreground">{formatPrice(property.price, property.currency)}</td>
                                             <td className="px-5 py-3.5">
                                                 <span className="inline-flex items-center gap-1.5 rounded-lg bg-muted px-2 py-1 text-xs font-bold text-foreground">
                                                     {property.applications_count ?? 0}
@@ -214,7 +233,7 @@ export default function OwnerDashboard({ stats = {}, subscription = null, proper
                                         <MapPin className="h-3 w-3 shrink-0 text-emerald-500" />
                                         {[property.suburb, property.zone, property.city].filter(Boolean).join(', ') || 'Location on request'}
                                     </p>
-                                    <div className="mt-2 text-sm font-bold text-foreground">{formatPrice(property.price)}<span className="font-semibold text-muted-foreground">/mo</span></div>
+                                    <div className="mt-2 text-sm font-bold text-foreground">{formatPrice(property.price, property.currency)}<span className="font-semibold text-muted-foreground">{priceSuffix(property.payment_terms)}</span></div>
                                     <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
                                         <span className="capitalize">{typeLabels[property.property_type] || property.property_type}</span>
                                         {property.bedrooms > 0 && <span>· {property.bedrooms} bed</span>}

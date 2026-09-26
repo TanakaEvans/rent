@@ -79,11 +79,14 @@ class ReportService
     {
         $query = Report::query()->with(['reporter:id,name,email']);
 
-        if (isset($filters['status']) && array_key_exists($filters['status'], Report::STATUSES)) {
-            $query->where('status', $filters['status']);
+        $status = $filters['status'] ?? null;
+        if (is_string($status) && array_key_exists($status, Report::STATUSES)) {
+            $query->where('status', $status);
         }
-        if ($filters['priority'] ?? null && in_array($filters['priority'], ['low', 'medium', 'high'], true)) {
-            $query->where('priority', $filters['priority']);
+
+        $priority = $filters['priority'] ?? null;
+        if (is_string($priority) && in_array($priority, ['low', 'medium', 'high'], true)) {
+            $query->where('priority', $priority);
         }
 
         return $query->latest()->paginate(15)->withQueryString();

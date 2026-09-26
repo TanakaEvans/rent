@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Property;
 use App\Models\SavedSearch;
 use App\Models\User;
+use Illuminate\Support\Carbon;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 class SavedSearchService
@@ -64,8 +65,10 @@ class SavedSearchService
     }
 
     /**
-     * Does a listed property satisfy a saved-search criteria set? Used both
-     * for rendering the "matches" count and by the alerting pass.
+     * Does a listed property satisfy a saved-search criteria set? Used by the
+     * alerting pass; mirrors every filter PropertySearchService::search()
+     * honours for the same criteria so an alert never fires for a listing
+     * the saved search would not show (and vice versa).
      *
      * @param array<string, mixed> $criteria
      */
@@ -83,6 +86,11 @@ class SavedSearchService
         if (isset($criteria['zone']) && $property->zone !== $criteria['zone']) {
             return false;
         }
+        foreach (['payment_terms', 'security_type', 'parking_type', 'preferred_tenant'] as $option) {
+            if (isset($criteria[$option]) && $criteria[$option] !== '' && $property->{$option} !== $criteria[$option]) {
+                return false;
+            }
+        }
         if (isset($criteria['min_price']) && (float) $property->price < (float) $criteria['min_price']) {
             return false;
         }
@@ -95,15 +103,56 @@ class SavedSearchService
         if (isset($criteria['bathrooms']) && (int) $property->bathrooms < (int) $criteria['bathrooms']) {
             return false;
         }
-        if (array_key_exists('furnished', $criteria) && (bool) $property->furnished !== (bool) $criteria['furnished']) {
+        if (isset($criteria['furnished']) && (bool) $property->furnished !== filter_var($criteria['furnished'], FILTER_VALIDATE_BOOLEAN)) {
             return false;
         }
-        if (isset($criteria['verified']) && (bool) $property->verified !== (bool) $criteria['verified']) {
+        if (isset($criteria['verified']) && (bool) $property->verified !== filter_var($criteria['verified'], FILTER_VALIDATE_BOOLEAN)) {
+            return false;
+        }
+        if (! $this->matchesAvailability($property, $criteria['availability'] ?? null)) {
+            return false;
+        }
+        if (! $this->matchesKeywords($property, $criteria['keywords'] ?? $criteria['q'] ?? null)) {
             return false;
         }
 
         foreach ((array) ($criteria['amenities'] ?? []) as $amenity) {
             if (! in_array($amenity, (array) $property->amenities, true)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Same semantics as the marketplace availability filter: `now` = no
+     * start date or one on/before today; `upcoming` = a future start date.
+     */
+    private function matchesAvailability(Property $property, ?string $availability): bool
+    {
+        $from = $property->available_from ? Carbon::parse($property->available_from)->startOfDay() : null;
+        $today = now()->startOfDay();
+
+        return match ($availability) {
+            'now' => $from === null || $from->lte($today),
+            'upcoming' => $from !== null && $from->gt($today),
+            default => true,
+        };
+    }
+
+    /**
+     * Same token semantics as the marketplace keyword search: every token
+     * must appear in the title, suburb, city, zone or description.
+     */
+    private function matchesKeywords(Property $property, ?string $keywords): bool
+    {
+        $haystack = mb_strtolower(implode(' ', array_filter([
+            $property->title, $property->suburb, $property->city, $property->zone, $property->description,
+        ])));
+
+        foreach (PropertySearchService::keywordTokens($keywords) as $token) {
+            if (! str_contains($haystack, $token)) {
                 return false;
             }
         }

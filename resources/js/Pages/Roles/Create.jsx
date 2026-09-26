@@ -72,7 +72,7 @@ export default function RolesCreate({ auth, routesByModule = {} }) {
 
     const getModuleColor = (module) => {
         const colors = {
-            'Authentication & User Management': 'border-blue-200 bg-blue-50',
+            'Authentication & User Management': 'border-emerald-200 bg-emerald-50',
             'Dashboard & Analytics': 'border-green-200 bg-green-50',
             'Academic Management': 'border-purple-200 bg-purple-50',
             'Student Portal': 'border-indigo-200 bg-indigo-50',
@@ -121,7 +121,7 @@ export default function RolesCreate({ auth, routesByModule = {} }) {
                                     type="text"
                                     value={data.name}
                                     onChange={(e) => setData('name', e.target.value)}
-                                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.name ? 'border-red-500' : 'border-gray-300'
+                                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 ${errors.name ? 'border-red-500' : 'border-gray-300'
                                         }`}
                                     placeholder="Enter role name (e.g., Academic Coordinator, HR Manager)"
                                     required
@@ -140,7 +140,7 @@ export default function RolesCreate({ auth, routesByModule = {} }) {
                                     value={data.description}
                                     onChange={(e) => setData('description', e.target.value)}
                                     rows="2"
-                                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.description ? 'border-red-500' : 'border-gray-300'
+                                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 ${errors.description ? 'border-red-500' : 'border-gray-300'
                                         }`}
                                     placeholder="Brief description of the role's responsibilities"
                                 />
@@ -168,7 +168,7 @@ export default function RolesCreate({ auth, routesByModule = {} }) {
                                     placeholder="Search routes..."
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="w-64 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    className="w-64 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
                                 />
                             </div>
                         </div>
@@ -201,7 +201,7 @@ export default function RolesCreate({ auth, routesByModule = {} }) {
                                                     onClick={() => handleSelectAllModule(module, routes)}
                                                     className={`text-xs px-3 py-1 rounded-full transition-colors ${isAllSelected
                                                         ? 'bg-red-100 text-red-700 hover:bg-red-200'
-                                                        : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                                                        : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
                                                         }`}
                                                 >
                                                     {isAllSelected ? 'Deselect All' : 'Select All'}
@@ -216,7 +216,7 @@ export default function RolesCreate({ auth, routesByModule = {} }) {
                                                             id={`route-${route.id}`}
                                                             checked={selectedRoutes.includes(route.id)}
                                                             onChange={() => handleRouteToggle(route.id)}
-                                                            className="mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                                            className="mt-1 h-4 w-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
                                                         />
                                                         <label htmlFor={`route-${route.id}`} className="flex-1 cursor-pointer">
                                                             <div className="text-sm font-medium text-gray-900">
@@ -253,7 +253,7 @@ export default function RolesCreate({ auth, routesByModule = {} }) {
                         <button
                             type="submit"
                             disabled={processing}
-                            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                         >
                             {processing && (
                                 <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">

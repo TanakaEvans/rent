@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Contractor;
+use App\Models\MaintenanceAction;
 use App\Models\MaintenanceRequest;
 use App\Models\Property;
 use App\Models\User;
@@ -12,6 +13,7 @@ use App\Notifications\MaintenanceClosedNotification;
 use App\Notifications\MaintenanceSlaBreachedNotification;
 use App\Notifications\MaintenanceStartedNotification;
 use App\Notifications\MaintenanceTenantConfirmedNotification;
+use App\Notifications\MaintenanceTenantUpdateNotification;
 use App\Notifications\MaintenanceWorkCompletedNotification;
 use App\Notifications\NewMaintenanceRequestNotification;
 use Illuminate\Support\Carbon;
@@ -144,16 +146,55 @@ class MaintenanceService
     }
 
     /**
+     * Headline counts for the tenant's maintenance hub, across every one of
+     * their requests (not just the visible page).
+     *
+     * @return array{open: int, within_sla: int, escalated: int, closed: int}
+     */
+    public function tenantStats(User $tenant): array
+    {
+        $base = fn () => MaintenanceRequest::query()->where('tenant_id', $tenant->id);
+
+        return [
+            'open' => $base()->where('status', 'reported')->count(),
+            'within_sla' => $base()->where('status', 'reported')->where('sla_due_at', '>', now())->count(),
+            'escalated' => $base()->where('status', 'reported')->whereNotNull('escalated_at')->count(),
+            'closed' => $base()->whereIn('status', MaintenanceRequest::TERMINAL)->count(),
+        ];
+    }
+
+    /**
      * The owner's maintenance triage desk for their properties.
      */
     public function listForOwner(User $owner)
     {
-        return MaintenanceRequest::query()
+        return $this->ownerScope($owner)
             ->with(['property', 'tenant', 'contractor', 'rating'])
-            ->whereHas('property', fn ($q) => $q->where('owner_id', $owner->id))
             ->latest()
             ->paginate(12)
             ->withQueryString();
+    }
+
+    /**
+     * Headline counts for the owner's triage desk, across every request on
+     * their properties (not just the visible page).
+     *
+     * @return array{open: int, breached: int, awaiting_assignment: int, closed: int}
+     */
+    public function ownerStats(User $owner): array
+    {
+        return [
+            'open' => $this->ownerScope($owner)->whereNotIn('status', MaintenanceRequest::TERMINAL)->count(),
+            'breached' => $this->ownerScope($owner)->where('status', 'reported')->whereNotNull('escalated_at')->count(),
+            'awaiting_assignment' => $this->ownerScope($owner)->where('status', 'reported')->count(),
+            'closed' => $this->ownerScope($owner)->whereIn('status', MaintenanceRequest::TERMINAL)->count(),
+        ];
+    }
+
+    private function ownerScope(User $owner)
+    {
+        return MaintenanceRequest::query()
+            ->whereHas('property', fn ($q) => $q->where('owner_id', $owner->id));
     }
 
     /**
@@ -208,6 +249,8 @@ class MaintenanceService
             }
         }
 
+        $this->notifyTenant($request, 'assigned');
+
         return $request->fresh(['property', 'tenant', 'contractor']);
     }
 
@@ -244,7 +287,20 @@ class MaintenanceService
             $owner->notify(new MaintenanceStartedNotification($request->fresh(['property', 'contractor'])));
         }
 
+        $this->notifyTenant($request, 'started');
+
         return $request->fresh(['property', 'tenant', 'contractor']);
+    }
+
+    /**
+     * Keep the reporting tenant informed as their request progresses.
+     */
+    private function notifyTenant(MaintenanceRequest $request, string $stage): void
+    {
+        $tenant = User::find($request->tenant_id);
+        if ($tenant) {
+            $tenant->notify(new MaintenanceTenantUpdateNotification($request->fresh(['property', 'contractor']), $stage));
+        }
     }
 
     /**
@@ -369,6 +425,14 @@ class MaintenanceService
         $profile = Contractor::query()->where('user_id', $contractorUser->id)->first();
 
         return MaintenanceRequest::query()
+            ->select('maintenance_requests.*')
+            ->addSelect(['assigned_at' => MaintenanceAction::query()
+                ->select('created_at')
+                ->whereColumn('request_id', 'maintenance_requests.id')
+                ->where('action', 'assigned')
+                ->latest('id')
+                ->limit(1),
+            ])
             ->with(['property', 'property.owner', 'tenant', 'contractor'])
             ->when($profile, fn ($q) => $q->where('assigned_contractor_id', $profile->id))
             ->when(! $profile, fn ($q) => $q->whereRaw('1 = 0'))
@@ -378,30 +442,61 @@ class MaintenanceService
     }
 
     /**
-     * The staff escalation queue: reported requests whose first-response SLA
-     * has been breached and are awaiting a staff owner, newest first.
+     * The staff maintenance desk, three queues of reported requests nobody
+     * has picked up yet:
+     *  - escalations: first-response SLA breached (set by the daily sweep);
+     *  - emergencies: emergency reports still inside their SLA, surfaced the
+     *    moment they are filed so the emergency page lands on them;
+     *  - acknowledged: taken over by staff, kept visible until assigned.
+     *
+     * @return array{requests: mixed, emergencies: mixed, acknowledged: mixed}
      */
-    public function listEscalationsForAdmin()
+    public function listEscalationsForAdmin(): array
     {
-        return MaintenanceRequest::query()
+        $open = fn () => MaintenanceRequest::query()
             ->with(['property', 'tenant'])
-            ->where('status', 'reported')
-            ->whereNotNull('escalated_at')
-            ->latest('escalated_at')
-            ->paginate(12)
-            ->withQueryString();
+            ->where('status', 'reported');
+
+        return [
+            'requests' => $open()
+                ->whereNotNull('escalated_at')
+                ->latest('escalated_at')
+                ->paginate(12)
+                ->withQueryString(),
+            'emergencies' => $open()
+                ->where('priority', 'emergency')
+                ->whereNull('escalated_at')
+                ->whereDoesntHave('actions', fn ($q) => $q->where('action', 'acknowledged'))
+                ->latest()
+                ->paginate(12, ['*'], 'emergencies_page')
+                ->withQueryString(),
+            'acknowledged' => $open()
+                ->with('acknowledgement.actor:id,name')
+                ->whereHas('actions', fn ($q) => $q->where('action', 'acknowledged'))
+                ->latest()
+                ->paginate(12, ['*'], 'acknowledged_page')
+                ->withQueryString(),
+        ];
     }
 
     /**
-     * Take ownership of an escalated request. Records the staff member on the
-     * timeline and drops the request out of the escalation queue; the case
-     * continues as a normal reported request from the new assignee.
+     * Take ownership of an escalated (or live emergency) request. Records the
+     * staff member on the timeline and moves the request into the
+     * acknowledged list; the daily sweep never re-escalates it, and it leaves
+     * the staff desk once the owner assigns a contractor.
      */
     public function acknowledge(MaintenanceRequest $request, User $admin): MaintenanceRequest
     {
-        if ($request->status !== 'reported' || $request->escalated_at === null) {
+        $awaitingStaff = $request->escalated_at !== null || $request->priority === 'emergency';
+        if ($request->status !== 'reported' || ! $awaitingStaff) {
             throw ValidationException::withMessages([
                 'request' => 'This request is not waiting on staff attention.',
+            ]);
+        }
+
+        if ($request->actions()->where('action', 'acknowledged')->exists()) {
+            throw ValidationException::withMessages([
+                'request' => 'A staff member has already taken ownership of this request.',
             ]);
         }
 
@@ -413,7 +508,8 @@ class MaintenanceService
 
     /**
      * Sweep: escalate every reported request past its SLA clock, exactly once
-     * (escalated_at guards re-alerting). Returns how many were escalated.
+     * (escalated_at guards re-alerting; a staff acknowledgement takes the
+     * request out of the sweep for good). Returns how many were escalated.
      */
     public function escalateDue(): int
     {
@@ -425,6 +521,7 @@ class MaintenanceService
             ->where('status', 'reported')
             ->whereNull('escalated_at')
             ->where('sla_due_at', '<', Carbon::now())
+            ->whereDoesntHave('actions', fn ($q) => $q->where('action', 'acknowledged'))
             ->get();
 
         $escalated = 0;

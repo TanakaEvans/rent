@@ -14,7 +14,8 @@ class OwnerSubscriptionController extends Controller
     }
 
     /**
-     * Show the owner's current subscription, listing usage and the plan catalog.
+     * Show the owner's current subscription, listing usage, any scheduled
+     * plan change and the plan catalog.
      */
     public function index()
     {
@@ -30,11 +31,13 @@ class OwnerSubscriptionController extends Controller
             'plans' => SubscriptionPlan::active()->with('features')->orderBy('price')->get(),
             'invoices' => $subscription->invoices()->latest()->take(5)->get(),
             'proration_mode' => $this->subscriptions->prorationMode(),
+            'pending_change' => $this->subscriptions->pendingChange($subscription),
         ]);
     }
 
     /**
-     * Subscribe the owner to a plan (upgrade prorates, downgrade defers).
+     * Subscribe the owner to a plan (upgrade prorates, downgrade defers,
+     * re-choosing the current plan renews a lapsed subscription).
      */
     public function subscribe(Request $request)
     {

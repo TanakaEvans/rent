@@ -2,7 +2,6 @@
 
 namespace App\Console\Commands;
 
-use App\Notifications\ListingExpiryReminderNotification;
 use App\Services\ConfigurationService;
 use App\Services\ListingLifecycleService;
 use Illuminate\Console\Command;
@@ -10,7 +9,8 @@ use Illuminate\Console\Command;
 /**
  * Daily marketplace housekeeping (Marketplace §40/§41):
  *  - expire listings past their validity window (config-driven)
- *  - remind owners before expiry per listings.validity_reminders (e.g. 14/7/1)
+ *  - remind owners before expiry per listings.validity_reminders (e.g. 14/7/1),
+ *    each threshold once per validity window
  */
 class MarketplaceHousekeeping extends Command
 {
@@ -23,14 +23,10 @@ class MarketplaceHousekeeping extends Command
         $expired = $lifecycle->expireDue();
         $this->info("Expired {$expired} listing(s).");
 
-        $reminders = (array) $config->get('listings.validity_reminders', [14, 7, 1]);
+        $reminders = $lifecycle->sendExpiryReminders((array) $config->get('listings.validity_reminders', [14, 7, 1]));
 
-        foreach ($reminders as $days) {
-            $due = $lifecycle->dueSoon((int) $days);
-            foreach ($due as $property) {
-                $property->owner?->notify(new ListingExpiryReminderNotification($property, (int) $days));
-                $this->line("Reminded owner about '{$property->title}' ({$property->expires_at?->diffInDays(now())} day(s) left).");
-            }
+        foreach ($reminders as $reminder) {
+            $this->line("Reminded owner about '{$reminder['property']->title}' ({$reminder['days']} day(s) left).");
         }
 
         return self::SUCCESS;

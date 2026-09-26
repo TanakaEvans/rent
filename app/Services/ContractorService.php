@@ -10,6 +10,7 @@ use App\Models\Property;
 use App\Models\User;
 use App\Notifications\ContractorRatedNotification;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
@@ -32,11 +33,31 @@ class ContractorService
     public function listForAdmin()
     {
         return Contractor::query()
-            ->with(['user', 'trades'])
+            ->with(['user:id,name,email', 'trades'])
             ->withCount('assignments')
             ->latest()
             ->paginate(12)
             ->withQueryString();
+    }
+
+    /**
+     * Registry headcounts across every profile (not just the current page).
+     *
+     * @return array{total: int, verified: int, under_review: int, suspended: int}
+     */
+    public function registryStats(): array
+    {
+        $counts = Contractor::query()
+            ->selectRaw('status, COUNT(*) as total')
+            ->groupBy('status')
+            ->pluck('total', 'status');
+
+        return [
+            'total' => (int) $counts->sum(),
+            'verified' => (int) ($counts['verified'] ?? 0),
+            'under_review' => (int) ($counts['unverified'] ?? 0) + (int) ($counts['vetting'] ?? 0),
+            'suspended' => (int) ($counts['suspended'] ?? 0),
+        ];
     }
 
     /**
@@ -47,7 +68,7 @@ class ContractorService
     {
         return Contractor::query()
             ->where('status', 'verified')
-            ->with('trades')
+            ->with('trades:id,contractor_id,trade,rate')
             ->orderByDesc('rating_avg')
             ->orderByDesc('jobs_completed')
             ->get(['id', 'business_name', 'contact', 'service_area', 'status', 'rating_avg', 'jobs_completed']);
@@ -56,8 +77,10 @@ class ContractorService
     /**
      * Register a tradesperson. New profiles always land in `vetting` — the
      * registry only opens a profile to owners once staff verifies it (FR-02).
+     * An optional login (existing account, looked up by email) is linked and
+     * granted the Contractor role so the "My Jobs" desk opens for them.
      */
-    public function register(array $data): Contractor
+    public function register(array $data, ?User $actor = null): Contractor
     {
         $businessName = trim((string) ($data['business_name'] ?? ''));
         if ($businessName === '') {
@@ -75,32 +98,86 @@ class ContractorService
             throw ValidationException::withMessages(['service_area' => 'Add at least one service area.']);
         }
 
-        $userId = isset($data['user_id']) && $data['user_id'] !== '' && $data['user_id'] !== null
-            ? (int) $data['user_id']
-            : null;
-        if ($userId !== null && ! User::query()->whereKey($userId)->exists()) {
-            throw ValidationException::withMessages(['user_id' => 'The linked user does not exist.']);
+        $login = null;
+        $email = trim((string) ($data['user_email'] ?? ''));
+        if ($email !== '') {
+            $login = $this->linkableUser($email, 'user_email');
+        } elseif (isset($data['user_id']) && $data['user_id'] !== '' && $data['user_id'] !== null) {
+            $login = User::find((int) $data['user_id']);
+            if (! $login) {
+                throw ValidationException::withMessages(['user_id' => 'The linked user does not exist.']);
+            }
+            $this->assertNotLinkedElsewhere($login, 'user_id');
         }
 
         $trades = $this->normaliseTrades($data['trades'] ?? []);
 
-        $contractor = Contractor::create([
-            'user_id' => $userId,
-            'business_name' => $businessName,
-            'contact' => $contact,
-            'service_area' => $areas,
-            'status' => 'vetting',
-        ]);
-
-        foreach ($trades as $trade) {
-            ContractorTrade::create([
-                'contractor_id' => $contractor->id,
-                'trade' => $trade['trade'],
-                'rate' => $trade['rate'],
+        return DB::transaction(function () use ($login, $businessName, $contact, $areas, $trades, $actor) {
+            $contractor = Contractor::create([
+                'user_id' => $login?->id,
+                'business_name' => $businessName,
+                'contact' => $contact,
+                'service_area' => $areas,
+                'status' => 'vetting',
             ]);
+
+            foreach ($trades as $trade) {
+                ContractorTrade::create([
+                    'contractor_id' => $contractor->id,
+                    'trade' => $trade['trade'],
+                    'rate' => $trade['rate'],
+                ]);
+            }
+
+            $login?->assignRole('Contractor', $actor?->id);
+
+            return $contractor->fresh(['trades', 'user']);
+        });
+    }
+
+    /**
+     * Link an existing platform account (by email) to a contractor profile
+     * that has no login yet, and grant it the Contractor role so the account
+     * can open the "My Jobs" desk.
+     */
+    public function linkLogin(Contractor $contractor, string $email, ?User $actor = null): Contractor
+    {
+        if ($contractor->user_id !== null) {
+            throw ValidationException::withMessages(['user_email' => 'This contractor is already linked to a login.']);
         }
 
-        return $contractor->fresh(['trades']);
+        $login = $this->linkableUser($email, 'user_email');
+
+        return DB::transaction(function () use ($contractor, $login, $actor) {
+            $contractor->update(['user_id' => $login->id]);
+            $login->assignRole('Contractor', $actor?->id);
+
+            return $contractor->fresh(['trades', 'user']);
+        });
+    }
+
+    /**
+     * Resolve the account behind an email for linking. The account must
+     * exist (contractors sign up first) and may back only one profile.
+     */
+    private function linkableUser(string $email, string $field): User
+    {
+        $email = mb_strtolower(trim($email));
+        $login = User::query()->whereRaw('LOWER(email) = ?', [$email])->first();
+        if (! $login) {
+            throw ValidationException::withMessages([$field => 'No account uses that email. Ask the contractor to sign up first.']);
+        }
+
+        $this->assertNotLinkedElsewhere($login, $field);
+
+        return $login;
+    }
+
+    private function assertNotLinkedElsewhere(User $login, string $field): void
+    {
+        if (Contractor::query()->where('user_id', $login->id)->exists()) {
+            throw ValidationException::withMessages([$field => 'That account is already linked to another contractor profile.']);
+        }
     }
 
     /**

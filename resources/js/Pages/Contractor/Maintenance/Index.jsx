@@ -4,6 +4,7 @@ import { Briefcase, BadgeDollarSign, MapPin, Phone, Wrench, Play, CheckCircle2, 
 import MainLayout from '@/Layouts/MainLayout';
 import StatusBadge from '@/Components/Shared/StatusBadge';
 import EmptyState from '@/Components/Shared/EmptyState';
+import Pagination from '@/Components/Pagination';
 import { Button } from '@/Components/ui/button';
 
 const categoryLabel = {
@@ -23,7 +24,9 @@ const priorityPill = {
     emergency: 'border-orange-200 bg-orange-50 text-orange-700',
 };
 
-export default function ContractorJobs({ requests = {}, profile = null }) {
+const formatDate = (value) => (value ? new Date(value).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
+
+export default function ContractorJobs({ requests = {}, profile = null, errors = {} }) {
     const items = requests.data || [];
 
     return (
@@ -43,6 +46,12 @@ export default function ContractorJobs({ requests = {}, profile = null }) {
                     </p>
                 )}
             </div>
+
+            {(errors.request || errors.notes) && (
+                <p className="mb-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">
+                    {errors.request || errors.notes}
+                </p>
+            )}
 
             {items.length === 0 ? (
                 <EmptyState
@@ -92,12 +101,13 @@ export default function ContractorJobs({ requests = {}, profile = null }) {
                                     </span>
                                 )}
                                 <span className="inline-flex items-center gap-1.5 font-semibold">
-                                    <Wrench className="h-3.5 w-3.5" /> Assigned {r.created_at ? new Date(r.created_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
+                                    <Wrench className="h-3.5 w-3.5" /> Assigned {formatDate(r.assigned_at)}
                                 </span>
                             </div>
                             <JobActions request={r} />
                         </article>
                     ))}
+                    <Pagination data={requests} />
                 </div>
             )}
         </MainLayout>

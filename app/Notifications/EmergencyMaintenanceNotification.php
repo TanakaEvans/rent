@@ -25,8 +25,8 @@ class EmergencyMaintenanceNotification extends Notification
             'title' => 'Emergency maintenance request',
             'body' => $this->request->title.' ('.ucfirst($this->request->category).') on '
                 .($this->request->property->title ?? 'a property')
-                .' flagged as EMERGENCY — confirm a first response starts within the SLA.',
-            'link' => route('admin.maintenance.escalations.index'),
+                .' flagged as EMERGENCY — it is waiting under Emergencies on the escalations desk; take ownership to confirm a first response starts within the SLA.',
+            'link' => route('admin.maintenance.escalations.index').'#emergencies',
         ];
     }
 }

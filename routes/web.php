@@ -4,11 +4,13 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\OwnerDashboardController;
 use App\Http\Controllers\PropertyController;
 use App\Http\Controllers\PublicPropertyController;
 use App\Http\Controllers\FavouriteController;
+use App\Http\Controllers\InterestController;
 use App\Http\Controllers\EnquiryController;
 use App\Http\Controllers\ViewingSlotController;
 use App\Http\Controllers\ViewingRequestController;
@@ -35,6 +37,8 @@ use App\Http\Controllers\OwnerAnalyticsController;
 use App\Http\Controllers\AdPlacementController;
 use App\Http\Controllers\MaintenanceController;
 use App\Http\Controllers\ContractorController;
+use App\Http\Controllers\TenantProfileController;
+use App\Http\Controllers\HelpController;
 use App\Http\Middleware\EnsurePasswordIsChanged;
 use App\Http\Middleware\EnsureHasRole;
 
@@ -54,32 +58,34 @@ Route::get('/properties/{id}', [PublicPropertyController::class, 'show'])
     ->name('property.show')
     ->whereNumber('id');
 
+// Public Help Center — tenant and owner guides are readable before signing up
+Route::get('/help', [HelpController::class, 'index'])->name('help.index');
+Route::get('/help/{guide}', [HelpController::class, 'show'])
+    ->name('help.show')
+    ->whereIn('guide', \App\Support\Manual\Manual::PUBLIC_GUIDES);
+
 // Authentication Routes
 Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login');
 Route::post('/login', [LoginController::class, 'login'])->name('login.submit');
 Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 
+// Public self-service signup (Presentation Release S3) — guests only
+Route::get('/register', [RegisterController::class, 'create'])->name('register');
+Route::post('/register', [RegisterController::class, 'store'])->name('register.submit');
+
 // Protected Routes
 Route::middleware(['auth', EnsurePasswordIsChanged::class, EnsureHasRole::class])->group(function () {
     // Main Dashboard Route
-    Route::get('/dashboard', function () {
-        $stats = [
-            'total_users' => \App\Models\User::count(),
-            'active_users' => \App\Models\User::where('status', 'active')->count(),
-            'total_roles' => \App\Models\Role::count(),
-            'total_employees' => \App\Models\Employee::count(),
-            'total_branches' => \App\Models\Branch::count(),
-        ];
+    // Sends each user to their role dashboard; a neutral page otherwise.
+    Route::get('/dashboard', function (\Illuminate\Http\Request $request, \App\Services\AuthService $authService) {
+        $landing = $authService->landingUrlFor($request->user());
+        if ($landing !== null) {
+            $request->session()->reflash();
 
-        $recent_users = \App\Models\User::with('roles')
-            ->latest()
-            ->take(5)
-            ->get();
+            return redirect($landing);
+        }
 
-        return inertia('Dashboard', [
-            'stats' => $stats,
-            'recent_users' => $recent_users,
-        ]);
+        return inertia('Dashboard');
     })->name('dashboard')->defaults('description', 'Access main system dashboard');
 
     // In-app notifications (all authenticated roles)
@@ -197,6 +203,23 @@ Route::middleware(['auth', EnsurePasswordIsChanged::class, EnsureHasRole::class]
             ->name('owner.applications.reject')
             ->defaults('description', 'Reject a rental application');
 
+        // Express-Interest queue (S6 — Presentation Release 2.0)
+        Route::get('/owner/interests', [InterestController::class, 'ownerIndex'])
+            ->name('owner.interests.index')
+            ->defaults('description', 'Triage the express-interest queue');
+        Route::post('/owner/interests/{interest}/contact', [InterestController::class, 'ownerContact'])
+            ->name('owner.interests.contact')
+            ->whereNumber('interest')
+            ->defaults('description', 'Mark an interest as contacted');
+        Route::post('/owner/interests/{interest}/reopen', [InterestController::class, 'ownerReopen'])
+            ->name('owner.interests.reopen')
+            ->whereNumber('interest')
+            ->defaults('description', 'Move a contacted interest back to the active queue');
+        Route::post('/owner/interests/{interest}/archive', [InterestController::class, 'ownerArchive'])
+            ->name('owner.interests.archive')
+            ->whereNumber('interest')
+            ->defaults('description', 'Archive an interest');
+
         Route::post('/owner/applications/{application}/lease', [LeaseController::class, 'createFromApplication'])
             ->name('owner.applications.lease')
             ->defaults('description', 'Generate a lease from an approved application');
@@ -212,6 +235,9 @@ Route::middleware(['auth', EnsurePasswordIsChanged::class, EnsureHasRole::class]
         Route::post('/owner/leases/{lease}/renew', [LeaseController::class, 'renew'])
             ->name('owner.leases.renew')
             ->defaults('description', 'Create a renewal lease from an active lease');
+        Route::post('/owner/leases/{lease}/terminate', [LeaseController::class, 'terminate'])
+            ->name('owner.leases.terminate')
+            ->defaults('description', 'End an active lease with an end date and reason');
 
         Route::get('/owner/documents', [\App\Http\Controllers\DocumentController::class, 'ownerIndex'])
             ->name('owner.documents.index')
@@ -245,6 +271,10 @@ Route::middleware(['auth', EnsurePasswordIsChanged::class, EnsureHasRole::class]
         Route::post('/owner/advertising', [AdPlacementController::class, 'store'])
             ->name('owner.advertising.store')
             ->defaults('description', 'Book a promotion for one of my listings');
+        Route::post('/owner/advertising/{placement}/cancel', [AdPlacementController::class, 'ownerCancel'])
+            ->name('owner.advertising.cancel')
+            ->whereNumber('placement')
+            ->defaults('description', 'Cancel one of my reserved promotion orders');
 
         // Maintenance report & triage (M10, Wave 5 slice 1)
         Route::get('/owner/maintenance', [MaintenanceController::class, 'ownerIndex'])
@@ -272,6 +302,25 @@ Route::middleware(['auth', EnsurePasswordIsChanged::class, EnsureHasRole::class]
             ->name('tenant.dashboard')
             ->defaults('description', 'Access tenant dashboard');
 
+        // Tenant profile + KYC (Presentation Release S4)
+        Route::get('/tenant/profile', [TenantProfileController::class, 'show'])
+            ->name('tenant.profile')
+            ->defaults('description', 'Manage my profile and identity documents');
+        Route::put('/tenant/profile', [TenantProfileController::class, 'update'])
+            ->name('tenant.profile.update')
+            ->defaults('description', 'Save my profile details');
+        Route::post('/tenant/profile/documents', [TenantProfileController::class, 'storeDocument'])
+            ->name('tenant.profile.documents.store')
+            ->defaults('description', 'Upload a KYC identity document');
+        Route::delete('/tenant/profile/documents/{document}', [TenantProfileController::class, 'destroyDocument'])
+            ->name('tenant.profile.documents.destroy')
+            ->whereNumber('document')
+            ->defaults('description', 'Delete a KYC identity document');
+        Route::get('/tenant/profile/documents/{document}/download', [TenantProfileController::class, 'downloadDocument'])
+            ->name('tenant.profile.documents.download')
+            ->whereNumber('document')
+            ->defaults('description', 'Download my KYC identity document');
+
         Route::get('/tenant/favourites', [FavouriteController::class, 'index'])
             ->name('tenant.favourites.index')
             ->defaults('description', 'View saved favourites');
@@ -286,6 +335,21 @@ Route::middleware(['auth', EnsurePasswordIsChanged::class, EnsureHasRole::class]
         Route::post('/tenant/enquiries/{property}', [EnquiryController::class, 'store'])
             ->name('tenant.enquiries.store')
             ->defaults('description', 'Send an enquiry about a property');
+        Route::post('/tenant/enquiries/{id}/reply', [EnquiryController::class, 'tenantReply'])
+            ->name('tenant.enquiries.reply')
+            ->defaults('description', 'Reply on one of my enquiry threads');
+
+        Route::get('/tenant/interests', [InterestController::class, 'tenantIndex'])
+            ->name('tenant.interests.index')
+            ->defaults('description', 'View my express interests');
+        Route::post('/tenant/interests/{property}', [InterestController::class, 'express'])
+            ->name('tenant.interests.store')
+            ->whereNumber('property')
+            ->defaults('description', 'Express interest in an available property');
+        Route::post('/tenant/interests/{interest}/withdraw', [InterestController::class, 'withdraw'])
+            ->name('tenant.interests.withdraw')
+            ->whereNumber('interest')
+            ->defaults('description', 'Withdraw an express interest');
 
         Route::get('/tenant/viewings', [ViewingRequestController::class, 'indexTenant'])
             ->name('tenant.viewings.index')
@@ -445,6 +509,9 @@ Route::prefix('auth')->name('auth.')->middleware('admin')->group(function () {
 
     // Admin Routes (Company, Branches, Departments, Employees)
     Route::prefix('admin')->name('admin.')->middleware('admin')->group(function () {
+        // Admin guide (Help Center inside the admin portal)
+        Route::get('help', [HelpController::class, 'admin'])->name('help');
+
         // Admin Dashboard
         Route::get('dashboard', function () {
             $stats = [
@@ -466,7 +533,8 @@ Route::prefix('auth')->name('auth.')->middleware('admin')->group(function () {
         })->name('dashboard')->defaults('description', 'Access system administration dashboard');
 
         // Sections
-        Route::resource('sections', \App\Http\Controllers\SectionController::class);
+        Route::resource('sections', \App\Http\Controllers\SectionController::class)
+            ->only(['index', 'store', 'update', 'destroy']);
 
         // Company Details
         Route::get('company', [CompanyController::class, 'index'])
@@ -598,6 +666,12 @@ Route::prefix('auth')->name('auth.')->middleware('admin')->group(function () {
         Route::post('rent/payments/{payment}/reject', [\App\Http\Controllers\PaymentController::class, 'adminReject'])
             ->name('rent.payments.reject')
             ->defaults('description', 'Reject a pending rent payment');
+        Route::get('rent/payments/{payment}/proof', [\App\Http\Controllers\PaymentController::class, 'adminProof'])
+            ->name('rent.payments.pop')
+            ->defaults('description', 'View the proof of payment attached to a rent payment');
+        Route::get('rent/payments/{payment}/receipt', [\App\Http\Controllers\PaymentController::class, 'adminReceipt'])
+            ->name('rent.payments.receipt')
+            ->defaults('description', 'Download the receipt of a settled rent payment');
 
         // Marketplace analytics + report moderation (Marketplace §35/§43)
         Route::get('marketplace/analytics', [AdminMarketplaceAnalyticsController::class, 'index'])
@@ -652,5 +726,30 @@ Route::prefix('auth')->name('auth.')->middleware('admin')->group(function () {
             ->name('contractors.status')
             ->whereNumber('contractor')
             ->defaults('description', 'Update a contractor registry status');
+        Route::post('contractors/{contractor}/link', [ContractorController::class, 'adminLink'])
+            ->name('contractors.link')
+            ->whereNumber('contractor')
+            ->defaults('description', 'Link a login account to a contractor profile');
+
+        // KYC identity review (S5)
+        Route::get('kyc', [\App\Http\Controllers\AdminKycController::class, 'index'])
+            ->name('kyc.index')
+            ->defaults('description', 'Review tenant identity evidence');
+        Route::post('kyc/{document}/approve', [\App\Http\Controllers\AdminKycController::class, 'approve'])
+            ->name('kyc.approve')
+            ->whereNumber('document')
+            ->defaults('description', 'Approve identity evidence');
+        Route::post('kyc/{document}/reject', [\App\Http\Controllers\AdminKycController::class, 'reject'])
+            ->name('kyc.reject')
+            ->whereNumber('document')
+            ->defaults('description', 'Reject identity evidence');
+        Route::post('kyc/{document}/revoke', [\App\Http\Controllers\AdminKycController::class, 'revoke'])
+            ->name('kyc.revoke')
+            ->whereNumber('document')
+            ->defaults('description', 'Revoke approved identity evidence');
+        Route::get('kyc/{document}/download', [\App\Http\Controllers\AdminKycController::class, 'download'])
+            ->name('kyc.download')
+            ->whereNumber('document')
+            ->defaults('description', 'Download identity evidence for review');
     });
 });

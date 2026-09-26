@@ -41,6 +41,20 @@ class EnquiryController extends Controller
     }
 
     /**
+     * Follow up on one of the tenant's open enquiries.
+     */
+    public function tenantReply(Request $request, int $id)
+    {
+        $validated = $request->validate([
+            'reply' => ['required', 'string', 'max:1000'],
+        ]);
+
+        $this->service->tenantReply($request->user(), $id, $validated['reply']);
+
+        return redirect()->back()->with('success', 'Message sent to the owner.');
+    }
+
+    /**
      * The owner inbox, grouped by property.
      */
     public function ownerIndex(Request $request)

@@ -3,11 +3,13 @@
 namespace App\Services;
 
 use App\Models\Lease;
+use App\Models\Property;
 use App\Models\RentalApplication;
 use App\Models\User;
 use App\Notifications\LeaseCreatedNotification;
 use App\Notifications\LeaseSentForSignatureNotification;
 use App\Notifications\LeaseSignedNotification;
+use App\Notifications\LeaseTerminatedNotification;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -16,14 +18,36 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 class LeaseService
 {
     /**
-     * Default terms applied to every generated lease until the
-     * payment-terms specification lands in Wave 4.
+     * Rent due-date wording per listing payment term.
      */
-    private const DEFAULT_PAYMENT_TERMS = [
-        'frequency' => 'monthly',
-        'due_day' => 1,
-        'description' => 'Rent is due on the 1st of each month.',
+    private const TERM_DESCRIPTIONS = [
+        'monthly' => 'Rent is due on the 1st of each month.',
+        'quarterly' => 'Rent is due in advance at the start of each quarter.',
+        'yearly' => 'Rent is due in advance at the start of each lease year.',
     ];
+
+    public function __construct(
+        private readonly PropertyService $properties,
+        private readonly SubscriptionService $subscriptions,
+    ) {
+    }
+
+    /**
+     * The lease payment terms carried over from the listing:
+     * `{"frequency": "monthly|quarterly|yearly", "due_day": 1, "description": "..."}`.
+     *
+     * @return array{frequency: string, due_day: int, description: string}
+     */
+    private function paymentTermsFor(Property $property): array
+    {
+        $frequency = isset(self::TERM_DESCRIPTIONS[$property->payment_terms]) ? $property->payment_terms : 'monthly';
+
+        return [
+            'frequency' => $frequency,
+            'due_day' => 1,
+            'description' => self::TERM_DESCRIPTIONS[$frequency],
+        ];
+    }
 
     /**
      * Fetch a lease attached to one of the owner's properties
@@ -59,8 +83,11 @@ class LeaseService
 
     /**
      * Generate a lease from an approved application. Prefills the parties,
-     * property, rent and deposit from the application; sets the property to
-     * reserved, auto-rejects remaining active applicants and notifies the tenant.
+     * property, rent, deposit, currency and payment terms from the listing,
+     * over the owner's chosen dates (default today → +1 year); sets the
+     * property to reserved, auto-rejects remaining active applicants and
+     * notifies the tenant. A property takes a new lease once it has no lease
+     * in progress or running (Lease::OPEN) and is Available.
      */
     public function createFromApplication(User $owner, RentalApplication $application, array $data): Lease
     {
@@ -82,9 +109,16 @@ class LeaseService
             ]);
         }
 
-        if (Lease::where('property_id', $property->id)->exists()) {
+        $openLease = Lease::where('property_id', $property->id)->whereIn('status', Lease::OPEN)->first();
+        if ($openLease) {
             throw ValidationException::withMessages([
-                'application' => ['This property already has a lease.'],
+                'application' => ['This property already has lease '.$openLease->lease_no.' ('.Lease::STATUSES[$openLease->status].'). End or complete it before creating another lease.'],
+            ]);
+        }
+
+        if ($property->status !== 'available') {
+            throw ValidationException::withMessages([
+                'application' => ['"'.$property->title.'" is currently '.Property::STATUSES[$property->status].'. Set it to Available before generating a lease.'],
             ]);
         }
 
@@ -107,7 +141,8 @@ class LeaseService
                 'end_date' => $endDate,
                 'rent_amount' => $property->price,
                 'deposit_amount' => $property->deposit ?? 0,
-                'payment_terms' => self::DEFAULT_PAYMENT_TERMS,
+                'currency' => $property->currency ?: 'USD',
+                'payment_terms' => $this->paymentTermsFor($property),
                 'status' => 'draft',
                 'clause_version' => 1,
             ]);
@@ -117,7 +152,7 @@ class LeaseService
                 'from' => 'approved_application#'.$application->id,
             ]);
 
-            app(PropertyService::class)->changeStatus($property->id, 'reserved', $owner);
+            $this->properties->changeStatus($property->id, 'reserved', $owner);
 
             $this->rejectRemainingApplicants($owner, $property, $application);
 
@@ -131,7 +166,7 @@ class LeaseService
      * Auto-reject still-active applicants on the property once a lease exists
      * (the handover that was deferred from the application slice).
      */
-    private function rejectRemainingApplicants(User $owner, \App\Models\Property $property, RentalApplication $excluded): void
+    private function rejectRemainingApplicants(User $owner, Property $property, RentalApplication $excluded): void
     {
         $others = RentalApplication::where('property_id', $property->id)
             ->where('id', '!=', $excluded->id)
@@ -197,6 +232,7 @@ class LeaseService
                 'end_date' => $endDate,
                 'rent_amount' => $lease->rent_amount,
                 'deposit_amount' => $lease->deposit_amount,
+                'currency' => $lease->currency,
                 'payment_terms' => $lease->payment_terms,
                 'status' => 'draft',
                 'clause_version' => $lease->clause_version,
@@ -212,12 +248,72 @@ class LeaseService
     }
 
     /**
+     * End an active lease early (owner). Records the end date and reason,
+     * closes any renewal still being drafted or signed, and frees the
+     * property: back to Available when the owner's plan has room for another
+     * published listing, otherwise Unavailable. Both parties are notified.
+     * The end date may not be in the future or before the lease started.
+     */
+    public function terminate(User $owner, int $id, array $data): Lease
+    {
+        $lease = $this->findOwnedByOwner($owner, $id);
+
+        if ($lease->status !== 'active') {
+            throw ValidationException::withMessages([
+                'status' => ['Only an active lease can be ended.'],
+            ]);
+        }
+
+        $endedOn = Carbon::parse($data['terminated_on'])->startOfDay();
+
+        if ($lease->start_date && $endedOn->lt($lease->start_date)) {
+            throw ValidationException::withMessages([
+                'terminated_on' => ['The end date cannot be before the lease started ('.$lease->start_date->format('d M Y').').'],
+            ]);
+        }
+
+        DB::transaction(function () use ($lease, $owner, $endedOn, $data) {
+            $lease->update([
+                'status' => 'terminated',
+                'terminated_on' => $endedOn,
+                'termination_reason' => $data['reason'],
+            ]);
+            $lease->recordHistory('lease_terminated', $owner, [
+                'status' => 'terminated',
+                'terminated_on' => $endedOn->toDateString(),
+                'reason' => $data['reason'],
+            ]);
+
+            Lease::where('renewed_from_id', $lease->id)
+                ->whereIn('status', ['draft', 'sent', 'signed'])
+                ->get()
+                ->each(function (Lease $renewal) use ($owner, $lease) {
+                    $renewal->update(['status' => 'terminated', 'terminated_on' => $lease->terminated_on, 'termination_reason' => 'The lease it renewed was ended.']);
+                    $renewal->recordHistory('lease_terminated', $owner, ['status' => 'terminated', 'reason' => 'renewed lease ended']);
+                });
+
+            app(RentService::class)->cancelInvoicesAfter($lease, $endedOn);
+
+            if ($lease->property->status === 'occupied') {
+                $target = $this->subscriptions->hasQuota($owner, 1) ? 'available' : 'unavailable';
+                $this->properties->changeStatus($lease->property_id, $target, $owner);
+            }
+        });
+
+        $lease = $lease->fresh(['property', 'tenant']);
+        $lease->tenant->notify(new LeaseTerminatedNotification($lease));
+        $owner->notify(new LeaseTerminatedNotification($lease));
+
+        return $lease;
+    }
+
+    /**
      * Leases against an owner's properties, newest first.
      */
     public function listForOwner(User $owner)
     {
         return Lease::with([
-            'property:id,title,price,property_type,suburb,city,cover_image,status',
+            'property:id,title,price,currency,payment_terms,property_type,suburb,city,cover_image,status',
             'tenant:id,name,email',
             'application:id,status',
             'signatures.user:id,name',
@@ -235,7 +331,7 @@ class LeaseService
     public function listForTenant(User $tenant)
     {
         return Lease::with([
-            'property:id,title,price,property_type,suburb,city,cover_image,status,verified',
+            'property:id,owner_id,title,price,currency,payment_terms,property_type,suburb,city,cover_image,status,verified',
             'property.owner:id,name,email',
             'signatures.user:id,name',
             'renewedFrom:id,lease_no,status',
@@ -311,7 +407,7 @@ class LeaseService
                 $lease->recordHistory('lease_activated', $user, ['status' => 'active']);
 
                 if ($lease->property->status !== 'occupied') {
-                    app(PropertyService::class)->changeStatus($lease->property_id, 'occupied', $lease->property->owner);
+                    $this->properties->changeStatus($lease->property_id, 'occupied', $lease->property->owner);
                 }
 
                 if ($lease->renewed_from_id) {

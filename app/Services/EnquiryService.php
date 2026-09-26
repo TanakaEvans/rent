@@ -6,7 +6,9 @@ use App\Models\Enquiry;
 use App\Models\Property;
 use App\Models\User;
 use App\Notifications\EnquiryRepliedNotification;
+use App\Notifications\EnquiryTenantRepliedNotification;
 use App\Notifications\NewEnquiryNotification;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class EnquiryService
@@ -55,7 +57,7 @@ class EnquiryService
         return Property::where('owner_id', $owner->id)
             ->whereHas('enquiries')
             ->with(['enquiries' => fn ($query) => $query->with('tenant:id,name')->latest()])
-            ->get()
+            ->get(['id', 'owner_id', 'title', 'suburb', 'city', 'status'])
             ->map(function (Property $property) {
                 $property->latest_enquiry_at = $property->enquiries->max('created_at');
 
@@ -71,7 +73,10 @@ class EnquiryService
     public function listForTenant(User $tenant)
     {
         return Enquiry::where('tenant_id', $tenant->id)
-            ->with('property:id,title,price,property_type,suburb,city,cover_image,status')
+            ->with([
+                'property:id,title,price,currency,payment_terms,property_type,suburb,city,cover_image,status',
+                'messages.sender:id,name',
+            ])
             ->latest()
             ->get();
     }
@@ -82,8 +87,11 @@ class EnquiryService
      */
     public function openForOwner(User $owner, int $id): Enquiry
     {
-        $enquiry = Enquiry::with(['property:id,owner_id,title,address,price,property_type,suburb,city,cover_image,status', 'tenant:id,name,email'])
-            ->findOrFail($id);
+        $enquiry = Enquiry::with([
+            'property:id,owner_id,title,address,price,currency,payment_terms,property_type,suburb,city,cover_image,status',
+            'tenant:id,name,email',
+            'messages.sender:id,name',
+        ])->findOrFail($id);
 
         abort_unless($enquiry->property->owner_id === $owner->id, 404);
 
@@ -95,7 +103,9 @@ class EnquiryService
     }
 
     /**
-     * Reply to an enquiry as the property owner.
+     * Reply to an enquiry as the property owner. Replies are appended to the
+     * thread, never overwritten; the latest owner reply is mirrored onto
+     * `reply`/`replied_at` for inbox previews.
      */
     public function reply(User $owner, int $id, string $body): Enquiry
     {
@@ -107,13 +117,52 @@ class EnquiryService
             ]);
         }
 
-        $enquiry->update([
-            'reply' => $body,
-            'replied_at' => now(),
-            'status' => 'replied',
-        ]);
+        DB::transaction(function () use ($enquiry, $owner, $body) {
+            $enquiry->messages()->create([
+                'sender_id' => $owner->id,
+                'sender_role' => 'owner',
+                'body' => $body,
+            ]);
+
+            $enquiry->update([
+                'reply' => $body,
+                'replied_at' => now(),
+                'status' => 'replied',
+            ]);
+        });
 
         $enquiry->tenant->notify(new EnquiryRepliedNotification($enquiry));
+
+        return $enquiry;
+    }
+
+    /**
+     * Follow up on an open enquiry as the tenant who sent it. The thread
+     * moves back to `new` so the owner sees an unread message in the inbox.
+     */
+    public function tenantReply(User $tenant, int $id, string $body): Enquiry
+    {
+        $enquiry = Enquiry::with('property.owner')->findOrFail($id);
+
+        abort_unless($enquiry->tenant_id === $tenant->id, 404);
+
+        if ($enquiry->status === 'closed') {
+            throw ValidationException::withMessages([
+                'reply' => ['This enquiry is closed and can no longer be replied to.'],
+            ]);
+        }
+
+        DB::transaction(function () use ($enquiry, $tenant, $body) {
+            $enquiry->messages()->create([
+                'sender_id' => $tenant->id,
+                'sender_role' => 'tenant',
+                'body' => $body,
+            ]);
+
+            $enquiry->update(['status' => 'new', 'read_at' => null]);
+        });
+
+        $enquiry->property->owner?->notify(new EnquiryTenantRepliedNotification($enquiry, $body));
 
         return $enquiry;
     }

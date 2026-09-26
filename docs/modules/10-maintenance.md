@@ -60,7 +60,7 @@ AC-04 Completed-and-closed requests feed maintenance reports.
 
 ## 9. Implementation Status
 
-> Wave 5 slices 1-3 (report & triage, assignment M11, **track & close out**) DONE (2026-09-10) — every rule below is configuration-driven through `ConfigurationService` (see `24-system-configuration.md`), never a code constant.
+> Wave 5 slices 1-4 (report & triage, assignment M11, **track & close out**, **contractor ratings**) DONE (2026-09-10) — every rule below is configuration-driven through `ConfigurationService` (see `24-system-configuration.md`), never a code constant.
 
 ### Built (slice 1 - report & triage)
 
@@ -90,6 +90,13 @@ AC-04 Completed-and-closed requests feed maintenance reports.
 - **Demo data**: unchanged — the seeded MR-2026-00001 (assigned, $85.00) lets all three parties drive the lifecycle in the browser.
 - **Tests**: OperateTest extends to 31 (start→complete full path with notes + owner/tenant notified; stranger-contractor 404; lifecycle gate matrix; one-shot confirm → owner close → `resolved_at` + quote retained + tenant/contractor notified; confirm-gates-close; own-request 404 + confirm-uncompleted rejected; cross-owner close 404); access matrix +9 rows (start/complete/confirm/close permissions + guest redirects). Full suite 394 passed / 1884 assertions.
 
-### Next (slice 4 - contractor ratings, M11)
+### Built (slice 4 - contractor ratings, M11)
 
-After a request closes the owner rates the contractor (1-5 + optional note); the system recomputes `rating_avg` and increments `jobs_completed` — ratings from completed jobs only, no self-rating (Module 11 NFR-01). Wave-tests: rating-only-after-completed; average correctness.
+> **Wave 5 slice 4 DONE (2026-09-10) — Wave 5 COMPLETE.**
+
+- **Table** (`2026_09_09_000031`): `contractor_ratings` — id, request_id FK → maintenance_requests **UNIQUE** (one rating per job), contractor_id FK cascade, owner_id nullable FK auth_users (nullOnDelete), rating TINYINT unsigned 1-5, note VARCHAR(500) nullable, index (contractor_id), timestamps.
+- **Service** `ContractorService::rate`: owner-only via property ownership (404 otherwise); **status must be `closed`** (ratings reflect completed jobs only — AC-02; declined/no-contractor requests are rejected); **one rating per request** (schema unique enforces the second-post guard); rating `required|1-5` + note ≤500; after insert the service **recomputes `rating_avg` as a jobs-weighted average** `(rating_avg × jobs_completed + score) ÷ (jobs_completed + 1)` rounded to 2dp server-side and increments `jobs_completed`; logs a `rated` timeline action `5/5 — note`; notifies the linked contractor user `ContractorRatedNotification`. All arithmetic server-side, never client-side.
+- **Route**: `owner.maintenance.rate` (POST, whereNumber + description).
+- **UI**: the owner queue gains a "Recently closed" section — closed cards show the contractor + quote with a star-pick `RateForm` (1-5 + note) or the "You rated n/5" chip once done; the assign dropdown shows each contractor's `★ rating_avg (N jobs)`; the contractor desk header shows their average + completed jobs.
+- **Demo data**: unchanged — the seeded MR-2026-00001 (assigned, Bulawayo Plumbing Co.) drives start → complete → confirm → close → rate in the browser.
+- **Tests**: OperateTest extends to 37 (rate-after-close full path with rating row + `rated` action + aggregate recompute 4.80×12+4 → 4.74/13 + contractor notified; rating-requires-closed — in_progress/completed-unclosed/declined all rejected; one-per-request second-post rejected; recompute correctness; cross-owner 404; validation); access matrix rows. **Full suite 403 passed / 1945 assertions.**

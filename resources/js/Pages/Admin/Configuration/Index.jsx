@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Head, router } from '@inertiajs/react';
-import { Settings2, Save, History, Check, TriangleAlert, Lock, ShieldAlert } from 'lucide-react';
+import { Settings2, Save, History, Check, Lock, ShieldAlert } from 'lucide-react';
 import AdminLayout from '@/Layouts/AdminLayout';
 import StatusBadge from '@/Components/Shared/StatusBadge';
 import { Button } from '@/Components/ui/button';
@@ -18,22 +18,75 @@ const prettyJson = (value) => {
     }
 };
 
+const GROUP_ORDER = ['subscriptions', 'numbering', 'invoices', 'payments', 'late_fees', 'featured', 'maintenance', 'marketplace', 'listings'];
+
+const GROUP_HINTS = {
+    subscriptions: 'Plan lifecycle, quota and lifecycle rules',
+    numbering: 'Invoice and receipt numbering',
+    invoices: 'Rent invoice timing, reminders and overdue grace',
+    payments: 'Payment and POP approval rules',
+    late_fees: 'Arrears and late-fee policy',
+    featured: 'Featured placement pricing and windows',
+    maintenance: 'Maintenance categories, numbering and first-response SLAs',
+    marketplace: 'Marketplace presentation, limits and filters',
+    listings: 'Listing validity, reminders and expiry',
+};
+
+// Initial form value for a row (JSON pretty-printed, booleans as true/false).
+const initialValue = (row) => {
+    if (row.type === 'json') return row.value ? prettyJson(row.value) : '[]';
+    if (row.type === 'boolean') return row.value === '1' || row.value === 'true';
+    return row.value ?? '';
+};
+
+// Canonical comparable form of a value, used to send only changed keys.
+const canonical = (row, raw) => {
+    if (row.type === 'json') {
+        try {
+            return JSON.stringify(JSON.parse(raw || '[]'));
+        } catch {
+            return raw;
+        }
+    }
+    if (row.type === 'boolean') return raw === true || raw === 'true' ? '1' : '0';
+    if (row.type === 'decimal') return raw === '' || Number.isNaN(Number(raw)) ? String(raw) : Number(raw).toFixed(2);
+    return String(raw ?? '').trim();
+};
+
+// The value sent to the server; invalid JSON is sent as typed so the server rejects it with a message.
 const toPayloadValue = (row, raw) => {
     if (row.type === 'json') {
         try {
             return JSON.parse(raw || '[]');
         } catch {
-            return null;
+            return raw;
         }
     }
     if (row.type === 'boolean') return raw === true || raw === 'true';
-    if (row.type === 'integer' || row.type === 'decimal') return raw === '' || raw === null || raw === undefined ? '' : Number(raw);
-    return raw;
+    return typeof raw === 'string' ? raw.trim() : raw;
 };
 
 const riskBadge = (risk) => (risk === 'critical' || risk === 'high' ? <ShieldAlert className="h-4 w-4 text-rose-500" /> : <Lock className="h-3.5 w-3.5 text-muted-foreground/60" />);
 
-function ConfigRow({ row, value, onChange }) {
+function ConfigRow({ row, value, options, onChange }) {
+    if (options) {
+        return (
+            <select
+                className="field font-mono text-sm"
+                value={value}
+                disabled={!row.is_editable}
+                onChange={(e) => onChange(row, e.target.value)}
+                aria-label={row.label}
+            >
+                {!options.includes(value) && <option value={value}>{value || 'Choose…'}</option>}
+                {options.map((option) => (
+                    <option key={option} value={option}>
+                        {option}
+                    </option>
+                ))}
+            </select>
+        );
+    }
     if (row.type === 'boolean') {
         return <Switch checked={value === true || value === '1'} onCheckedChange={(v) => onChange(row, v)} />;
     }
@@ -51,7 +104,8 @@ function ConfigRow({ row, value, onChange }) {
         <Input
             className="font-mono text-sm"
             type={row.type === 'integer' ? 'number' : row.type === 'decimal' ? 'number' : 'text'}
-            step={row.type === 'decimal' ? '0.01' : undefined}
+            step={row.type === 'decimal' ? '0.01' : row.type === 'integer' ? '1' : undefined}
+            min={row.type === 'integer' || row.type === 'decimal' ? '0' : undefined}
             value={value}
             disabled={!row.is_editable}
             onChange={(e) => onChange(row, e.target.value)}
@@ -59,44 +113,26 @@ function ConfigRow({ row, value, onChange }) {
     );
 }
 
-export default function ConfigurationCentre({ groups = {}, features = [], plans = [], audits = [] }) {
-    const [values, setValues] = useState(() => {
-        const initial = {};
-        Object.values(groups || {}).forEach((rows) => {
-            rows.forEach((row) => {
-                if (row.type === 'json') {
-                    initial[row.key] = row.value ? prettyJson(row.value) : '[]';
-                } else if (row.type === 'boolean') {
-                    initial[row.key] = row.value === '1' || row.value === 'true';
-                } else {
-                    initial[row.key] = row.value ?? '';
-                }
-            });
-        });
-        return initial;
-    });
+export default function ConfigurationCentre({ groups = {}, options = {}, features = [], plans = [], audits = [], errors = {} }) {
+    const allRows = Object.values(groups || {}).flat();
+    const [values, setValues] = useState(() => Object.fromEntries(allRows.map((row) => [row.key, initialValue(row)])));
     const [reason, setReason] = useState('');
 
     const setValue = (row, raw) => setValues((prev) => ({ ...prev, [row.key]: raw }));
 
+    // Only keys whose value differs from what is stored are sent (and audited).
+    const changedRows = allRows.filter((row) => row.is_editable && canonical(row, values[row.key]) !== canonical(row, initialValue(row)));
+
     const save = () => {
-        const payload = {};
-        Object.values(groups || {}).forEach((rows) => {
-            rows.forEach((row) => {
-                if (!row.is_editable) return;
-                const converted = toPayloadValue(row, values[row.key]);
-                if (converted !== null && converted !== undefined && converted !== '') {
-                    payload[row.key] = converted;
-                }
-            });
-        });
-        router.patch(route('admin.configuration.update'), {
-            values: payload,
-            reason,
-        });
+        if (changedRows.length === 0) return;
+        const payload = Object.fromEntries(changedRows.map((row) => [row.key, toPayloadValue(row, values[row.key])]));
+        router.patch(route('admin.configuration.update'), { values: payload, reason }, { preserveScroll: true, preserveState: 'errors' });
     };
 
-    const groupOrder = ['subscriptions', 'numbering', 'featured', 'payments', 'late_fees'].filter((g) => groups[g]);
+    const groupOrder = [
+        ...GROUP_ORDER.filter((g) => groups[g]),
+        ...Object.keys(groups || {}).filter((g) => !GROUP_ORDER.includes(g)),
+    ];
 
     return (
         <AdminLayout title="Configuration Centre">
@@ -119,7 +155,7 @@ export default function ConfigurationCentre({ groups = {}, features = [], plans 
                             <Settings2 className="h-4 w-4 text-emerald-500" />
                             {group}
                         </h3>
-                        <p className="text-xs text-muted-foreground">{group === 'subscriptions' ? 'Plan lifecycle, quota and lifecycle rules' : group === 'numbering' ? 'Invoice and receipt numbering' : group === 'payments' ? 'Payment and POP approval rules' : group === 'late_fees' ? 'Arrears and late-fee policy' : 'Featured placement pricing and windows'}</p>
+                        <p className="text-xs text-muted-foreground">{GROUP_HINTS[group] || 'Configuration values'}</p>
                     </div>
 
                     {groups[group].map((row) => (
@@ -135,9 +171,10 @@ export default function ConfigurationCentre({ groups = {}, features = [], plans 
                                     </div>
                                     {row.description && <p className="mt-1 text-xs text-muted-foreground">{row.description}</p>}
                                     {!row.is_editable && <p className="mt-1 text-[11px] font-medium text-rose-500">Locked — change in code only.</p>}
+                                    {errors[`values.${row.key}`] && <p className="mt-1 text-xs font-semibold text-rose-600">{errors[`values.${row.key}`]}</p>}
                                 </div>
                             </div>
-                            <ConfigRow row={row} value={values[row.key]} onChange={setValue} />
+                            <ConfigRow row={row} value={values[row.key]} options={options[row.key]} onChange={setValue} />
                         </div>
                     ))}
                 </div>
@@ -149,8 +186,8 @@ export default function ConfigurationCentre({ groups = {}, features = [], plans 
                         <Label htmlFor="config-reason">Reason for change (audit trail)</Label>
                         <Input id="config-reason" className="mt-1.5" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. We now allow 14 days of grace on annual plans" />
                     </div>
-                    <Button onClick={save}>
-                        <Save className="size-4" /> Save changes
+                    <Button onClick={save} disabled={changedRows.length === 0}>
+                        <Save className="size-4" /> {changedRows.length === 0 ? 'No changes' : `Save ${changedRows.length} change${changedRows.length === 1 ? '' : 's'}`}
                     </Button>
                 </div>
                 <p className="mt-3 flex items-center gap-1.5 text-[11px] text-muted-foreground">

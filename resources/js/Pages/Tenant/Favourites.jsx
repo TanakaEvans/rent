@@ -5,28 +5,18 @@ import PropertyArt from '@/Components/Shared/PropertyArt';
 import EmptyState from '@/Components/Shared/EmptyState';
 import { Button } from '@/Components/ui/button';
 import { cn } from '@/lib/utils';
-
-const typeLabels = {
-    house: 'House',
-    flat: 'Flat / Apartment',
-    townhouse: 'Townhouse',
-    cottage: 'Cottage',
-    room: 'Room',
-    commercial: 'Commercial',
-    land: 'Land',
-};
+import { TYPE_LABELS as typeLabels, formatPrice, priceSuffix } from '@/lib/listing';
 
 const typeTones = {
     house: 'text-emerald-600 bg-emerald-500/10',
     flat: 'text-teal-600 bg-teal-500/10',
+    apartment: 'text-teal-600 bg-teal-500/10',
     townhouse: 'text-sky-600 bg-sky-500/10',
     cottage: 'text-amber-600 bg-amber-500/10',
     room: 'text-violet-600 bg-violet-500/10',
     commercial: 'text-slate-600 bg-slate-500/10',
     land: 'text-lime-600 bg-lime-500/10',
 };
-
-const formatPrice = (value) => '$' + Number(value).toLocaleString();
 
 export default function TenantFavourites({ favourites = [], stats = {} }) {
     const remove = (propertyId) => {
@@ -106,8 +96,8 @@ export default function TenantFavourites({ favourites = [], stats = {} }) {
                                     </div>
                                     <div className="mt-auto flex items-end justify-between gap-3 pt-4">
                                         <div className="text-lg font-extrabold tracking-tight">
-                                            {formatPrice(property.price)}
-                                            <span className="text-xs font-semibold text-muted-foreground">/mo</span>
+                                            {formatPrice(property.price, property.currency)}
+                                            <span className="text-xs font-semibold text-muted-foreground">{priceSuffix(property.payment_terms)}</span>
                                         </div>
                                         <div className="flex items-center gap-2">
                                             {available && (

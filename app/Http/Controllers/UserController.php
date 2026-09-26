@@ -4,14 +4,18 @@ namespace App\Http\Controllers;
 
 use App\Models\Role;
 use App\Models\User;
+use App\Services\AuthService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules;
 
 class UserController extends Controller
 {
+    public function __construct(private readonly AuthService $authService)
+    {
+    }
+
     /**
      * Display a listing of users.
      */
@@ -71,54 +75,6 @@ class UserController extends Controller
     }
 
     /**
-     * Show the form for creating a new user.
-     */
-    public function create()
-    {
-        $roles = Role::all();
-
-        return inertia('Admin/Users/Create', [
-            'roles' => $roles,
-        ]);
-    }
-
-    /**
-     * Store a newly created user.
-     */
-    public function store(Request $request)
-    {
-        $request->validate([
-            'name' => ['required', 'string', 'max:150'],
-            'email' => ['required', 'string', 'email', 'max:150', 'unique:auth_users'],
-            'username' => ['required', 'string', 'max:100', 'unique:auth_users'],
-            'password' => ['required', 'confirmed', Rules\Password::defaults()],
-            'status' => ['required', 'in:active,inactive'],
-            'roles' => ['array'],
-            'roles.*' => ['exists:auth_roles,id'],
-        ]);
-
-        $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'username' => $request->username,
-            'password' => Hash::make($request->password),
-            'status' => $request->status,
-        ]);
-
-        // Assign roles
-        if ($request->roles) {
-            $user->roles()->attach($request->roles, [
-                'assigned_by' => Auth::id(),
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-        }
-
-        return redirect()->route('auth.users.index')
-            ->with('success', 'User created successfully.');
-    }
-
-    /**
      * Display the specified user.
      */
     public function show(User $user)
@@ -149,55 +105,29 @@ class UserController extends Controller
      */
     public function update(Request $request, User $user)
     {
-        $request->validate([
+        $validated = $request->validate([
             'name' => ['required', 'string', 'max:150'],
-            'email' => ['required', 'string', 'email', 'max:150', 'unique:auth_users,email,'.$user->id],
-            'username' => ['required', 'string', 'max:100', 'unique:auth_users,username,'.$user->id],
+            'email' => ['required', 'string', 'email', 'max:150', Rule::unique('auth_users', 'email')->ignore($user->id)],
+            'username' => ['required', 'string', 'max:100', Rule::unique('auth_users', 'username')->ignore($user->id)],
             'password' => ['nullable', 'confirmed', Rules\Password::defaults()],
             'status' => ['required', 'in:active,inactive'],
-            'roles' => ['array'],
-            'roles.*' => ['exists:auth_roles,id'],
+            'roles' => ['present', 'array'],
+            'roles.*' => ['integer', 'exists:auth_roles,id'],
         ]);
 
-        $updateData = [
-            'name' => $request->name,
-            'email' => $request->email,
-            'username' => $request->username,
-            'status' => $request->status,
-        ];
-
-        if ($request->filled('password')) {
-            $updateData['password'] = Hash::make($request->password);
-        }
-
-        $user->update($updateData);
-
-        // Sync roles
-        if ($request->has('roles')) {
-            $rolesWithPivot = [];
-            foreach (($request->roles ?? []) as $roleId) {
-                $rolesWithPivot[$roleId] = [
-                    'assigned_by' => Auth::id(),
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ];
-            }
-            $user->roles()->sync($rolesWithPivot);
-        }
+        $this->authService->updateAccount($request->user(), $user, $validated);
 
         return redirect()->route('auth.users.index')
             ->with('success', 'User updated successfully.');
     }
 
     /**
-     * Remove the specified user.
+     * Remove the specified user (only accounts with no tenancy or money history).
      */
-    public function destroy(User $user)
+    public function destroy(Request $request, User $user)
     {
-        // Prevent deletion of the current user
-        if ($user->id === Auth::id()) {
-            return redirect()->route('auth.users.index')
-                ->with('error', 'You cannot delete your own account.');
+        if ($blocker = $this->authService->deletionBlocker($request->user(), $user)) {
+            return back()->with('error', $blocker);
         }
 
         $user->delete();
@@ -209,11 +139,12 @@ class UserController extends Controller
     /**
      * Toggle user status.
      */
-    public function toggleStatus(User $user)
+    public function toggleStatus(Request $request, User $user)
     {
-        $newStatus = $user->status === 'active' ? 'inactive' : 'active';
-        $user->update(['status' => $newStatus]);
+        if ($blocker = $this->authService->toggleStatus($request->user(), $user)) {
+            return back()->with('error', $blocker);
+        }
 
-        return back()->with('success', "User status changed to {$newStatus}");
+        return back()->with('success', "User status changed to {$user->status}.");
     }
 }

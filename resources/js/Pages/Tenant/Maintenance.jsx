@@ -5,6 +5,7 @@ import MainLayout from '@/Layouts/MainLayout';
 import StatusBadge from '@/Components/Shared/StatusBadge';
 import StatCard from '@/Components/Shared/StatCard';
 import EmptyState from '@/Components/Shared/EmptyState';
+import Pagination from '@/Components/Pagination';
 import { Button } from '@/Components/ui/button';
 
 const priorityPill = {
@@ -34,17 +35,13 @@ const timeLeft = (sla) => {
     return { overdue: false, label: hours >= 24 ? `${Math.floor(hours / 24)}d left` : `${Math.max(1, Math.ceil(hours))}h left` };
 };
 
-export default function TenantMaintenance({ requests = {}, properties = [], categories = [] }) {
+export default function TenantMaintenance({ requests = {}, stats = {}, properties = [], categories = [], errors = {} }) {
     const items = requests.data || [];
     const [propertyId, setPropertyId] = useState('');
     const [category, setCategory] = useState('');
     const [priority, setPriority] = useState('medium');
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
-
-    const open = items.filter((r) => r.status === 'reported');
-    const closed = items.filter((r) => ['closed', 'declined'].includes(r.status));
-    const escalated = items.filter((r) => r.escalated_at);
 
     const submit = () => {
         if (!propertyId || !category || !title.trim() || !description.trim()) return;
@@ -76,10 +73,10 @@ export default function TenantMaintenance({ requests = {}, properties = [], cate
             </div>
 
             <div className="mb-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                <StatCard icon={Wrench} label="Open requests" value={String(open.length)} hint="Awaiting the owner" tone="emerald" />
-                <StatCard icon={Clock3} label="SLA on the clock" value={String(open.filter((r) => !timeLeft(r.sla_due_at)?.overdue && r.sla_due_at).length)} hint="Within first-response window" tone="sky" />
-                <StatCard icon={TriangleAlert} label="Escalated to staff" value={String(escalated.length)} hint="Past first-response SLA" tone="amber" />
-                <StatCard icon={CheckCircle2} label="Closed" value={String(closed.length)} hint="Completed or declined" tone="teal" />
+                <StatCard icon={Wrench} label="Open requests" value={String(stats.open ?? 0)} hint="Awaiting the owner" tone="emerald" />
+                <StatCard icon={Clock3} label="SLA on the clock" value={String(stats.within_sla ?? 0)} hint="Within first-response window" tone="sky" />
+                <StatCard icon={TriangleAlert} label="Escalated to staff" value={String(stats.escalated ?? 0)} hint="Past first-response SLA" tone="amber" />
+                <StatCard icon={CheckCircle2} label="Closed" value={String(stats.closed ?? 0)} hint="Completed or declined" tone="teal" />
             </div>
 
             <div className="grid gap-8 lg:grid-cols-5">
@@ -147,6 +144,12 @@ export default function TenantMaintenance({ requests = {}, properties = [], cate
                                 </p>
                             )}
 
+                            {['property_id', 'category', 'priority', 'title', 'description'].map((field) =>
+                                errors[field] ? (
+                                    <p key={field} className="text-xs font-semibold text-rose-600">{errors[field]}</p>
+                                ) : null
+                            )}
+
                             <Button onClick={submit} disabled={!propertyId || !category || !title.trim() || !description.trim()} className="w-full">
                                 <Send className="h-4 w-4" /> Submit request
                             </Button>
@@ -156,6 +159,9 @@ export default function TenantMaintenance({ requests = {}, properties = [], cate
 
                 <section className="lg:col-span-3">
                     <h3 className="mb-3 px-1 text-sm font-bold uppercase tracking-wider text-muted-foreground">My requests</h3>
+                    {errors.request && (
+                        <p className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">{errors.request}</p>
+                    )}
 
                     {items.length === 0 ? (
                         <EmptyState
@@ -213,6 +219,7 @@ export default function TenantMaintenance({ requests = {}, properties = [], cate
                                     </article>
                                 );
                             })}
+                            <Pagination data={requests} />
                         </div>
                     )}
                 </section>

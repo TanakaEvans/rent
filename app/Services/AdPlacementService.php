@@ -11,6 +11,7 @@ use App\Notifications\AdPlacementActivatedNotification;
 use App\Notifications\AdPlacementCancelledNotification;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 /**
  * Featured & advertising engine (Module 13, Wave 4 slice 6).
@@ -136,6 +137,30 @@ class AdPlacementService
     }
 
     /**
+     * The owner withdraws their own order before staff approve it. Only a
+     * `reserved` placement qualifies (nothing has run yet), so the full
+     * amount is credited and the budget slot frees up for another booking.
+     * Anyone else's placement resolves to a 404.
+     */
+    public function cancelByOwner(User $owner, AdPlacement $placement): AdPlacement
+    {
+        if ((int) $placement->owner_id !== (int) $owner->id) {
+            throw new NotFoundHttpException('Placement not found.');
+        }
+
+        $this->assertStatus($placement, ['reserved'], 'Only an order awaiting approval can be cancelled. Ask staff to cancel a live placement.');
+
+        $placement->update([
+            'status' => 'cancelled',
+            'credit_amount' => $this->fromCents($this->cents($placement->amount)),
+        ]);
+
+        $this->syncFeatured($placement->property_id);
+
+        return $placement->fresh();
+    }
+
+    /**
      * Moderation (Module 19): pause freezes the window and drops promotion.
      */
     public function pause(AdPlacement $placement, ?string $note = null): AdPlacement
@@ -160,7 +185,8 @@ class AdPlacementService
     {
         $this->assertStatus($placement, ['paused'], 'Only a paused placement can be resumed.');
 
-        $frozen = now()->diffInSeconds($placement->paused_at);
+        // Carbon 3 diffs are signed: measure from the pause forward to now.
+        $frozen = max(0, (int) $placement->paused_at->diffInSeconds(now()));
 
         $placement->update([
             'status' => 'active',
@@ -350,12 +376,12 @@ class AdPlacementService
             return 0;
         }
 
-        $total = $placement->starts_at->diffInSeconds($placement->ends_at);
+        $total = (int) $placement->starts_at->diffInSeconds($placement->ends_at);
         if ($total < 1) {
             return 0;
         }
 
-        $elapsed = min(max(0, $placement->starts_at->diffInSeconds(now())), $total);
+        $elapsed = min(max(0, (int) $placement->starts_at->diffInSeconds(now())), $total);
         $remaining = $total - $elapsed;
 
         return intdiv($this->cents($placement->amount) * $remaining, $total);

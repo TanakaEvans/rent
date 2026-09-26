@@ -4,12 +4,15 @@ import MainLayout from '@/Layouts/MainLayout';
 import StatusBadge from '@/Components/Shared/StatusBadge';
 import StatCard from '@/Components/Shared/StatCard';
 import EmptyState from '@/Components/Shared/EmptyState';
+import { formatPrice, priceSuffix } from '@/lib/listing';
 
-const money = (value) => `$${Number(value || 0).toFixed(2)}`;
+const METHOD_LABELS = { cash: 'Cash', bank: 'Bank transfer', mobile: 'Mobile money', online: 'Online' };
 const fmt = (value) => (value ? new Date(value).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
 
 export default function OwnerRentIndex({ schedules = [], summary = {}, statement = {} }) {
     const rows = statement.rows || [];
+    const currency = schedules[0]?.lease?.property?.currency || 'USD';
+    const money = (value) => formatPrice(value || 0, currency);
 
     return (
         <MainLayout title="Rent & Income">
@@ -18,7 +21,7 @@ export default function OwnerRentIndex({ schedules = [], summary = {}, statement
             <div className="mb-7">
                 <h2 className="text-balance text-2xl font-extrabold tracking-tight sm:text-3xl">Rent & Income</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                    Each active lease is billed automatically against a rent schedule — one invoice per calendar month. The lifecycle (draft → due → overdue), reminder timing and late fees are driven by the Configuration Centre.
+                    Each active lease is billed automatically against a rent schedule — one invoice per billing period of the lease's payment term (monthly, quarterly or yearly). The lifecycle (draft → due → overdue), reminder timing and late fees are driven by the Configuration Centre.
                 </p>
             </div>
 
@@ -71,11 +74,11 @@ export default function OwnerRentIndex({ schedules = [], summary = {}, statement
                                             <td className="py-2.5 pr-4 text-muted-foreground">
                                                 {fmt(row.period?.start)} → {fmt(row.period?.end)}
                                             </td>
-                                            <td className="py-2.5 pr-4 font-semibold text-foreground">{money(row.amount)}</td>
+                                            <td className="py-2.5 pr-4 font-semibold text-foreground">{formatPrice(row.amount, row.property?.currency)}</td>
                                             <td className="py-2.5 pr-4">
                                                 {late > 0 ? (
                                                     <span className="inline-flex items-center gap-1 rounded-md bg-rose-50 px-1.5 py-0.5 text-xs font-bold text-rose-700">
-                                                        <AlertTriangle className="h-3 w-3" /> {money(late)}
+                                                        <AlertTriangle className="h-3 w-3" /> {formatPrice(late, row.property?.currency)}
                                                     </span>
                                                 ) : (
                                                     <span className="text-xs text-muted-foreground">—</span>
@@ -110,11 +113,17 @@ export default function OwnerRentIndex({ schedules = [], summary = {}, statement
                 <EmptyState
                     icon={Receipt}
                     title="No rent schedules yet"
-                    description="When an active lease is signed, its rent schedule and monthly invoices appear here automatically."
+                    description="When an active lease is signed, its rent schedule and invoices appear here automatically."
                 />
             ) : (
                 <div className="space-y-6">
-                    {schedules.map((schedule) => (
+                    {schedules.map((schedule) => {
+                        const scheduleCurrency = schedule.lease?.property?.currency;
+                        const scheduleMoney = (value) => formatPrice(value || 0, scheduleCurrency);
+                        const payments = (schedule.invoices || []).flatMap((invoice) =>
+                            (invoice.payments || []).map((payment) => ({ ...payment, invoice_no: invoice.invoice_no })),
+                        );
+                        return (
                         <section key={schedule.id} className="surface overflow-hidden">
                             <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-muted/30 px-5 py-3.5">
                                 <div className="min-w-0">
@@ -122,7 +131,10 @@ export default function OwnerRentIndex({ schedules = [], summary = {}, statement
                                     <p className="mt-0.5 font-mono text-xs font-bold text-muted-foreground">{schedule.lease?.lease_no}</p>
                                 </div>
                                 <div className="flex flex-wrap items-center gap-2">
-                                    <span className="text-xs font-semibold text-muted-foreground">{money(schedule.rent_amount)} / month</span>
+                                    <span className="text-xs font-semibold text-muted-foreground">
+                                        {scheduleMoney(schedule.rent_amount)}
+                                        {priceSuffix(schedule.payment_terms?.frequency)}
+                                    </span>
                                     <StatusBadge status={schedule.lease?.status} />
                                 </div>
                             </header>
@@ -133,7 +145,7 @@ export default function OwnerRentIndex({ schedules = [], summary = {}, statement
                                     {fmt(schedule.start_date)} → {fmt(schedule.end_date)}
                                 </span>
                                 <span aria-hidden className="text-border">·</span>
-                                <span>{schedule.invoices?.length || 0} monthly invoice{(schedule.invoices?.length || 0) === 1 ? '' : 's'}</span>
+                                <span>{schedule.invoices?.length || 0} invoice{(schedule.invoices?.length || 0) === 1 ? '' : 's'}</span>
                             </div>
 
                             <div className="overflow-x-auto">
@@ -156,11 +168,11 @@ export default function OwnerRentIndex({ schedules = [], summary = {}, statement
                                                     <td className="py-2.5 pr-4 text-muted-foreground">
                                                         {fmt(invoice.period_start)} → {fmt(invoice.period_end)}
                                                     </td>
-                                                    <td className="py-2.5 pr-4 font-semibold text-foreground">{money(invoice.amount)}</td>
+                                                    <td className="py-2.5 pr-4 font-semibold text-foreground">{scheduleMoney(invoice.amount)}</td>
                                                     <td className="py-2.5 pr-4">
                                                         {late > 0 ? (
                                                             <span className="inline-flex items-center gap-1 rounded-md bg-rose-50 px-1.5 py-0.5 text-xs font-bold text-rose-700">
-                                                                <AlertTriangle className="h-3 w-3" /> {money(late)}
+                                                                <AlertTriangle className="h-3 w-3" /> {scheduleMoney(late)}
                                                             </span>
                                                         ) : (
                                                             <span className="text-xs text-muted-foreground">—</span>
@@ -175,8 +187,43 @@ export default function OwnerRentIndex({ schedules = [], summary = {}, statement
                                     </tbody>
                                 </table>
                             </div>
+
+                            {payments.length > 0 && (
+                                <div className="border-t border-border">
+                                    <h4 className="bg-muted/30 px-5 py-2.5 text-xs font-extrabold uppercase tracking-wider text-muted-foreground">Payments</h4>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full min-w-[640px] text-left text-sm">
+                                            <thead>
+                                                <tr className="border-b border-border bg-muted/20 text-xs uppercase tracking-wider text-muted-foreground">
+                                                    <th className="py-2.5 pl-5 pr-4 font-bold">Invoice</th>
+                                                    <th className="py-2.5 pr-4 font-bold">Amount</th>
+                                                    <th className="py-2.5 pr-4 font-bold">Method</th>
+                                                    <th className="py-2.5 pr-4 font-bold">Reference</th>
+                                                    <th className="py-2.5 pr-4 font-bold">Receipt</th>
+                                                    <th className="py-2.5 pr-4 font-bold">Paid</th>
+                                                    <th className="py-2.5 pr-5 font-bold">Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {payments.map((payment) => (
+                                                    <tr key={payment.id} className="border-b border-border/60 last:border-0">
+                                                        <td className="py-2.5 pl-5 pr-4 font-mono text-xs font-bold text-foreground">{payment.invoice_no}</td>
+                                                        <td className="py-2.5 pr-4 font-semibold text-foreground">{scheduleMoney(payment.amount)}</td>
+                                                        <td className="py-2.5 pr-4 text-muted-foreground">{METHOD_LABELS[payment.method] || payment.method}</td>
+                                                        <td className="py-2.5 pr-4 text-muted-foreground">{payment.reference || '—'}</td>
+                                                        <td className="py-2.5 pr-4 font-mono text-xs text-muted-foreground">{payment.receipt_no || '—'}</td>
+                                                        <td className="py-2.5 pr-4 text-muted-foreground">{fmt(payment.paid_at)}</td>
+                                                        <td className="py-2.5 pr-5"><StatusBadge status={payment.status} /></td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
                         </section>
-                    ))}
+                        );
+                    })}
                 </div>
             )}
         </MainLayout>

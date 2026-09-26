@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import {
     Home,
     LayoutDashboard,
@@ -28,6 +28,8 @@ import {
     BarChart3,
     Megaphone,
     Wrench,
+    IdCard,
+    BookOpen,
 } from 'lucide-react';
 import Brand from '@/Components/Shared/Brand';
 import { cn } from '@/lib/utils';
@@ -52,14 +54,20 @@ const navLinkClass = (active) =>
     cn(
         'group relative flex items-center gap-3 rounded-lg px-3.5 py-2.5 text-sm font-medium transition-all duration-200',
         active
-            ? 'bg-sidebar-accent text-emerald-300 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]'
+            ? 'bg-sidebar-accent text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]'
             : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-white'
     );
 
 const activeBar = (active) =>
-    active && <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full brand-gradient" />;
+    active && <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-pitch" />;
 
-export default function MainLayout({ children, title = 'Dashboard', auth, flash, notifications = [], unreadNotificationsCount = 0 }) {
+export default function MainLayout({ children, title = 'Dashboard', ...overrides }) {
+    // Shared Inertia props (auth, flash, notifications) are the source of truth; a page may still override them.
+    const shared = usePage().props;
+    const auth = overrides.auth ?? shared.auth;
+    const flash = overrides.flash ?? shared.flash;
+    const notifications = overrides.notifications ?? shared.notifications ?? [];
+    const unreadNotificationsCount = overrides.unreadNotificationsCount ?? shared.unreadNotificationsCount ?? 0;
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [profileOpen, setProfileOpen] = useState(false);
     const [bellOpen, setBellOpen] = useState(false);
@@ -108,6 +116,7 @@ export default function MainLayout({ children, title = 'Dashboard', auth, flash,
                 label: 'Tenant Activity',
                 items: [
                     { label: 'Enquiry Inbox', icon: MessageSquareText, route: 'owner.enquiries.index', pattern: 'owner.enquiries.*' },
+                    { label: 'Interests', icon: Users, route: 'owner.interests.index', pattern: 'owner.interests.*' },
                     { label: 'Viewing Requests', icon: CalendarClock, route: 'owner.viewings.index', pattern: 'owner.viewings.*' },
                     { label: 'Applications', icon: ClipboardCheck, route: 'owner.applications.index', pattern: 'owner.applications.*' },
                     { label: 'Maintenance', icon: Wrench, route: 'owner.maintenance.index', pattern: 'owner.maintenance.*' },
@@ -132,6 +141,7 @@ export default function MainLayout({ children, title = 'Dashboard', auth, flash,
                 label: 'Tenant',
                 items: [
                     { label: 'Tenant Dashboard', icon: LayoutDashboard, route: 'tenant.dashboard', pattern: 'tenant.dashboard' },
+                    { label: 'My Profile', icon: IdCard, route: 'tenant.profile', pattern: 'tenant.profile' },
                 ],
             },
             {
@@ -140,6 +150,7 @@ export default function MainLayout({ children, title = 'Dashboard', auth, flash,
                     { label: 'My Favourites', icon: Heart, route: 'tenant.favourites.index', pattern: 'tenant.favourites.*' },
                     { label: 'Saved Searches', icon: Save, route: 'tenant.saved-searches.index', pattern: 'tenant.saved-searches.*' },
                     { label: 'My Enquiries', icon: MessageSquareText, route: 'tenant.enquiries.index', pattern: 'tenant.enquiries.*' },
+                    { label: 'My Interests', icon: Users, route: 'tenant.interests.index', pattern: 'tenant.interests.*' },
                     { label: 'My Viewings', icon: CalendarClock, route: 'tenant.viewings.index', pattern: 'tenant.viewings.*' },
                     { label: 'My Applications', icon: ClipboardCheck, route: 'tenant.applications.index', pattern: 'tenant.applications.*' },
                     { label: 'My Reports', icon: Flag, route: 'tenant.reports.index', pattern: 'tenant.reports.*' },
@@ -187,8 +198,16 @@ export default function MainLayout({ children, title = 'Dashboard', auth, flash,
 
     const roleSections = [...adminSections, ...ownerSections, ...tenantSections, ...contractorSections];
 
+    // Each role lands on its own guide; admins get the in-portal admin guide.
+    const helpHref = isAdmin
+        ? safeRoute('admin.help')
+        : isOwner
+            ? safeRoute('help.show', { guide: 'owner' })
+            : safeRoute('help.show', { guide: 'tenant' });
+    const helpActive = isCurrentRoute('admin.help') || isCurrentRoute('help.*');
+
     const toastStyles = {
-        success: { icon: CheckCircle2, classes: 'border-emerald-200 bg-emerald-50 text-emerald-800' },
+        success: { icon: CheckCircle2, classes: 'border-green-200 bg-green-50 text-green-800' },
         error: { icon: AlertCircle, classes: 'border-rose-200 bg-rose-50 text-rose-800' },
         warning: { icon: TriangleAlert, classes: 'border-amber-200 bg-amber-50 text-amber-800' },
     };
@@ -220,8 +239,13 @@ export default function MainLayout({ children, title = 'Dashboard', auth, flash,
                             <div className="mb-2 px-3.5 text-[11px] font-bold uppercase tracking-[0.16em] text-sidebar-foreground/40">Discover</div>
                             <Link href={safeRoute('home')} className={navLinkClass(isCurrentRoute('home'))}>
                                 {activeBar(isCurrentRoute('home'))}
-                                <Home className="h-4.5 w-4.5 text-emerald-400" />
+                                <Home className="h-4.5 w-4.5 text-white/70" />
                                 Marketplace
+                            </Link>
+                            <Link href={helpHref} className={cn(navLinkClass(helpActive), 'mt-1')}>
+                                {activeBar(helpActive)}
+                                <BookOpen className="h-4.5 w-4.5 text-white/70" />
+                                Help & guides
                             </Link>
                         </div>
 
@@ -237,7 +261,7 @@ export default function MainLayout({ children, title = 'Dashboard', auth, flash,
                                                 return (
                                                     <Link key={item.route} href={safeRoute(item.route)} className={navLinkClass(active)}>
                                                         {activeBar(active)}
-                                                        <Icon className="h-4.5 w-4.5 text-emerald-400" strokeWidth={1.9} />
+                                                        <Icon className="h-4.5 w-4.5 text-white/70" strokeWidth={1.9} />
                                                         {item.label}
                                                     </Link>
                                                 );
@@ -251,7 +275,7 @@ export default function MainLayout({ children, title = 'Dashboard', auth, flash,
 
                     <div className="border-t border-sidebar-border p-4">
                         <div className="flex items-center gap-3 rounded-xl bg-sidebar-accent/70 p-3">
-                            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 text-sm font-extrabold text-white shadow-inner">
+                            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-pitch text-sm font-extrabold text-brand">
                                 {(user?.name || 'U').charAt(0).toUpperCase()}
                             </span>
                             <div className="min-w-0 flex-1">
@@ -285,7 +309,7 @@ export default function MainLayout({ children, title = 'Dashboard', auth, flash,
                                 <div className="min-w-0">
                                     <h1 className="truncate text-lg font-extrabold tracking-tight text-foreground sm:text-xl">{title}</h1>
                                     <p className="hidden text-[11px] font-medium text-muted-foreground sm:block">
-                                        {roles.length ? `Signed in as ${roles.join(', ')}` : 'Dzimba Property Platform'}
+                                        {roles.length ? `Signed in as ${roles.join(', ')}` : 'ZimRent Property Platform'}
                                     </p>
                                 </div>
                             </div>
@@ -392,9 +416,16 @@ export default function MainLayout({ children, title = 'Dashboard', auth, flash,
                                                 ))}
                                             </div>
                                         </div>
+                                        <Link
+                                            href={safeRoute('password.change')}
+                                            className="mt-1 flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-muted"
+                                        >
+                                            <KeyRound className="h-4 w-4" />
+                                            Change password
+                                        </Link>
                                         <button
                                             onClick={logout}
-                                            className="mt-1 flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-semibold text-rose-600 transition-colors hover:bg-rose-50"
+                                            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-semibold text-rose-600 transition-colors hover:bg-rose-50"
                                         >
                                             <LogOut className="h-4 w-4" />
                                             Sign out

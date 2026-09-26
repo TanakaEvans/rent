@@ -22,6 +22,7 @@ class ViewingRequestController extends Controller
     {
         return Inertia::render('Owner/Viewings/Index', [
             'requests' => $this->requests->requestsForOwner($request->user()),
+            'properties' => $this->requests->slotSummaryForOwner($request->user()),
         ]);
     }
 

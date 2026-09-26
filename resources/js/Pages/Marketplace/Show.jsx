@@ -4,7 +4,9 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import {
     ArrowLeft,
-    ArrowRight,
+    LocateFixed,
+    Navigation,
+    ExternalLink,
     MapPin,
     BedDouble,
     Bath,
@@ -29,24 +31,31 @@ import {
     Sparkles,
     History,
     Building2,
+    Users,
+    Undo2,
     X,
 } from 'lucide-react';
 import Brand from '@/Components/Shared/Brand';
+import MapStyleToggle from '@/Components/Shared/MapStyleToggle';
+import { createBaseLayers, createMap, hasCoordinates, homePinIcon } from '@/lib/map';
 import PropertyArt from '@/Components/Shared/PropertyArt';
 import StatusBadge from '@/Components/Shared/StatusBadge';
+import OwnerTrustBadge from '@/Components/Shared/OwnerTrustBadge';
 import { buttonVariants } from '@/Components/ui/button';
 import { cn } from '@/lib/utils';
 import { dashboardRouteFor } from '@/lib/roles';
-
-const typeLabels = {
-    house: 'House',
-    flat: 'Flat / Apartment',
-    townhouse: 'Townhouse',
-    cottage: 'Cottage',
-    room: 'Room',
-    commercial: 'Commercial',
-    land: 'Land',
-};
+import {
+    TYPE_LABELS as typeLabels,
+    formatPrice,
+    paymentPeriod,
+    yesNoOrDash,
+    optionLabel,
+    PARKING_TYPES,
+    SECURITY_TYPES,
+    PREFERRED_TENANTS,
+    ENTRANCE_TYPES,
+    BATHROOM_TYPES,
+} from '@/lib/listing';
 
 const reportCategoryLabels = {
     suspicious_listing: 'Suspicious listing',
@@ -58,8 +67,6 @@ const reportCategoryLabels = {
     inappropriate_content: 'Inappropriate content',
 };
 
-const formatPrice = (value) => '$' + Number(value).toLocaleString();
-
 const availabilityOf = (property) => {
     if (property.available_from && new Date(property.available_from).getTime() > Date.now()) {
         return `Available from ${new Date(property.available_from).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
@@ -69,37 +76,51 @@ const availabilityOf = (property) => {
 
 function MapEmbed({ property }) {
     const mountRef = useRef(null);
+    const mapRef = useRef(null);
+    const layersRef = useRef(null);
+    const [style, setStyle] = useState('map');
 
     useEffect(() => {
         const lat = Number(property.latitude);
         const lng = Number(property.longitude);
-        if (!mountRef.current || !Number.isFinite(lat) || !Number.isFinite(lng)) return undefined;
+        if (!mountRef.current || !hasCoordinates(property)) return undefined;
 
-        const map = L.map(mountRef.current, { scrollWheelZoom: false });
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 18,
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-        }).addTo(map);
-        map.attributionControl.setPrefix('');
+        const map = createMap(mountRef.current, { scrollWheelZoom: false });
+        layersRef.current = createBaseLayers();
+        layersRef.current.map.addTo(map);
+        mapRef.current = map;
 
-        L.marker([lat, lng], {
-            icon: L.divIcon({
-                className: '',
-                html: `<div class="dz-map-pin"><span>${formatPrice(property.price)}</span></div>`,
-                iconSize: [0, 0],
-                iconAnchor: [0, 0],
-            }),
-        }).addTo(map).bindPopup(
-            `<strong>${property.title}</strong><br/>${formatPrice(property.price)}/mo`,
-            { closeButton: false, className: 'dz-map-pop' }
-        );
+        L.marker([lat, lng], { icon: homePinIcon(), title: property.title }).addTo(map);
+        map.setView([lat, lng], 16);
+        map.once('focus', () => map.scrollWheelZoom.enable());
 
-        map.setView([lat, lng], 15);
+        return () => {
+            map.remove();
+            mapRef.current = null;
+        };
+    }, [property.id, property.latitude, property.longitude, property.title]);
 
-        return () => map.remove();
-    }, [property.id, property.latitude, property.longitude, property.price, property.title]);
+    useEffect(() => {
+        const map = mapRef.current;
+        const layers = layersRef.current;
+        if (!map || !layers) return;
+        Object.entries(layers).forEach(([key, layer]) => {
+            if (key === style) layer.addTo(map);
+            else map.removeLayer(layer);
+        });
+    }, [style]);
 
-    return <div ref={mountRef} className="h-64 w-full" aria-label="Property location map" />;
+    const recenter = () => mapRef.current?.setView([Number(property.latitude), Number(property.longitude)], 16);
+
+    return (
+        <div className="dz-map relative isolate h-80 w-full sm:h-96">
+            <div ref={mountRef} className="h-full w-full" aria-label="Property location map" />
+            <MapStyleToggle value={style} onChange={setStyle} />
+            <button type="button" onClick={recenter} className="absolute right-3 top-3 z-[1000] inline-flex items-center gap-1.5 rounded-xl bg-white px-3 py-2 text-xs font-semibold text-slate-900 shadow-[0_2px_10px_rgba(0,0,0,0.14)] hover:bg-slate-50">
+                <LocateFixed className="h-3.5 w-3.5" /> Recenter
+            </button>
+        </div>
+    );
 }
 
 function SimilarCard({ property }) {
@@ -123,7 +144,7 @@ function SimilarCard({ property }) {
             </div>
             <div className="p-4">
                 <div className="text-lg font-black tracking-tight text-slate-950">
-                    {formatPrice(property.price)}<span className="ml-1 text-[11px] font-bold text-slate-400">/month</span>
+                    {formatPrice(property.price, property.currency)}<span className="ml-1 text-[11px] font-bold text-slate-400">{paymentPeriod(property.payment_terms)}</span>
                 </div>
                 <h4 className="mt-1 truncate text-sm font-bold text-slate-900">{property.title}</h4>
                 <p className="mt-0.5 truncate text-xs font-medium text-slate-400">
@@ -134,11 +155,7 @@ function SimilarCard({ property }) {
                         {property.verified ? <BadgeCheck className="h-3.5 w-3.5" /> : <BadgeCheck className="h-3.5 w-3.5 opacity-30" />}
                         {property.verified ? 'Verified' : 'Listing'}
                     </span>
-                    {property.owner?.verified && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600">
-                            <UserCheck className="h-3 w-3" /> Verified Owner
-                        </span>
-                    )}
+                    <OwnerTrustBadge owner={property.owner} className="px-2 py-0.5" />
                 </div>
             </div>
         </Link>
@@ -160,18 +177,22 @@ function ResultRail({ title, icon: Icon, items }) {
     );
 }
 
-export default function MarketplaceShow({ property, similar = [], recents = [], recommended = [], isFavourited = false, viewingSlots = [], applicationState = null, reportCategories = [], auth }) {
+export default function MarketplaceShow({ property, onMarket = true, similar = [], recents = [], recommended = [], isFavourited = false, interestState = null, viewingSlots = [], applicationState = null, reportCategories = [], auth }) {
     const images = property.images?.length ? property.images : [];
     const [active, setActive] = useState(0);
     const [saved, setSaved] = useState(isFavourited);
     const [reportOpen, setReportOpen] = useState(false);
     const flash = usePage().props.flash || {};
     const enquiry = useForm({ message: '', phone: '' });
-    const viewing = useForm({ slot_id: '', request_message: '' });
+    const viewing = useForm({ property_id: property.id, slot_id: '', request_message: '' });
     const application = useForm({ message: '' });
+    const interest = useForm({ note: '' });
     const report = useForm({ subject_type: 'property', subject_id: property.id, category: reportCategories[0] || '', description: '', priority: 'medium' });
 
     const isTenant = auth?.user?.roles?.some((role) => role.name === 'Tenant');
+    // Favourites are tenant-only: guests are sent to sign in, other roles see no heart.
+    const canFavourite = !auth?.user || isTenant;
+    const canApply = !applicationState || applicationState.status === 'rejected';
 
     const toggleFavourite = () => {
         if (!auth?.user) {
@@ -180,6 +201,21 @@ export default function MarketplaceShow({ property, similar = [], recents = [], 
         }
         setSaved((current) => !current);
         router.post(route('tenant.favourites.toggle', property.id), {}, { preserveScroll: true });
+    };
+
+    const expressInterest = () => {
+        if (!auth?.user) {
+            router.get(route('login'));
+            return;
+        }
+        interest.post(route('tenant.interests.store', property.id), {
+            preserveScroll: true,
+            onSuccess: () => interest.reset('note'),
+        });
+    };
+
+    const withdrawInterest = () => {
+        interest.post(route('tenant.interests.withdraw', interestState.id), { preserveScroll: true });
     };
 
     const sendEnquiry = (e) => {
@@ -229,47 +265,54 @@ export default function MarketplaceShow({ property, similar = [], recents = [], 
     const location = [property.suburb, property.zone, property.city].filter(Boolean).join(', ');
     const area = property.building_size ? `${Number(property.building_size).toLocaleString()} m²` : null;
     const land = property.land_size ? `${Number(property.land_size).toLocaleString()} m² land` : null;
-    const moveInCost = (property.deposit ?? 0) + (property.price ?? 0);
+    // Decimal columns arrive as strings ("750.00"): add them as numbers, not text.
+    const moveInCost = Number(property.deposit ?? 0) + Number(property.price ?? 0);
+    const monthlyCosts = [
+        ['Water', property.water_cost],
+        ['Electricity', property.electricity_cost],
+        ['Refuse', property.trash_cost],
+    ].filter(([, amount]) => amount != null);
+    const facts = [
+        ['Security', optionLabel(SECURITY_TYPES, property.security_type)],
+        ['Parking', optionLabel(PARKING_TYPES, property.parking_type)],
+        ['Entrance', optionLabel(ENTRANCE_TYPES, property.entrance_type)],
+        ['Bathroom', optionLabel(BATHROOM_TYPES, property.bathroom_type)],
+        ['Preferred tenant', optionLabel(PREFERRED_TENANTS, property.preferred_tenant)],
+        ['Minimum stay', property.minimum_stay != null ? `${property.minimum_stay} months` : null],
+        ['Distance to CBD', property.distance_to_cbd != null ? `${Number(property.distance_to_cbd).toLocaleString()} km` : null],
+        ['Year built', property.year_built ?? null],
+        ['Children', yesNoOrDash(property.children_allowed)],
+        ['Pets', yesNoOrDash(property.pets_allowed)],
+        ['Smoking', yesNoOrDash(property.smoking_allowed)],
+        ['Parties', yesNoOrDash(property.parties_allowed)],
+    ].filter(([, value]) => value != null && value !== '');
     const memberSince = property.owner?.created_at ? new Date(property.owner.created_at).getFullYear() : null;
-    const hasCoords = Number.isFinite(Number(property.latitude)) && Number.isFinite(Number(property.longitude));
+    const hasCoords = hasCoordinates(property);
     const ownerVerified = Boolean(property.owner?.verified);
     const nowAvailable = !(property.available_from && new Date(property.available_from).getTime() > Date.now());
 
     return (
         <>
-            <Head title={`${property.title} | Dzimba`} />
+            <Head title={`${property.title} | ZimRent`} />
 
             <div className="min-h-screen app-bg pb-24 lg:pb-0">
-                <header className="dark-sidebar sticky top-0 z-40 border-b border-white/5">
+                <header className="sticky top-0 z-[1050] border-b border-white/10 bg-brand">
                     <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-                        <Link href={route('home')} aria-label="Dzimba home">
-                            <Brand dark />
+                        <Link href={route('home')} aria-label="ZimRent home">
+                            <Brand dark size={32} />
                         </Link>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-5">
                             {auth?.user ? (
-                                <>
-                                    <Link
-                                        href={route(dashboardRouteFor(auth.user.roles))}
-                                        className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), 'text-white hover:bg-white/10 hover:text-white')}
-                                    >
-                                        My Dashboard
-                                    </Link>
-                                    <Link href={route(dashboardRouteFor(auth.user.roles))} className={cn(buttonVariants({ size: 'sm' }), 'bg-emerald-500 text-white shadow-lg shadow-emerald-950/40 hover:bg-emerald-400')}>
-                                        Manage Properties
-                                        <ArrowRight className="h-4 w-4" />
-                                    </Link>
-                                </>
+                                <Link href={route(dashboardRouteFor(auth.user.roles))} className="inline-flex h-9 items-center justify-center rounded-full bg-pitch px-4 text-sm font-semibold text-brand transition-colors hover:bg-white">
+                                    My dashboard
+                                </Link>
                             ) : (
                                 <>
-                                    <Link
-                                        href={route('login')}
-                                        className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), 'text-white hover:bg-white/10 hover:text-white')}
-                                    >
-                                        Sign In
+                                    <Link href={route('login')} className="hidden text-sm font-medium text-white/75 hover:text-white sm:inline">
+                                        Sign in
                                     </Link>
-                                    <Link href={route('login')} className={cn(buttonVariants({ size: 'sm' }), 'bg-emerald-500 text-white shadow-lg shadow-emerald-950/40 hover:bg-emerald-400')}>
-                                        List Your Property
-                                        <ArrowRight className="h-4 w-4" />
+                                    <Link href={route('login')} className="inline-flex h-9 items-center justify-center rounded-full bg-pitch px-4 text-sm font-semibold text-brand transition-colors hover:bg-white">
+                                        List your property
                                     </Link>
                                 </>
                             )}
@@ -281,6 +324,18 @@ export default function MarketplaceShow({ property, similar = [], recents = [], 
                     <Link href={route('home')} className="mb-5 inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:text-primary/80">
                         <ArrowLeft className="h-4 w-4" /> Back to search results
                     </Link>
+
+                    {!onMarket && (
+                        <div role="status" className="mb-5 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3.5">
+                            <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+                            <div>
+                                <p className="text-sm font-extrabold text-amber-900">This home is no longer on the market</p>
+                                <p className="mt-0.5 text-sm text-amber-800/90">
+                                    You can still see its details because it is linked to your account, but it is not accepting new enquiries, interest, viewings or applications.
+                                </p>
+                            </div>
+                        </div>
+                    )}
 
                     <div className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
                         <div className="space-y-6">
@@ -355,9 +410,29 @@ export default function MarketplaceShow({ property, similar = [], recents = [], 
                                     {[property.address, location].filter(Boolean).join(', ') || 'Location on request'}
                                 </p>
                                 {hasCoords ? (
-                                    <div className="mt-4 overflow-hidden rounded-2xl border border-border">
-                                        <MapEmbed property={property} />
-                                    </div>
+                                    <>
+                                        <div className="mt-4 overflow-hidden rounded-2xl border border-border">
+                                            <MapEmbed property={property} />
+                                        </div>
+                                        <div className="mt-3 flex flex-wrap gap-2">
+                                            <a
+                                                href={`https://www.google.com/maps/dir/?api=1&destination=${Number(property.latitude)},${Number(property.longitude)}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="btn-secondary h-9 px-4 text-sm"
+                                            >
+                                                <Navigation className="h-4 w-4" /> Get directions
+                                            </a>
+                                            <a
+                                                href={`https://www.google.com/maps/search/?api=1&query=${Number(property.latitude)},${Number(property.longitude)}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="btn-secondary h-9 px-4 text-sm"
+                                            >
+                                                <ExternalLink className="h-4 w-4" /> Open in Google Maps
+                                            </a>
+                                        </div>
+                                    </>
                                 ) : (
                                     <p className="mt-3 rounded-2xl bg-muted/60 px-4 py-3 text-sm text-muted-foreground">
                                         The exact location is shared with interested tenants once you enquire.
@@ -400,17 +475,21 @@ export default function MarketplaceShow({ property, similar = [], recents = [], 
                                 )}
 
                                 <div className="mt-5 flex flex-wrap items-baseline gap-2">
-                                    <span className="text-3xl font-extrabold tracking-tight text-foreground">{formatPrice(property.price)}</span>
-                                    <span className="text-sm font-medium text-muted-foreground">/ month</span>
-                                    {property.deposit > 0 && <span className="ml-1 text-xs font-semibold text-muted-foreground">Deposit {formatPrice(property.deposit)}</span>}
+                                    <span className="text-3xl font-extrabold tracking-tight text-foreground">{formatPrice(property.price, property.currency)}</span>
+                                    <span className="text-sm font-medium text-muted-foreground">{paymentPeriod(property.payment_terms)}</span>
+                                    {property.deposit > 0 && <span className="ml-1 text-xs font-semibold text-muted-foreground">Deposit {formatPrice(property.deposit, property.currency)}</span>}
                                 </div>
 
                                 <div className="mt-4 flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
                                     <span className="text-xs font-bold uppercase tracking-wider text-emerald-800">Availability</span>
-                                    <span className={cn('inline-flex items-center gap-1.5 text-sm font-extrabold', nowAvailable ? 'text-emerald-700' : 'text-amber-700')}>
-                                        <span className={cn('h-2 w-2 rounded-full', nowAvailable ? 'animate-pulse bg-emerald-500' : 'bg-amber-500')} />
-                                        {availabilityOf(property)}
-                                    </span>
+                                    {onMarket ? (
+                                        <span className={cn('inline-flex items-center gap-1.5 text-sm font-extrabold', nowAvailable ? 'text-emerald-700' : 'text-amber-700')}>
+                                            <span className={cn('h-2 w-2 rounded-full', nowAvailable ? 'animate-pulse bg-emerald-500' : 'bg-amber-500')} />
+                                            {availabilityOf(property)}
+                                        </span>
+                                    ) : (
+                                        <StatusBadge status={property.status} />
+                                    )}
                                 </div>
 
                                 <div className="mt-6 grid grid-cols-2 gap-3">
@@ -444,25 +523,53 @@ export default function MarketplaceShow({ property, similar = [], recents = [], 
                                     </div>
                                 </div>
 
+                                {/* Structured listing facts */}
+                                {facts.length > 0 && (
+                                    <div className="mt-6 rounded-2xl border border-border bg-muted/40 p-4">
+                                        <h3 className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground">Good to know</h3>
+                                        <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2.5 text-sm">
+                                            {facts.map(([label, value]) => (
+                                                <div key={label} className="flex flex-col">
+                                                    <dt className="text-[10px] font-black uppercase tracking-[.12em] text-muted-foreground">{label}</dt>
+                                                    <dd className="mt-0.5 font-bold capitalize text-foreground">{value}</dd>
+                                                </div>
+                                            ))}
+                                        </dl>
+                                    </div>
+                                )}
+
                                 {/* Financial breakdown */}
                                 <div className="mt-6 rounded-2xl border border-border bg-muted/40 p-4">
                                     <h3 className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground">Cost breakdown</h3>
                                     <dl className="mt-3 space-y-2 text-sm">
                                         <div className="flex items-center justify-between">
-                                            <dt className="flex items-center gap-1.5 font-semibold text-muted-foreground"><DollarSign className="h-4 w-4 text-primary" /> Monthly rent</dt>
-                                            <dd className="font-extrabold text-foreground">{formatPrice(property.price)}</dd>
+                                            <dt className="flex items-center gap-1.5 font-semibold text-muted-foreground"><DollarSign className="h-4 w-4 text-primary" /> Rent</dt>
+                                            <dd className="font-extrabold text-foreground">{formatPrice(property.price, property.currency)}</dd>
                                         </div>
                                         {property.deposit > 0 && (
                                             <div className="flex items-center justify-between">
                                                 <dt className="flex items-center gap-1.5 font-semibold text-muted-foreground"><KeyRound className="h-4 w-4 text-primary" /> Refundable deposit</dt>
-                                                <dd className="font-extrabold text-foreground">{formatPrice(property.deposit)}</dd>
+                                                <dd className="font-extrabold text-foreground">{formatPrice(property.deposit, property.currency)}</dd>
+                                            </div>
+                                        )}
+                                        {monthlyCosts.length > 0 && (
+                                            <div className="border-t border-border pt-2">
+                                                {monthlyCosts.map(([label, amount]) => (
+                                                    <div key={label} className="flex items-center justify-between">
+                                                        <dt className="font-semibold text-muted-foreground">{label} / month</dt>
+                                                        <dd className="font-bold text-foreground">{formatPrice(amount, property.currency)}</dd>
+                                                    </div>
+                                                ))}
                                             </div>
                                         )}
                                         <div className="flex items-center justify-between border-t border-border pt-2">
-                                            <dt className="font-bold text-foreground">Move-in cost (first month + deposit)</dt>
-                                            <dd className="text-base font-extrabold text-primary">{formatPrice(moveInCost)}</dd>
+                                            <dt className="font-bold text-foreground">Move-in cost (first {property.payment_terms === 'yearly' ? 'year' : property.payment_terms === 'quarterly' ? 'quarter' : 'month'} + deposit)</dt>
+                                            <dd className="text-base font-extrabold text-primary">{formatPrice(moveInCost, property.currency)}</dd>
                                         </div>
                                     </dl>
+                                    {property.negotiable && (
+                                        <p className="mt-3 inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">Rent is negotiable</p>
+                                    )}
                                 </div>
                             </div>
 
@@ -474,7 +581,7 @@ export default function MarketplaceShow({ property, similar = [], recents = [], 
                                         {(property.owner?.name || '?').charAt(0).toUpperCase()}
                                     </span>
                                     <div className="min-w-0">
-                                        <p className="truncate font-bold text-foreground">{property.owner?.name || 'Dzimba owner'}</p>
+                                        <p className="truncate font-bold text-foreground">{property.owner?.name || 'ZimRent owner'}</p>
                                         <p className="flex items-center gap-1 text-xs font-bold text-emerald-600">
                                             <UserCheck className="h-3.5 w-3.5" /> Direct owner — no agent
                                             {ownerVerified && <BadgeCheck className="h-3.5 w-3.5 text-emerald-600" />}
@@ -486,11 +593,7 @@ export default function MarketplaceShow({ property, similar = [], recents = [], 
                                         )}
                                     </div>
                                 </div>
-                                {ownerVerified && (
-                                    <p className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700">
-                                        <BadgeCheck className="h-4 w-4" /> Verified Owner
-                                    </p>
-                                )}
+                                <OwnerTrustBadge owner={property.owner} className="mt-3 px-3 py-1.5" />
                                 {property.owner?.email && (
                                     <p className="mt-3 flex items-center gap-2 rounded-xl border border-border bg-muted/50 px-3.5 py-2.5 text-sm font-semibold text-muted-foreground">
                                         <Mail className="h-4 w-4 text-primary" /> {property.owner.email}
@@ -499,12 +602,72 @@ export default function MarketplaceShow({ property, similar = [], recents = [], 
 
                                 <div className="mt-5 flex flex-col gap-2">
                                     {flash.success && (
-                                        <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-sm font-semibold text-emerald-800">
+                                        <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-sm font-semibold text-emerald-800">
                                             {flash.success}
                                         </p>
                                     )}
+                                    {flash.error && (
+                                        <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-sm font-semibold text-rose-800">
+                                            {flash.error}
+                                        </p>
+                                    )}
 
-                                    {isTenant ? (
+                                    {isTenant && onMarket &&
+                                        (interestState ? (
+                                            <div className="flex flex-col gap-2 rounded-2xl border border-emerald-500/30 bg-emerald-500/[0.06] p-3.5">
+                                                <span className="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wider text-emerald-600">
+                                                    <Users className="h-4 w-4" /> Interest recorded
+                                                </span>
+                                                <p className="text-[11px] font-medium text-muted-foreground">
+                                                    {interestState.status === 'contacted'
+                                                        ? 'The owner has been in touch — you can keep the thread going from your enquiries.'
+                                                        : interestState.status === 'archived'
+                                                          ? 'You withdrew interest in this property.'
+                                                          : 'The owner will notify you. Track it under My Interests.'}
+                                                </p>
+                                                <div className="flex items-center gap-2">
+                                                    {interestState.status === 'archived' ? (
+                                                        <button
+                                                            type="button"
+                                                            onClick={expressInterest}
+                                                            disabled={interest.processing}
+                                                            className={cn(buttonVariants({ size: 'sm' }), 'w-full bg-emerald-500 text-white hover:bg-emerald-400')}
+                                                        >
+                                                            <Users className="h-4 w-4" /> {interest.processing ? 'Recording…' : 'Re-express Interest'}
+                                                        </button>
+                                                    ) : (
+                                                        <button
+                                                            type="button"
+                                                            onClick={withdrawInterest}
+                                                            disabled={interest.processing}
+                                                            className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'w-full')}
+                                                        >
+                                                            <Undo2 className="h-4 w-4" /> Withdraw
+                                                        </button>
+                                                    )}
+                                                    <Link
+                                                        href={route('tenant.interests.index')}
+                                                        className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), 'w-full')}
+                                                    >
+                                                        My Interests
+                                                    </Link>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <button
+                                                type="button"
+                                                onClick={expressInterest}
+                                                disabled={interest.processing}
+                                                className={cn(buttonVariants({ variant: 'outline' }), 'w-full border-emerald-500/40 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700')}
+                                            >
+                                                <Users className="h-4 w-4" /> {interest.processing ? 'Recording…' : 'Express Interest'}
+                                            </button>
+                                        ))}
+                                    {isTenant && onMarket && interest.errors.note && (
+                                        <p className="text-xs font-semibold text-rose-600">{interest.errors.note}</p>
+                                    )}
+
+                                    {!onMarket ? null : isTenant ? (
                                         <form onSubmit={sendEnquiry} className="flex flex-col gap-2">
                                             <label className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground">Ask the owner</label>
                                             <textarea
@@ -526,6 +689,9 @@ export default function MarketplaceShow({ property, similar = [], recents = [], 
                                             {enquiry.errors.message && (
                                                 <p className="text-xs font-semibold text-rose-600">{enquiry.errors.message}</p>
                                             )}
+                                            {enquiry.errors.phone && (
+                                                <p className="text-xs font-semibold text-rose-600">{enquiry.errors.phone}</p>
+                                            )}
                                             <button
                                                 type="submit"
                                                 disabled={enquiry.processing}
@@ -539,7 +705,7 @@ export default function MarketplaceShow({ property, similar = [], recents = [], 
                                         </form>
                                     ) : auth?.user ? (
                                         <p className="rounded-xl border border-border bg-muted/50 px-3.5 py-2.5 text-xs font-semibold text-muted-foreground">
-                                            Owners respond to enquiries from their inbox.
+                                            Enquiries, viewings, applications and favourites are for tenant accounts. Owners respond to enquiries from their inbox.
                                         </p>
                                     ) : (
                                         <Link href={route('login')} className={cn(buttonVariants(), 'w-full')}>
@@ -547,7 +713,7 @@ export default function MarketplaceShow({ property, similar = [], recents = [], 
                                         </Link>
                                     )}
 
-                                    {isTenant && viewingSlots.length > 0 && (
+                                    {isTenant && onMarket && viewingSlots?.length > 0 && (
                                         <form onSubmit={sendViewing} className="flex flex-col gap-2 rounded-2xl border border-dashed border-primary/25 bg-primary/[0.03] p-3.5">
                                             <span className="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wider text-primary">
                                                 <CalendarClock className="h-4 w-4" /> Book a Viewing
@@ -572,12 +738,9 @@ export default function MarketplaceShow({ property, similar = [], recents = [], 
                                                 maxLength={1000}
                                                 className="field w-full"
                                             />
-                                            {viewing.errors.slot_id && (
-                                                <p className="text-xs font-semibold text-rose-600">{viewing.errors.slot_id}</p>
-                                            )}
-                                            {viewing.errors.request_message && (
-                                                <p className="text-xs font-semibold text-rose-600">{viewing.errors.request_message}</p>
-                                            )}
+                                            {['property_id', 'slot_id', 'request_message'].map((field) => viewing.errors[field] && (
+                                                <p key={field} className="text-xs font-semibold text-rose-600">{viewing.errors[field]}</p>
+                                            ))}
                                             <button
                                                 type="submit"
                                                 disabled={viewing.processing}
@@ -588,73 +751,84 @@ export default function MarketplaceShow({ property, similar = [], recents = [], 
                                         </form>
                                     )}
 
-                                    {isTenant ? (
-                                        applicationState ? (
-                                            <div className="flex items-center gap-2 rounded-2xl border border-primary/25 bg-primary/[0.03] p-3.5">
+                                    {isTenant && applicationState && (
+                                        <div className="flex flex-col gap-2 rounded-2xl border border-primary/25 bg-primary/[0.03] p-3.5">
+                                            <div className="flex items-center gap-2">
                                                 <StatusBadge status={applicationState.status} />
                                                 <p className="text-xs font-semibold text-muted-foreground">
                                                     {applicationState.status === 'approved'
                                                         ? 'Approved — the owner will reach out to start the lease.'
                                                         : applicationState.status === 'rejected'
-                                                          ? 'Your application was not approved for this property.'
+                                                          ? 'Your last application was not approved for this property.'
                                                           : 'Application submitted — the owner will review it shortly.'}
                                                 </p>
                                             </div>
-                                        ) : (
-                                            <form onSubmit={sendApplication} className="flex flex-col gap-2 rounded-2xl border border-dashed border-primary/25 bg-primary/[0.03] p-3.5">
-                                                <span className="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wider text-primary">
-                                                    <ClipboardCheck className="h-4 w-4" /> Apply to Rent
-                                                </span>
-                                                <textarea
-                                                    value={application.data.message}
-                                                    onChange={(e) => application.setData('message', e.target.value)}
-                                                    placeholder="Tell the owner about yourself (optional)"
-                                                    rows={3}
-                                                    maxLength={1000}
-                                                    className="field w-full resize-none"
-                                                />
-                                                {application.errors.message && (
-                                                    <p className="text-xs font-semibold text-rose-600">{application.errors.message}</p>
-                                                )}
-                                                <button
-                                                    type="submit"
-                                                    disabled={application.processing}
-                                                    className={cn(buttonVariants(), 'w-full')}
-                                                >
-                                                    <ClipboardCheck className="h-4 w-4" /> {application.processing ? 'Submitting…' : 'Apply now'}
-                                                </button>
-                                                <p className="pt-1 text-center text-[11px] font-medium text-muted-foreground">
-                                                    Free to apply — you can only hold one active application per property.
+                                            {applicationState.status === 'rejected' && applicationState.reject_reason && (
+                                                <p className="rounded-xl border-l-4 border-l-rose-400 bg-rose-50/60 px-3 py-2 text-xs leading-relaxed text-foreground">
+                                                    <span className="font-extrabold text-rose-700">Owner noted: </span>{applicationState.reject_reason}
                                                 </p>
-                                            </form>
-                                        )
-                                    ) : (
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {isTenant && onMarket && canApply && (
+                                        <form onSubmit={sendApplication} className="flex flex-col gap-2 rounded-2xl border border-dashed border-primary/25 bg-primary/[0.03] p-3.5">
+                                            <span className="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wider text-primary">
+                                                <ClipboardCheck className="h-4 w-4" /> {applicationState ? 'Apply Again' : 'Apply to Rent'}
+                                            </span>
+                                            <textarea
+                                                value={application.data.message}
+                                                onChange={(e) => application.setData('message', e.target.value)}
+                                                placeholder="Tell the owner about yourself (optional)"
+                                                rows={3}
+                                                maxLength={1000}
+                                                className="field w-full resize-none"
+                                            />
+                                            {application.errors.message && (
+                                                <p className="text-xs font-semibold text-rose-600">{application.errors.message}</p>
+                                            )}
+                                            <button
+                                                type="submit"
+                                                disabled={application.processing}
+                                                className={cn(buttonVariants(), 'w-full')}
+                                            >
+                                                <ClipboardCheck className="h-4 w-4" /> {application.processing ? 'Submitting…' : 'Apply now'}
+                                            </button>
+                                            <p className="pt-1 text-center text-[11px] font-medium text-muted-foreground">
+                                                Free to apply — you can only hold one active application per property.
+                                            </p>
+                                        </form>
+                                    )}
+
+                                    {!auth?.user && onMarket && (
                                         <Link href={route('login')} className={cn(buttonVariants({ variant: 'outline' }), 'w-full border-primary/30 text-primary hover:bg-primary hover:text-white')}>
                                             <ClipboardCheck className="h-4 w-4" /> Apply to Rent
                                         </Link>
                                     )}
-                                    <button
-                                        type="button"
-                                        onClick={toggleFavourite}
-                                        aria-pressed={saved}
-                                        className={cn(
-                                            buttonVariants({ variant: 'outline' }),
-                                            'w-full',
-                                            saved
-                                                ? 'border-rose-200 bg-rose-50 text-rose-500 hover:bg-rose-100 hover:text-rose-600'
-                                                : 'border-border text-muted-foreground hover:border-rose-200 hover:bg-rose-50 hover:text-rose-500'
-                                        )}
-                                    >
-                                        <Heart className={cn('h-4 w-4', saved && 'fill-rose-500')} />
-                                        {saved ? 'Saved to favourites' : 'Save to favourites'}
-                                    </button>
+                                    {canFavourite && (
+                                        <button
+                                            type="button"
+                                            onClick={toggleFavourite}
+                                            aria-pressed={saved}
+                                            className={cn(
+                                                buttonVariants({ variant: 'outline' }),
+                                                'w-full',
+                                                saved
+                                                    ? 'border-rose-200 bg-rose-50 text-rose-500 hover:bg-rose-100 hover:text-rose-600'
+                                                    : 'border-border text-muted-foreground hover:border-rose-200 hover:bg-rose-50 hover:text-rose-500'
+                                            )}
+                                        >
+                                            <Heart className={cn('h-4 w-4', saved && 'fill-rose-500')} />
+                                            {saved ? 'Saved to favourites' : 'Save to favourites'}
+                                        </button>
+                                    )}
                                 </div>
                             </div>
 
                             {/* Safety & report */}
                             <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
                                 <p className="flex items-center gap-2 text-sm font-extrabold text-amber-900">
-                                    <ShieldCheck className="h-5 w-5 shrink-0 text-amber-600" /> Stay safe on Dzimba
+                                    <ShieldCheck className="h-5 w-5 shrink-0 text-amber-600" /> Stay safe on ZimRent
                                 </p>
                                 <p className="mt-2 text-sm leading-6 text-amber-800/90">
                                     Never send money before verifying the property and agreement, and only ever deal directly with the owner on this listing.
@@ -700,22 +874,24 @@ export default function MarketplaceShow({ property, similar = [], recents = [], 
             {/* Mobile sticky CTAs */}
             <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
                 <div className="mx-auto flex max-w-md items-center gap-2">
-                    <button
-                        type="button"
-                        onClick={toggleFavourite}
-                        aria-pressed={saved}
-                        aria-label={saved ? 'Remove from favourites' : 'Save to favourites'}
-                        className={cn(
-                            'grid h-12 w-12 shrink-0 place-items-center rounded-2xl border transition',
-                            saved
-                                ? 'border-rose-200 bg-rose-50 text-rose-500'
-                                : 'border-slate-200 bg-white text-slate-500'
-                        )}
-                    >
-                        <Heart className={cn('h-5 w-5', saved && 'fill-rose-500')} />
-                    </button>
+                    {canFavourite && (
+                        <button
+                            type="button"
+                            onClick={toggleFavourite}
+                            aria-pressed={saved}
+                            aria-label={saved ? 'Remove from favourites' : 'Save to favourites'}
+                            className={cn(
+                                'grid h-12 w-12 shrink-0 place-items-center rounded-2xl border transition',
+                                saved
+                                    ? 'border-rose-200 bg-rose-50 text-rose-500'
+                                    : 'border-slate-200 bg-white text-slate-500'
+                            )}
+                        >
+                            <Heart className={cn('h-5 w-5', saved && 'fill-rose-500')} />
+                        </button>
+                    )}
                     <a href="#contact" className="flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-slate-900 text-sm font-black text-white transition hover:bg-emerald-600">
-                        <Send className="h-4 w-4" /> {isTenant ? 'Enquire · Apply' : 'Contact owner'}
+                        <Send className="h-4 w-4" /> {!onMarket ? 'Listing details' : isTenant ? 'Enquire · Apply' : 'Contact owner'}
                     </a>
                 </div>
             </div>

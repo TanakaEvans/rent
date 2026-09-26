@@ -15,8 +15,13 @@ use Illuminate\Support\Collection;
  */
 class RecommendationService
 {
-    public function __construct(private readonly ConfigurationService $config)
-    {
+    /** Most listings scored for one tenant's recommendations. */
+    private const CANDIDATE_POOL = 300;
+
+    public function __construct(
+        private readonly ConfigurationService $config,
+        private readonly PropertySearchService $search,
+    ) {
     }
 
     /**
@@ -42,17 +47,7 @@ class RecommendationService
             return collect();
         }
 
-        $properties = Property::listed()
-            ->with('owner:id,name,email')
-            ->whereIn('id', $ids)
-            ->get()
-            ->keyBy('id');
-
-        return collect($ids)
-            ->map(fn ($id) => $properties->get($id))
-            ->filter()
-            ->values()
-            ->take($limit);
+        return $this->loadInOrder($ids)->take($limit);
     }
 
     /**
@@ -71,23 +66,40 @@ class RecommendationService
             return $this->popular($limit);
         }
 
-        $viewedIds = PropertyView::query()
-            ->where('user_id', $user->id)
-            ->pluck('property_id');
+        $excluded = PropertyView::query()->where('user_id', $user->id)->distinct()->pluck('property_id')
+            ->concat($user->favouritedProperties()->pluck('properties.id'))
+            ->concat(RentalApplication::query()->where('applicant_id', $user->id)->pluck('property_id'))
+            ->unique()
+            ->values();
 
-        $favouriteIds = $user->favouritedProperties()->pluck('properties.id');
-        $appliedIds = RentalApplication::query()->where('applicant_id', $user->id)->pluck('property_id');
+        // Score only listings that share a strong signal (type, suburb or city)
+        // with the tenant's history, newest first and capped, so the cost stays
+        // flat however large the marketplace grows.
+        $candidates = $this->search->publicListings()
+            ->whereNotIn('id', $excluded)
+            ->where(function ($query) use ($signals) {
+                foreach (['type' => 'property_type', 'suburb' => 'suburb', 'city' => 'city'] as $signal => $column) {
+                    if ($signals[$signal] !== null) {
+                        $query->orWhere($column, $signals[$signal]);
+                    }
+                }
+            })
+            ->latest()
+            ->limit(self::CANDIDATE_POOL)
+            ->get(['id', 'property_type', 'suburb', 'city', 'bedrooms', 'price', 'amenities', 'verified', 'featured']);
 
-        return Property::listed()
-            ->with(['owner:id,name,email'])
-            ->whereNotIn('id', $viewedIds)
-            ->whereNotIn('id', $favouriteIds)
-            ->whereNotIn('id', $appliedIds)
-            ->get()
+        $ids = $candidates
             ->sortByDesc(fn (Property $property) => $this->score($property, $signals))
             ->sortByDesc(fn (Property $property) => (int) $property->featured)
             ->take($limit)
-            ->values();
+            ->pluck('id')
+            ->all();
+
+        if (! $ids) {
+            return $this->popular($limit);
+        }
+
+        return $this->loadInOrder($ids)->take($limit);
     }
 
     /**
@@ -110,11 +122,23 @@ class RecommendationService
             ->all();
 
         if (! $ids) {
-            return Property::listed()->with('owner:id,name,email')->latest()->take($limit)->get();
+            return $this->search->publicListings()->with(['owner:id,name,email', 'images'])->latest()->take($limit)->get();
         }
 
-        $properties = Property::listed()
-            ->with('owner:id,name,email')
+        return $this->loadInOrder($ids)->take($limit);
+    }
+
+    /**
+     * Full public listings (with owner and photos for the cards) for the
+     * given ids, keeping the order of the ids.
+     *
+     * @param  array<int, int>  $ids
+     * @return Collection<int, Property>
+     */
+    private function loadInOrder(array $ids)
+    {
+        $properties = $this->search->publicListings()
+            ->with(['owner:id,name,email', 'images'])
             ->whereIn('id', $ids)
             ->get()
             ->keyBy('id');
@@ -122,8 +146,7 @@ class RecommendationService
         return collect($ids)
             ->map(fn ($id) => $properties->get($id))
             ->filter()
-            ->values()
-            ->take($limit);
+            ->values();
     }
 
     /**

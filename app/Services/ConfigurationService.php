@@ -18,18 +18,47 @@ use Illuminate\Validation\ValidationException;
  */
 final class ConfigurationService
 {
-    private const CACHE_PREFIX = 'dzimba.config.';
+    public const CACHE_PREFIX = 'dzimba.config.';
+
+    /**
+     * Values already read by this instance, so a page that asks for the same
+     * rule many times only hits the cache once. Registered as a singleton;
+     * cache events (see AppServiceProvider) drop stale entries on any write.
+     *
+     * @var array<string, mixed>
+     */
+    private array $memo = [];
 
     public function get(string $key, mixed $default = null): mixed
     {
-        return Cache::rememberForever($this->cacheKey($key), function () use ($key) {
-            $row = SystemConfiguration::query()
-                ->where('status', 'active')
-                ->where('key', $key)
-                ->first();
+        if (! array_key_exists($key, $this->memo)) {
+            $this->memo[$key] = Cache::rememberForever($this->cacheKey($key), function () use ($key) {
+                $row = SystemConfiguration::query()
+                    ->where('status', 'active')
+                    ->where('key', $key)
+                    ->first();
 
-            return $row ? $this->cast($row->value, $row->type) : null;
-        }) ?? $default;
+                return $row ? $this->cast($row->value, $row->type) : null;
+            });
+        }
+
+        return $this->memo[$key] ?? $default;
+    }
+
+    /**
+     * Drop memoised values after their cache entry changed (one key, or all).
+     */
+    public function forgetMemo(?string $cacheKey = null): void
+    {
+        if ($cacheKey === null) {
+            $this->memo = [];
+
+            return;
+        }
+
+        if (str_starts_with($cacheKey, self::CACHE_PREFIX)) {
+            unset($this->memo[substr($cacheKey, strlen(self::CACHE_PREFIX))]);
+        }
     }
 
     /**
@@ -73,6 +102,15 @@ final class ConfigurationService
 
         $encoded = self::encode($value, $row->type);
 
+        $options = self::optionsFor($key);
+        if ($options !== null && ! in_array($encoded, $options, true)) {
+            throw ValidationException::withMessages(['value' => 'Choose one of: '.implode(', ', $options).'.']);
+        }
+
+        if (! $this->differs($row, $encoded)) {
+            return $row;
+        }
+
         if (in_array($row->risk, ['high', 'critical'], true) && $approverId === null) {
             throw ValidationException::withMessages(['value' => "Changing [{$key}] is a {$row->risk}-risk change and requires approval."]);
         }
@@ -95,6 +133,88 @@ final class ConfigurationService
         Cache::forget($this->cacheKey($key));
 
         return $row;
+    }
+
+    /**
+     * Apply a batch of Configuration Centre edits. Only keys whose value
+     * actually changes are written and audited; unchanged keys are skipped
+     * silently. High/critical-risk changes record the acting staff member as
+     * the approver. Returns the number of keys changed and per-key errors
+     * (keyed `values.<key>`); valid keys are applied even if others fail.
+     *
+     * @param  array<string, mixed>  $values
+     * @return array{changed: int, errors: array<string, mixed>}
+     */
+    public function applyChanges(array $values, int $actorId, ?string $reason = null): array
+    {
+        $changed = 0;
+        $errors = [];
+
+        foreach ($values as $key => $value) {
+            $row = SystemConfiguration::query()->where('key', $key)->first();
+
+            if (! $row || ! $row->is_editable) {
+                $errors['values.'.$key] = "Configuration key [{$key}] does not exist or is locked.";
+                continue;
+            }
+
+            $before = $row->value;
+
+            try {
+                $saved = $this->set(
+                    $key,
+                    $value,
+                    $actorId,
+                    $reason,
+                    in_array($row->risk, ['high', 'critical'], true) ? $actorId : null
+                );
+            } catch (ValidationException $e) {
+                $errors['values.'.$key] = collect($e->errors())->flatten()->first();
+                continue;
+            }
+
+            if ($saved->value !== $before) {
+                $changed++;
+            }
+        }
+
+        return ['changed' => $changed, 'errors' => $errors];
+    }
+
+    /**
+     * The allowed values for an option-type key (null when free-form).
+     *
+     * @return array<int, string>|null
+     */
+    public static function optionsFor(string $key): ?array
+    {
+        return self::defaults()[$key]['options'] ?? null;
+    }
+
+    /**
+     * Key => allowed values for every option-type key (UI select lists).
+     *
+     * @return array<string, array<int, string>>
+     */
+    public static function optionMap(): array
+    {
+        return collect(self::defaults())
+            ->filter(fn (array $entry) => isset($entry['options']))
+            ->map(fn (array $entry) => $entry['options'])
+            ->all();
+    }
+
+    /**
+     * Whether an encoded value differs from what the row stores. JSON is
+     * compared structurally so formatting never counts as a change.
+     */
+    private function differs(SystemConfiguration $row, string $encoded): bool
+    {
+        if ($row->type === 'json') {
+            return json_decode((string) $row->value, true) !== json_decode($encoded, true);
+        }
+
+        return (string) $row->value !== $encoded;
     }
 
     /**
@@ -122,6 +242,7 @@ final class ConfigurationService
      *     value: mixed,
      *     label: string,
      *     description?: string,
+     *     options?: array<int, string>,
      *     risk?: string,
      *     is_editable?: bool
      * }>
@@ -142,6 +263,7 @@ final class ConfigurationService
                 'group' => 'subscriptions',
                 'type' => 'string',
                 'value' => 'credit_new_invoice',
+                'options' => ['charge_difference', 'credit_new_invoice', 'apply_at_renewal'],
                 'label' => 'Proration mode',
                 'description' => 'charge_difference | credit_new_invoice | apply_at_renewal.',
                 'risk' => 'high',
@@ -150,8 +272,9 @@ final class ConfigurationService
                 'group' => 'subscriptions',
                 'type' => 'string',
                 'value' => 'keep_listings',
+                'options' => ['keep_listings', 'hide_listings'],
                 'label' => 'Suspension behaviour',
-                'description' => 'keep_listings | hide_listings | suspend_premium | full_suspend.',
+                'description' => 'keep_listings (suspended owners stay live) | hide_listings (their available listings leave the marketplace).',
                 'risk' => 'high',
             ],
             'subscriptions.renewal.reminders' => [
@@ -250,6 +373,7 @@ final class ConfigurationService
                 'group' => 'invoices',
                 'type' => 'string',
                 'value' => 'billing_date',
+                'options' => ['immediate', 'billing_date'],
                 'label' => 'Rent invoice timing',
                 'description' => 'When a rent invoice becomes due: immediate | billing_date.',
                 'risk' => 'medium',
@@ -416,6 +540,7 @@ final class ConfigurationService
                 'group' => 'late_fees',
                 'type' => 'string',
                 'value' => 'percent',
+                'options' => ['percent', 'fixed'],
                 'label' => 'Late-fee type',
                 'description' => 'How the charge is calculated per applied period: percent (of the invoice amount) or fixed (flat amount).',
                 'risk' => 'high',
@@ -458,6 +583,7 @@ final class ConfigurationService
                 'group' => 'marketplace',
                 'type' => 'string',
                 'value' => 'grid',
+                'options' => ['grid', 'list', 'map'],
                 'label' => 'Default result view',
                 'description' => 'grid | list | map.',
                 'risk' => 'low',
@@ -466,8 +592,9 @@ final class ConfigurationService
                 'group' => 'marketplace',
                 'type' => 'string',
                 'value' => 'newest',
+                'options' => ['newest', 'recently_updated', 'price_asc', 'price_desc', 'featured', 'price_per_m2', 'top_rated'],
                 'label' => 'Default sort',
-                'description' => 'newest | recently_updated | price_asc | price_desc | featured | price_per_m2.',
+                'description' => 'newest | recently_updated | price_asc | price_desc | featured | price_per_m2 | top_rated.',
                 'risk' => 'low',
             ],
             'marketplace.quick_view_enabled' => [
@@ -656,11 +783,12 @@ final class ConfigurationService
     {
         switch ($type) {
             case 'integer':
-                if (! is_numeric($value)) {
-                    throw ValidationException::withMessages(['value' => 'Expected an integer value.']);
+                $int = is_int($value) ? $value : filter_var(is_string($value) ? trim($value) : $value, FILTER_VALIDATE_INT);
+                if ($int === false || is_bool($value) || $int < 0) {
+                    throw ValidationException::withMessages(['value' => 'Expected a whole number of 0 or more.']);
                 }
 
-                return (string) (int) $value;
+                return (string) $int;
 
             case 'boolean':
                 $truthy = ['1', 'true', 'yes', 'on', 1, true];
@@ -677,21 +805,28 @@ final class ConfigurationService
                 throw ValidationException::withMessages(['value' => 'Expected a boolean value.']);
 
             case 'decimal':
-                if (! is_numeric($value)) {
-                    throw ValidationException::withMessages(['value' => 'Expected a decimal value.']);
+                if (! is_numeric($value) || is_bool($value) || (float) $value < 0 || ! is_finite((float) $value)) {
+                    throw ValidationException::withMessages(['value' => 'Expected an amount of 0 or more.']);
                 }
 
                 return number_format((float) $value, 2, '.', '');
 
             case 'json':
+                if (is_string($value)) {
+                    $value = json_decode($value, true);
+                }
                 if (! is_array($value)) {
-                    throw ValidationException::withMessages(['value' => 'Expected a JSON value.']);
+                    throw ValidationException::withMessages(['value' => 'Expected a JSON list or object.']);
                 }
 
                 return json_encode($value);
 
             default:
-                return (string) $value;
+                if (! is_scalar($value) || is_bool($value)) {
+                    throw ValidationException::withMessages(['value' => 'Expected a text value.']);
+                }
+
+                return trim((string) $value);
         }
     }
 }

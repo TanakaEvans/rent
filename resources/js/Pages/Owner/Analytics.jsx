@@ -8,8 +8,7 @@ import StatCard from '@/Components/Shared/StatCard';
 import StatusBadge from '@/Components/Shared/StatusBadge';
 import EmptyState from '@/Components/Shared/EmptyState';
 import PropertyArt from '@/Components/Shared/PropertyArt';
-
-const formatPrice = (value) => '$' + Number(value).toLocaleString();
+import { formatPrice } from '@/lib/listing';
 
 function TrendChart({ data = [] }) {
     const max = Math.max(...data.map((d) => d.views), 1);
@@ -152,7 +151,7 @@ export default function OwnerAnalytics({ analytics = {} }) {
                                                         <span className="truncate">
                                                             {[property.suburb, property.city].filter(Boolean).join(', ') || 'Location on request'}
                                                         </span>
-                                                        <span className="shrink-0">· {formatPrice(property.price)}/mo</span>
+                                                        <span className="shrink-0">· {formatPrice(property.price, property.currency)}/mo</span>
                                                     </div>
                                                 </div>
                                             </Link>

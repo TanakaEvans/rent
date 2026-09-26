@@ -7,6 +7,9 @@ use App\Models\User;
 use App\Models\ViewingRequest;
 use App\Models\ViewingSlot;
 use App\Notifications\ViewingAcceptedNotification;
+use App\Notifications\ViewingCancelledNotification;
+use App\Notifications\ViewingConfirmedNotification;
+use App\Notifications\ViewingDeclinedNotification;
 use App\Notifications\ViewingRequestedNotification;
 use App\Notifications\ViewingRescheduledNotification;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
@@ -45,25 +48,41 @@ class ViewingRequestService
      */
     public function requestsForOwner(User $owner)
     {
-        $slots = ViewingSlot::whereHas('property', fn ($q) => $q->where('owner_id', $owner->id))
+        // Free future slots, grouped once per property, offered when rescheduling.
+        $slotsByProperty = ViewingSlot::whereHas('property', fn ($q) => $q->where('owner_id', $owner->id))
             ->where('status', 'available')
             ->where('ends_at', '>', now())
             ->orderBy('starts_at')
-            ->get();
+            ->get(['id', 'property_id', 'starts_at', 'ends_at'])
+            ->groupBy('property_id')
+            ->map(fn ($slots) => $slots->map(fn (ViewingSlot $s) => [
+                'id' => $s->id,
+                'starts_at' => $s->starts_at,
+                'ends_at' => $s->ends_at,
+            ])->values());
 
         return ViewingRequest::whereHas('property', fn ($q) => $q->where('owner_id', $owner->id))
-            ->with(['property', 'tenant', 'slot'])
+            ->with(['property:id,title,suburb,city', 'tenant:id,name,email', 'slot:id,starts_at,ends_at,status'])
             ->latest()
             ->get()
-            ->map(function (ViewingRequest $request) use ($slots) {
-                $slotsForProperty = collect($slots->where('property_id', $request->property_id)->values());
+            ->map(fn (ViewingRequest $request) => $request->setAttribute(
+                'available_slots',
+                in_array('reschedule', ViewingRequest::TRANSITIONS[$request->status] ?? [], true) ? ($slotsByProperty->get($request->property_id) ?? collect()) : collect()
+            ));
+    }
 
-                return $request->setAttribute('available_slots', $slotsForProperty->map(fn (ViewingSlot $s) => [
-                    'id' => $s->id,
-                    'starts_at' => $s->starts_at,
-                    'ends_at' => $s->ends_at,
-                ]));
-            });
+    /**
+     * The owner's properties with their count of open future viewing slots,
+     * for the "Manage viewing times" shortcuts on the requests page.
+     */
+    public function slotSummaryForOwner(User $owner)
+    {
+        return Property::where('owner_id', $owner->id)
+            ->withCount(['viewingSlots as open_slots_count' => fn ($q) => $q
+                ->where('status', 'available')
+                ->where('starts_at', '>', now())])
+            ->orderBy('title')
+            ->get(['id', 'title', 'status']);
     }
 
     /**
@@ -107,6 +126,8 @@ class ViewingRequestService
 
         $request->update(['status' => 'declined']);
 
+        $request->tenant->notify(new ViewingDeclinedNotification($request));
+
         return $request;
     }
 
@@ -144,11 +165,14 @@ class ViewingRequestService
         $request->slot->update(['status' => 'taken']);
         $request->update(['status' => 'accepted']);
 
+        $request->property->owner->notify(new ViewingConfirmedNotification($request));
+
         return $request;
     }
 
     /**
-     * Either party cancels a running booking; a locked slot is freed.
+     * Either party cancels a running booking; a locked slot is freed and
+     * the other party is notified.
      */
     public function cancel(User $user, ViewingRequest $request): ViewingRequest
     {
@@ -156,10 +180,16 @@ class ViewingRequestService
         $isOwner = $request->property->owner_id === $user->id;
 
         abort_unless($isTenant || $isOwner, 404);
-        abort_unless(in_array('cancel', ViewingRequest::TRANSITIONS[$request->status] ?? [], true), 409);
+        $this->assertTransition($request, 'cancel');
 
         $this->releaseSlot($request);
         $request->update(['status' => 'cancelled']);
+
+        if ($isOwner) {
+            $request->tenant->notify(new ViewingCancelledNotification($request, 'owner'));
+        } else {
+            $request->property->owner->notify(new ViewingCancelledNotification($request, 'tenant'));
+        }
 
         return $request;
     }
@@ -203,12 +233,20 @@ class ViewingRequestService
 
     private function assertSlotBookable(ViewingSlot $slot): void
     {
-        abort_unless($slot->status === 'available' && $slot->ends_at->isFuture(), 409);
+        abort_unless(
+            $slot->status === 'available' && $slot->ends_at->isFuture(),
+            409,
+            'That viewing time is no longer available. Pick another open slot.'
+        );
     }
 
     private function assertTransition(ViewingRequest $request, string $transition): void
     {
-        abort_unless(in_array($transition, ViewingRequest::TRANSITIONS[$request->status] ?? [], true), 409);
+        abort_unless(
+            in_array($transition, ViewingRequest::TRANSITIONS[$request->status] ?? [], true),
+            409,
+            'This viewing request has already moved on and can no longer be changed. Refresh the page to see its latest status.'
+        );
     }
 
     private function releaseSlot(ViewingRequest $request): void

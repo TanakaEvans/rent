@@ -22,7 +22,7 @@ class DocumentService
         $date = fn ($value) => $value ? $value->format('j F Y') : '—';
 
         $lines = [];
-        $lines[] = 'DZIMBA LEASE AGREEMENT';
+        $lines[] = 'ZIMRENT LEASE AGREEMENT';
         $lines[] = str_repeat('=', 48);
         $lines[] = '';
         $lines[] = 'Lease number : '.$lease->lease_no;
@@ -140,7 +140,7 @@ class DocumentService
      */
     public function listForOwner(User $owner)
     {
-        return Document::with(['lease:id,lease_no', 'lease.property:id,title,property_type,suburb,city'])
+        return Document::with(['lease:id,lease_no,property_id,tenant_id', 'lease.property:id,title,property_type,suburb,city'])
             ->whereHas('lease.property', fn ($query) => $query->where('owner_id', $owner->id))
             ->latest()
             ->get();
@@ -151,7 +151,7 @@ class DocumentService
      */
     public function listForTenant(User $tenant)
     {
-        return Document::with(['lease:id,lease_no', 'lease.property:id,title,property_type,suburb,city'])
+        return Document::with(['lease:id,lease_no,property_id,tenant_id', 'lease.property:id,title,property_type,suburb,city'])
             ->whereHas('lease', fn ($query) => $query->where('tenant_id', $tenant->id))
             ->latest()
             ->get();

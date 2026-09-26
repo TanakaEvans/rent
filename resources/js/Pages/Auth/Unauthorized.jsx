@@ -59,7 +59,7 @@ export default function Unauthorized({ routeDescription }) {
 
                 {/* Ambient Background Lights */}
                 <div className="ambient-light w-[500px] h-[500px] bg-purple-900/40 -top-24 -left-24 animate-float"></div>
-                <div className="ambient-light w-[400px] h-[400px] bg-blue-900/40 -bottom-12 -right-12 animate-float-reverse"></div>
+                <div className="ambient-light w-[400px] h-[400px] bg-emerald-900/40 -bottom-12 -right-12 animate-float-reverse"></div>
 
                 <div
                     className={`relative z-10 w-full max-w-lg p-6 transition-all duration-1000 ease-out transform ${mounted ? 'translate-y-0 opacity-100' : 'translate-y-12 opacity-0'}`}

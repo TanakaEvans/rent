@@ -19,7 +19,7 @@ The owner's core module for creating, publishing, managing and maintaining renta
 ## 3. Functional Requirements
 
 - FR-01 Create a property with title, description, type, bedrooms/bathrooms, building size (m²) and land area (m² or acres for land plots), price, deposit, furnished flag, suburb, zone, city, address, amenities, cover image, available-from date.
-- FR-02 Property types (Zim market taxonomy): house, flat, townhouse, cottage, room, garden-flat, student-accommodation, short-term, commercial, office, warehouse, shop-retail, industrial, land. MVP stores the current core set (house, flat, townhouse, cottage, room, commercial, land) — the extended list is Phase 2 / lookup-driven.
+- FR-02 Property types (Zim market taxonomy): house, flat, **apartment**, townhouse, cottage, room, garden-flat, student-accommodation, short-term, commercial, office, warehouse, shop-retail, industrial, land. **Implemented (S1, `Property::TYPES`): room, flat, apartment, house ("Full house"), townhouse, cottage, commercial, land** — stored as a string-backed catalogue (`property_type` VARCHAR(50)) so the list grows without migrations; `apartment` is its own type (was folded into "Flat / Apartment"), replacing the old ENUM. Garden-flat/student/short-term/office/warehouse/shop-retail/industrial remain Phase 2 / lookup-driven.
 - FR-03 Statuses: `available`, `reserved`, `occupied`, `unavailable`.
 - FR-04 Lifecycle: Draft → Pending Verification → Published → Reserved → Occupied → Unavailable.
 - FR-05 Owner can manage unlimited property count based on their subscription plan.
@@ -27,6 +27,8 @@ The owner's core module for creating, publishing, managing and maintaining renta
 - FR-07 Owner scoping: an owner only sees and edits their own properties.
 - FR-08 Multi-image gallery, video, and documents attached to a listing.
 - FR-09 Listing titles follow the market convention `{N} Bedroom {Type} {in} {Suburb}` (e.g. "3 Bedroom House in Borrowdale") — auto-built from the fields, so the owner does not hand-write titles.
+- FR-10 **Rates & layout (S1)**: per-listing currency (USD/ZWL with server-side `currency` + DECIMAL money), payment terms (monthly/quarterly/yearly), monthly running costs (water/electricity/refuse), `negotiable` flag, size (`floor_area` m² + existing building/land size), `year_built`, entrance/bathroom/parking/security types, family/children/pets/smoking/parties rules, `distance_to_cbd`, `minimum_stay`, `preferred_tenant`, `landlord_type`, `contact_preference` (platform/phone/whatsapp) + `show_phone`, and `landmark`. All option choices come from `Property::*` catalogues and render through `resources/js/lib/listing.js` (`formatPrice(value, currency)`, `priceSuffix(terms)`, `typeLabel()`).
+- FR-11 **Photo upload (S1)**: step listing form (Owner/Properties/PropertyForm, `Create.jsx`/`Edit.jsx`) collects a cover + up to 8 gallery photos via `PhotoUploader`; the server persists them under `storage/app/public/properties/{id}/` (`PropertyService::syncMedia`, grid-as-source-of-truth); at least one photo is required on create only; retained images round-trip on edit without rewriting files.
 
 ## 4. Non-Functional Requirements
 
@@ -47,7 +49,7 @@ The owner's core module for creating, publishing, managing and maintaining renta
 
 | Table | Key Columns |
 |---|---|
-| `properties` | id, owner_id (FK auth_users), title, description, property_type, bedrooms, bathrooms, building_size (m², nullable), land_size (m², nullable), price (12,2), deposit (12,2), furnished, status, suburb, zone, city, address, amenities (json), cover_image, featured, verified, available_from, timestamps |
+| `properties` | id, owner_id (FK auth_users), title, description, property_type (VARCHAR(50) catalogue), bedrooms, bathrooms, building_size (m², nullable), land_size (m², nullable), price (12,2), deposit (12,2), furnished, status, suburb, zone, city, address, amenities (json), cover_image, featured, verified, available_from, **floor_area, year_built, currency (USD/ZWL), payment_terms (monthly/quarterly/yearly), water_cost, electricity_cost, trash_cost, negotiable, entrance_type, bathroom_type, parking_type, security_type, families/children/pets/smoking/parties_allowed, distance_to_cbd, minimum_stay, preferred_tenant, landlord_type, contact_preference, show_phone, landmark (S1, `2026_09_09_000032`)**, timestamps |
 | `property_images` (Wave 1) | id, property_id FK, path, caption, sort_order |
 | `property_history` (Wave 1) | id, property_id FK, from_status, to_status, changed_by FK, timestamps |
 | `property_*` (Phase 2) | `property_videos`, `property_documents` |

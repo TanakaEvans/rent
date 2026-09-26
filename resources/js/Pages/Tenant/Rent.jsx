@@ -1,19 +1,21 @@
 import { useState } from 'react';
-import { Head } from '@inertiajs/react';
-import { useForm } from '@inertiajs/react';
+import { Head, useForm, usePage } from '@inertiajs/react';
 import { Receipt, CalendarRange, AlertTriangle, CheckCircle2, ArrowUpRight, Download, Landmark, RotateCcw, FileText } from 'lucide-react';
 import MainLayout from '@/Layouts/MainLayout';
 import StatusBadge from '@/Components/Shared/StatusBadge';
 import StatCard from '@/Components/Shared/StatCard';
 import EmptyState from '@/Components/Shared/EmptyState';
+import { formatPrice, paymentPeriod } from '@/lib/listing';
 
-const money = (value) => `$${Number(value || 0).toFixed(2)}`;
 const fmt = (value) => (value ? new Date(value).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
 
 function PayForm({ invoice, methods, popRequired, onDone }) {
     const [open, setOpen] = useState(false);
+    const currency = invoice.property?.currency;
+    const payable = invoice.payable_amount ?? invoice.amount;
+    const lateFee = Number(invoice.late_fee || 0);
     const form = useForm({
-        amount: invoice.amount,
+        amount: payable,
         method: methods[0] || 'bank',
         reference: '',
         pop: null,
@@ -40,13 +42,30 @@ function PayForm({ invoice, methods, popRequired, onDone }) {
                 className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
             >
                 <Landmark className="h-3.5 w-3.5" />
-                Pay {money(invoice.amount)}
+                Pay {formatPrice(payable, currency)}
             </button>
         );
     }
 
     return (
         <form onSubmit={submit} className="space-y-2.5 rounded-xl border border-border bg-card p-3 shadow-sm">
+            <div className="rounded-lg bg-muted/40 px-2.5 py-2 text-xs">
+                <div className="flex justify-between gap-3 text-muted-foreground">
+                    <span>Rent</span>
+                    <span className="font-semibold text-foreground">{formatPrice(invoice.amount, currency)}</span>
+                </div>
+                {lateFee > 0 && (
+                    <div className="flex justify-between gap-3 text-rose-700">
+                        <span>Late fee</span>
+                        <span className="font-semibold">{formatPrice(lateFee, currency)}</span>
+                    </div>
+                )}
+                <div className="mt-1 flex justify-between gap-3 border-t border-border pt-1 font-bold text-foreground">
+                    <span>Amount payable</span>
+                    <span>{formatPrice(payable, currency)}</span>
+                </div>
+            </div>
+
             <div>
                 <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Method</label>
                 <select
@@ -79,10 +98,11 @@ function PayForm({ invoice, methods, popRequired, onDone }) {
                     <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Proof of payment</label>
                     <input
                         type="file"
-                        accept="image/*,application/pdf"
+                        accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf"
                         onChange={(e) => form.setData('pop', e.target.files[0] || null)}
                         className="w-full text-sm"
                     />
+                    <p className="mt-1 text-[11px] text-muted-foreground">JPG, PNG or PDF, up to 4 MB.</p>
                 </div>
             )}
 
@@ -99,18 +119,21 @@ function PayForm({ invoice, methods, popRequired, onDone }) {
                     disabled={form.processing}
                     className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-1.5 text-xs font-bold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:opacity-60"
                 >
-                    {form.processing ? 'Recording…' : `Confirm ${money(invoice.amount)}`}
+                    {form.processing ? 'Recording…' : `Confirm ${formatPrice(payable, currency)}`}
                 </button>
             </div>
 
-            {form.errors.amount && <p className="text-xs font-semibold text-rose-600">{form.errors.amount}</p>}
-            {form.errors.method && <p className="text-xs font-semibold text-rose-600">{form.errors.method}</p>}
-            {form.errors.pop && <p className="text-xs font-semibold text-rose-600">{form.errors.pop}</p>}
+            {Object.entries(form.errors).map(([field, message]) => (
+                <p key={field} role="alert" className="text-xs font-semibold text-rose-600">{message}</p>
+            ))}
         </form>
     );
 }
 
 export default function TenantRent({ invoices = [], summary = {}, statement = {}, rules = {} }) {
+    const { flash = {} } = usePage().props;
+    const currency = invoices[0]?.property?.currency || 'USD';
+    const money = (value) => formatPrice(value || 0, currency);
     const methods = rules.methods?.length ? rules.methods : ['cash', 'bank', 'mobile', 'online'];
     const popRequired = Boolean(rules.pop_required);
 
@@ -132,11 +155,19 @@ export default function TenantRent({ invoices = [], summary = {}, statement = {}
             <div className="mb-7">
                 <h2 className="text-balance text-2xl font-extrabold tracking-tight sm:text-3xl">My Rent</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                    Your rent is invoiced every month from your active lease. Pay a due or overdue invoice below — bank/mobile payments
+                    Your rent is invoiced for each billing period of your active lease (monthly, quarterly or yearly, as agreed). Pay a due
+                    or overdue invoice below — the amount payable includes any late fee. Bank/mobile payments
                     {popRequired ? ' include a proof of payment' : ''}, and payments of {money(rules.approval_threshold)} or more are confirmed
-                    by Dzimba staff before the invoice is settled.
+                    by ZimRent staff before the invoice is settled.
                 </p>
             </div>
+
+            {flash.error && (
+                <div role="alert" className="mb-6 flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                    {flash.error}
+                </div>
+            )}
 
             <div className="mb-8 grid gap-4 sm:grid-cols-4">
                 <StatCard icon={CalendarRange} label="Due now" value={money(summary.due)} hint="Current billing period" tone="amber" />
@@ -184,11 +215,11 @@ export default function TenantRent({ invoices = [], summary = {}, statement = {}
                                             <td className="py-2.5 pr-4 text-muted-foreground">
                                                 {fmt(row.period?.start)} → {fmt(row.period?.end)}
                                             </td>
-                                            <td className="py-2.5 pr-4 font-semibold text-foreground">{money(row.amount)}</td>
+                                            <td className="py-2.5 pr-4 font-semibold text-foreground">{formatPrice(row.amount, row.property?.currency)}</td>
                                             <td className="py-2.5 pr-4">
                                                 {late > 0 ? (
                                                     <span className="inline-flex items-center gap-1 rounded-md bg-rose-50 px-1.5 py-0.5 text-xs font-bold text-rose-700">
-                                                        <AlertTriangle className="h-3 w-3" /> {money(late)}
+                                                        <AlertTriangle className="h-3 w-3" /> {formatPrice(late, row.property?.currency)}
                                                     </span>
                                                 ) : (
                                                     <span className="text-xs text-muted-foreground">—</span>
@@ -223,7 +254,7 @@ export default function TenantRent({ invoices = [], summary = {}, statement = {}
                 <EmptyState
                     icon={Receipt}
                     title="No rent invoices yet"
-                    description="Once your lease is active, your monthly rent invoices will appear here."
+                    description="Once your lease is active, your rent invoices will appear here."
                 />
             ) : (
                 <div className="space-y-6">
@@ -237,6 +268,9 @@ export default function TenantRent({ invoices = [], summary = {}, statement = {}
                                         <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground" />
                                     </p>
                                 )}
+                                {group.property?.payment_terms && (
+                                    <p className="mt-0.5 text-xs font-semibold text-muted-foreground">Billed {paymentPeriod(group.property.payment_terms)}</p>
+                                )}
                             </header>
 
                             <div className="overflow-x-auto">
@@ -246,6 +280,7 @@ export default function TenantRent({ invoices = [], summary = {}, statement = {}
                                             <th className="py-2.5 pl-5 pr-4 font-bold">Invoice</th>
                                             <th className="py-2.5 pr-4 font-bold">Period</th>
                                             <th className="py-2.5 pr-4 font-bold">Amount</th>
+                                            <th className="py-2.5 pr-4 font-bold">Late fee</th>
                                             <th className="py-2.5 pr-4 font-bold">Status</th>
                                             <th className="py-2.5 pr-5 font-bold">Action</th>
                                         </tr>
@@ -262,9 +297,19 @@ export default function TenantRent({ invoices = [], summary = {}, statement = {}
                                                     <td className="py-2.5 pr-4 text-muted-foreground">
                                                         {fmt(invoice.period_start)} → {fmt(invoice.period_end)}
                                                     </td>
-                                                    <td className="py-2.5 pr-4 font-semibold text-foreground">{money(invoice.amount)}</td>
+                                                    <td className="py-2.5 pr-4 font-semibold text-foreground">{formatPrice(invoice.amount, invoice.property?.currency)}</td>
+                                                    <td className="py-2.5 pr-4 text-xs">
+                                                        {Number(invoice.late_fee || 0) > 0 ? (
+                                                            <span className="font-bold text-rose-700">{formatPrice(invoice.late_fee, invoice.property?.currency)}</span>
+                                                        ) : (
+                                                            <span className="text-muted-foreground">—</span>
+                                                        )}
+                                                    </td>
                                                     <td className="py-2.5 pr-4">
                                                         <StatusBadge status={invoice.status} />
+                                                        {payment?.status === 'rejected' && payable && (
+                                                            <span className="ml-1.5 text-xs font-semibold text-rose-700">Last payment rejected</span>
+                                                        )}
                                                     </td>
                                                     <td className="py-2.5 pr-5">
                                                         {awaiting ? (

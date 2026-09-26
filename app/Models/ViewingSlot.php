@@ -58,6 +58,14 @@ class ViewingSlot extends Model
     }
 
     /**
+     * The viewing requests made against this slot.
+     */
+    public function requests()
+    {
+        return $this->hasMany(ViewingRequest::class, 'slot_id');
+    }
+
+    /**
      * Scope to slots that have not yet finished.
      */
     public function scopeUpcoming($query)

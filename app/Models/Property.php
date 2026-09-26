@@ -23,9 +23,33 @@ class Property extends Model
         'bathrooms',
         'building_size',
         'land_size',
+        'floor_area',
+        'year_built',
         'price',
         'deposit',
+        'currency',
+        'payment_terms',
+        'water_cost',
+        'electricity_cost',
+        'trash_cost',
+        'negotiable',
         'furnished',
+        'entrance_type',
+        'bathroom_type',
+        'parking_type',
+        'families_allowed',
+        'distance_to_cbd',
+        'security_type',
+        'children_allowed',
+        'pets_allowed',
+        'smoking_allowed',
+        'parties_allowed',
+        'minimum_stay',
+        'preferred_tenant',
+        'landlord_type',
+        'contact_preference',
+        'show_phone',
+        'landmark',
         'status',
         'suburb',
         'zone',
@@ -39,6 +63,7 @@ class Property extends Model
         'latitude',
         'longitude',
         'expires_at',
+        'expiry_reminder_sent_days',
     ];
 
     /**
@@ -53,7 +78,20 @@ class Property extends Model
             'deposit' => 'decimal:2',
             'building_size' => 'decimal:2',
             'land_size' => 'decimal:2',
+            'floor_area' => 'decimal:2',
+            'year_built' => 'integer',
+            'water_cost' => 'decimal:2',
+            'electricity_cost' => 'decimal:2',
+            'trash_cost' => 'decimal:2',
+            'distance_to_cbd' => 'decimal:2',
+            'negotiable' => 'boolean',
             'furnished' => 'boolean',
+            'families_allowed' => 'boolean',
+            'children_allowed' => 'boolean',
+            'pets_allowed' => 'boolean',
+            'smoking_allowed' => 'boolean',
+            'parties_allowed' => 'boolean',
+            'show_phone' => 'boolean',
             'featured' => 'boolean',
             'verified' => 'boolean',
             'amenities' => 'array',
@@ -61,21 +99,59 @@ class Property extends Model
             'latitude' => 'decimal:7',
             'longitude' => 'decimal:7',
             'expires_at' => 'datetime',
+            'expiry_reminder_sent_days' => 'integer',
         ];
     }
 
     /**
-     * The property type labels used across the UI.
+     * The property type labels used across the UI (Preservation-release
+     * taxonomy: Rooms, Flat, Apartment, Full-house, Cottage).
      */
     public const TYPES = [
-        'house' => 'House',
-        'flat' => 'Flat / Apartment',
+        'room' => 'Room',
+        'flat' => 'Flat',
+        'apartment' => 'Apartment',
+        'house' => 'Full house',
         'townhouse' => 'Townhouse',
         'cottage' => 'Cottage',
-        'room' => 'Room',
         'commercial' => 'Commercial',
         'land' => 'Land',
     ];
+
+    /**
+     * Accepted pricing currencies.
+     */
+    public const CURRENCIES = ['USD', 'ZWL'];
+
+    /**
+     * Accepted rent payment cadence.
+     */
+    public const PAYMENT_TERMS = ['monthly', 'quarterly', 'yearly'];
+
+    /**
+     * Accepted parking outcomes on a room/listing.
+     */
+    public const PARKING_TYPES = ['none', 'street', 'secure'];
+
+    /**
+     * Accepted security descriptors for a listing.
+     */
+    public const SECURITY_TYPES = ['gated', 'fenced', 'none'];
+
+    /**
+     * Accepted preferred-tenant audiences.
+     */
+    public const PREFERRED_TENANTS = ['any', 'family', 'single', 'professionals', 'students'];
+
+    /**
+     * Accepted landlord-on-listing types.
+     */
+    public const LANDLORD_TYPES = ['direct', 'agent', 'corporate'];
+
+    /**
+     * Accepted owner contact preferences.
+     */
+    public const CONTACT_PREFERENCES = ['platform', 'whatsapp', 'call', 'email'];
 
     /**
      * The property status labels used across the UI.
@@ -164,6 +240,14 @@ class Property extends Model
     }
 
     /**
+     * Get the tenants' express-interest rows for this property.
+     */
+    public function interests()
+    {
+        return $this->hasMany(ExpressInterest::class);
+    }
+
+    /**
      * Get the gallery images for this property.
      */
     public function images()
@@ -184,7 +268,7 @@ class Property extends Model
      */
     public function reports()
     {
-        return $this->hasMany(Report::class)->where('subject_type', 'property');
+        return $this->hasMany(Report::class, 'subject_id')->where('subject_type', 'property');
     }
 
     /**

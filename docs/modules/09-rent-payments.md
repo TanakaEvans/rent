@@ -6,7 +6,7 @@
 
 ## 1. Purpose
 
-Transforms Dzimba from a marketplace into a true ERP by handling rent invoicing, collection, receipts, arrears and deposits. It is also the platform's trusted-money layer feeding subscription revenue reporting.
+Transforms ZimRent from a marketplace into a true ERP by handling rent invoicing, collection, receipts, arrears and deposits. It is also the platform's trusted-money layer feeding subscription revenue reporting.
 
 ## 2. Roles & Responsibilities
 

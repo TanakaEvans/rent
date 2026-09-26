@@ -6,6 +6,7 @@ import { useForm } from '@inertiajs/react';
  */
 export default function LeaseSignPad({ label = 'Sign', routeName, leaseId, userName = '' }) {
     const { data, setData, post, processing, errors } = useForm({ signature: userName });
+    const messages = [...new Set(Object.values(errors).filter(Boolean))];
 
     return (
         <form
@@ -30,7 +31,9 @@ export default function LeaseSignPad({ label = 'Sign', routeName, leaseId, userN
             >
                 {processing ? 'Signing…' : label}
             </button>
-            {errors.signature && <p className="text-xs font-medium text-destructive">{errors.signature}</p>}
+            {messages.map((message) => (
+                <p key={message} role="alert" className="text-xs font-medium text-destructive">{message}</p>
+            ))}
         </form>
     );
 }

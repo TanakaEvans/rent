@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 const tones = {
     slate: { badge: 'bg-slate-100 text-slate-600 border-slate-200', dot: 'bg-slate-400' },
     sky: { badge: 'bg-sky-50 text-sky-700 border-sky-200', dot: 'bg-sky-500' },
-    emerald: { badge: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500' },
+    emerald: { badge: 'bg-green-50 text-green-700 border-green-200', dot: 'bg-green-500' },
     amber: { badge: 'bg-amber-50 text-amber-700 border-amber-200', dot: 'bg-amber-500' },
     rose: { badge: 'bg-rose-50 text-rose-700 border-rose-200', dot: 'bg-rose-500' },
     violet: { badge: 'bg-violet-50 text-violet-700 border-violet-200', dot: 'bg-violet-500' },
@@ -67,6 +67,8 @@ const statusTone = {
     escalated: 'orange',
     dismissed: 'slate',
     resolved: 'emerald',
+    interested: 'emerald',
+    contacted: 'sky',
 };
 
 export default function StatusBadge({ status, className, showDot = true }) {

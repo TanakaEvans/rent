@@ -22,7 +22,6 @@ Homestead.json
 /.vagrant
 .phpunit.result.cache
 
-/public/build
 /storage/pail
 .env.backup
 .env.production
@@ -36,9 +35,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Build outputs
-dist/
-build/
+# Build outputs (project root only; public/build is committed for deployment)
+/dist/
+/build/
 *.log
 
 # Environment files

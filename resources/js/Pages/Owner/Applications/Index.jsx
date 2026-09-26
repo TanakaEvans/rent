@@ -1,11 +1,25 @@
 import { useState } from 'react';
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, Link, router, useForm } from '@inertiajs/react';
 import { ClipboardCheck, MapPin, Clock3, CheckCircle2, XCircle, Star, UserRound, FileSignature } from 'lucide-react';
 import MainLayout from '@/Layouts/MainLayout';
 import PropertyArt from '@/Components/Shared/PropertyArt';
 import StatusBadge from '@/Components/Shared/StatusBadge';
 import EmptyState from '@/Components/Shared/EmptyState';
+import ActionErrors from '@/Components/Shared/ActionErrors';
 import { cn } from '@/lib/utils';
+import { formatPrice, priceSuffix, PAYMENT_TERM_LABELS } from '@/lib/listing';
+
+const isoDay = (date) => {
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+};
+
+const defaultLeaseDates = () => {
+    const start = new Date();
+    const end = new Date(start);
+    end.setFullYear(end.getFullYear() + 1);
+    return { start_date: isoDay(start), end_date: isoDay(end) };
+};
 
 const formatRelative = (value) => {
     if (!value) return '';
@@ -25,15 +39,31 @@ const reviewable = (status) => status === 'pending' || status === 'shortlisted';
 export default function OwnerApplicationsIndex({ properties = [] }) {
     const [rejectFor, setRejectFor] = useState(null);
     const [rejectReason, setRejectReason] = useState('');
+    const [leaseFor, setLeaseFor] = useState(null);
+    const leaseForm = useForm(defaultLeaseDates());
 
     const total = properties.reduce((sum, property) => sum + property.applications.length, 0);
 
     const act = (name, id) => router.post(route(name, id), {}, { preserveScroll: true });
     const submitReject = (id) => {
         if (!rejectReason.trim()) return;
-        router.post(route('owner.applications.reject', id), { reason: rejectReason }, { preserveScroll: true });
-        setRejectFor(null);
-        setRejectReason('');
+        router.post(route('owner.applications.reject', id), { reason: rejectReason }, {
+            preserveScroll: true,
+            onSuccess: () => {
+                setRejectFor(null);
+                setRejectReason('');
+            },
+        });
+    };
+
+    const openLease = (id) => {
+        leaseForm.setData(defaultLeaseDates());
+        leaseForm.clearErrors();
+        setLeaseFor(id);
+    };
+
+    const submitLease = (id) => {
+        leaseForm.post(route('owner.applications.lease', id), { preserveScroll: true });
     };
 
     return (
@@ -48,6 +78,8 @@ export default function OwnerApplicationsIndex({ properties = [] }) {
                     </p>
                 </div>
             </div>
+
+            <ActionErrors exclude={['start_date', 'end_date']} className="mb-5" />
 
             {properties.length === 0 ? (
                 <EmptyState
@@ -175,24 +207,89 @@ export default function OwnerApplicationsIndex({ properties = [] }) {
                                             </div>
                                         )}
 
-                                        {app.status === 'approved' && (
-                                            property.leases_count === 0 ? (
+                                        {app.status === 'approved' && app.lease && (
+                                            <p className="flex flex-wrap items-center gap-1.5 text-xs font-semibold text-emerald-700">
+                                                <FileSignature className="h-3.5 w-3.5" /> Lease {app.lease.lease_no} was generated from this application ({app.lease.status}) —
+                                                <Link href={route('owner.leases.index')} className="underline hover:text-emerald-900">manage it under Leases</Link>.
+                                            </p>
+                                        )}
+                                        {app.status === 'approved' && !app.lease && property.open_leases_count > 0 && (
+                                            <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+                                                <FileSignature className="h-3.5 w-3.5" /> This property already has a lease in progress. End or complete it under Leases before creating another.
+                                            </p>
+                                        )}
+                                        {app.status === 'approved' && !app.lease && property.open_leases_count === 0 && property.status !== 'available' && (
+                                            <p className="flex flex-wrap items-center gap-1.5 text-xs font-semibold text-amber-700">
+                                                <FileSignature className="h-3.5 w-3.5" /> The property is not Available. Set it to Available on the
+                                                <Link href={route('owner.properties.show', property.id)} className="underline hover:text-amber-900">property page</Link>
+                                                before creating a lease.
+                                            </p>
+                                        )}
+                                        {app.status === 'approved' && !app.lease && property.open_leases_count === 0 && property.status === 'available' && (
+                                            leaseFor === app.id ? (
+                                                <form
+                                                    onSubmit={(e) => {
+                                                        e.preventDefault();
+                                                        submitLease(app.id);
+                                                    }}
+                                                    className="grid gap-3 rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 sm:grid-cols-[1fr_1fr_auto]"
+                                                >
+                                                    <p className="text-xs text-muted-foreground sm:col-span-3">
+                                                        Rent {formatPrice(property.price, property.currency)}{priceSuffix(property.payment_terms)} · Deposit {formatPrice(property.deposit || 0, property.currency)} · Paid {(PAYMENT_TERM_LABELS[property.payment_terms] || 'Monthly').toLowerCase()} — taken from the listing.
+                                                    </p>
+                                                    <label className="block">
+                                                        <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Lease starts</span>
+                                                        <input
+                                                            type="date"
+                                                            required
+                                                            value={leaseForm.data.start_date}
+                                                            onChange={(e) => leaseForm.setData('start_date', e.target.value)}
+                                                            className="field w-full"
+                                                        />
+                                                        {leaseForm.errors.start_date && <span className="mt-1 block text-xs font-semibold text-rose-600">{leaseForm.errors.start_date}</span>}
+                                                    </label>
+                                                    <label className="block">
+                                                        <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Lease ends</span>
+                                                        <input
+                                                            type="date"
+                                                            required
+                                                            min={leaseForm.data.start_date}
+                                                            value={leaseForm.data.end_date}
+                                                            onChange={(e) => leaseForm.setData('end_date', e.target.value)}
+                                                            className="field w-full"
+                                                        />
+                                                        {leaseForm.errors.end_date && <span className="mt-1 block text-xs font-semibold text-rose-600">{leaseForm.errors.end_date}</span>}
+                                                    </label>
+                                                    <div className="flex items-end gap-2">
+                                                        <button
+                                                            type="submit"
+                                                            disabled={leaseForm.processing}
+                                                            className="inline-flex h-10 items-center gap-1.5 rounded-lg bg-emerald-600 px-4 text-sm font-bold text-white transition-colors hover:bg-emerald-700 disabled:opacity-60"
+                                                        >
+                                                            <FileSignature className="h-4 w-4" /> {leaseForm.processing ? 'Creating…' : 'Create lease'}
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setLeaseFor(null)}
+                                                            className="h-10 rounded-lg px-3 text-xs font-bold text-muted-foreground hover:bg-muted"
+                                                        >
+                                                            Cancel
+                                                        </button>
+                                                    </div>
+                                                </form>
+                                            ) : (
                                                 <div className="flex flex-wrap items-center gap-2">
                                                     <button
                                                         type="button"
-                                                        onClick={() => act('owner.applications.lease', app.id)}
+                                                        onClick={() => openLease(app.id)}
                                                         className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-emerald-700"
                                                     >
                                                         <FileSignature className="h-3.5 w-3.5" /> Create lease
                                                     </button>
                                                     <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700">
-                                                        <UserRound className="h-3.5 w-3.5" /> Sole approved applicant — generates the lease with prefilled terms.
+                                                        <UserRound className="h-3.5 w-3.5" /> Approved applicant — choose the lease dates; rent and terms come from the listing.
                                                     </span>
                                                 </div>
-                                            ) : (
-                                                <p className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700">
-                                                    <FileSignature className="h-3.5 w-3.5" /> Lease generated from this application — manage it under Leases.
-                                                </p>
                                             )
                                         )}
                                     </li>

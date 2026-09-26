@@ -16,13 +16,14 @@ const formatSlot = (value) =>
 const canCancel = (status) => ['requested', 'accepted', 'rescheduled'].includes(status);
 
 export default function TenantViewings({ requests = [] }) {
-    const confirm = useForm({});
+    const confirmForm = useForm({});
 
     const doConfirm = (id) => {
-        confirm.post(route('tenant.viewings.confirm', id), { preserveScroll: true });
+        confirmForm.post(route('tenant.viewings.confirm', id), { preserveScroll: true });
     };
 
     const doCancel = (id) => {
+        if (!confirm('Cancel this viewing? The owner will be notified.')) return;
         router.post(route('tenant.viewings.cancel', id), {}, { preserveScroll: true });
     };
 
@@ -39,7 +40,7 @@ export default function TenantViewings({ requests = [] }) {
                 <EmptyState
                     icon={CalendarClock}
                     title="No viewings yet"
-                    description="Open any available property and book a slot to see you started a viewing here."
+                    description="Open any available property and book a viewing time — your requests will appear here."
                 />
             ) : (
                 <div className="grid gap-4 md:grid-cols-2">
@@ -76,7 +77,7 @@ export default function TenantViewings({ requests = [] }) {
                                     <button
                                         type="button"
                                         onClick={() => doConfirm(booking.id)}
-                                        disabled={confirm.processing}
+                                        disabled={confirmForm.processing}
                                         className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 py-2 text-xs font-bold text-white transition-colors hover:bg-emerald-500 disabled:opacity-50"
                                     >
                                         <CheckCircle2 className="h-4 w-4" /> Confirm New Time

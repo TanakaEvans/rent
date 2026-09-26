@@ -48,9 +48,13 @@ export default function OwnerViewingSlots({ property, slots = [] }) {
         });
     };
 
-    const remove = (slotId) => {
-        router.delete(route('owner.viewing-slots.destroy', [property.id, slotId]), { preserveScroll: true });
+    const remove = (slot) => {
+        if (confirm(`Delete the viewing time on ${formatNiceDate(slot.starts_at)}?`)) {
+            router.delete(route('owner.viewing-slots.destroy', [property.id, slot.id]), { preserveScroll: true });
+        }
     };
+
+    const upcoming = slots.filter((slot) => !slot.is_past).length;
 
     return (
         <MainLayout title="Viewing Slots">
@@ -71,7 +75,7 @@ export default function OwnerViewingSlots({ property, slots = [] }) {
                     </p>
                 </div>
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-bold text-sky-700">
-                    <CalendarDays className="h-3.5 w-3.5" /> {slots.length} upcoming
+                    <CalendarDays className="h-3.5 w-3.5" /> {upcoming} upcoming
                 </span>
             </div>
 
@@ -124,7 +128,8 @@ export default function OwnerViewingSlots({ property, slots = [] }) {
                     ) : (
                         <ul className="space-y-3">
                             {slots.map((slot) => {
-                                const editable = slot.status === 'available' && !slot.is_past;
+                                const editable = slot.is_editable;
+                                const deletable = slot.is_deletable;
                                 return (
                                     <li key={slot.id} className="surface p-4 sm:p-5">
                                         {editingId === slot.id ? (
@@ -178,22 +183,31 @@ export default function OwnerViewingSlots({ property, slots = [] }) {
                                                         until {formatNiceDate(slot.ends_at)}
                                                     </p>
                                                 </div>
-                                                {editable && (
+                                                {!slot.is_past && slot.active_requests_count > 0 && (
+                                                    <Link href={route('owner.viewings.index')} className="text-xs font-semibold text-primary hover:text-primary/80">
+                                                        Requested by a tenant — respond in Viewing Requests
+                                                    </Link>
+                                                )}
+                                                {(editable || deletable) && (
                                                     <div className="flex shrink-0 items-center gap-2">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => startEdit(slot)}
-                                                            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-bold text-muted-foreground transition-colors hover:border-primary/30 hover:text-primary"
-                                                        >
-                                                            <Pencil className="h-3.5 w-3.5" /> Edit
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => remove(slot.id)}
-                                                            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-bold text-muted-foreground transition-colors hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600"
-                                                        >
-                                                            <Trash2 className="h-3.5 w-3.5" /> Delete
-                                                        </button>
+                                                        {editable && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => startEdit(slot)}
+                                                                className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-bold text-muted-foreground transition-colors hover:border-primary/30 hover:text-primary"
+                                                            >
+                                                                <Pencil className="h-3.5 w-3.5" /> Edit
+                                                            </button>
+                                                        )}
+                                                        {deletable && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => remove(slot)}
+                                                                className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-bold text-muted-foreground transition-colors hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600"
+                                                            >
+                                                                <Trash2 className="h-3.5 w-3.5" /> Delete
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 )}
                                             </div>

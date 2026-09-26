@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
 import { Heart, FileText, Hourglass, BadgeCheck, MapPin, CalendarDays, Mail, BedDouble, Bath, Armchair, MessageSquareText, Search, ArrowRight, Building2 } from 'lucide-react';
 import MainLayout from '@/Layouts/MainLayout';
@@ -7,18 +8,8 @@ import PropertyArt from '@/Components/Shared/PropertyArt';
 import EmptyState from '@/Components/Shared/EmptyState';
 import { Button, buttonVariants } from '@/Components/ui/button';
 import { cn } from '@/lib/utils';
+import { TYPE_LABELS as typeLabels, formatPrice, priceSuffix } from '@/lib/listing';
 
-const typeLabels = {
-    house: 'House',
-    flat: 'Flat / Apartment',
-    townhouse: 'Townhouse',
-    cottage: 'Cottage',
-    room: 'Room',
-    commercial: 'Commercial',
-    land: 'Land',
-};
-
-const formatPrice = (value) => '$' + Number(value).toLocaleString();
 const formatDate = (value) =>
     value ? new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '';
 
@@ -38,11 +29,21 @@ export default function TenantDashboard({ stats = {}, favourites = [], applicati
         { key: 'approved', label: 'Approved', value: stats.approved ?? 0, icon: BadgeCheck, tone: 'teal', routeName: 'tenant.applications.index' },
     ];
 
+    const [enquiryErrors, setEnquiryErrors] = useState({});
+    const [enquiring, setEnquiring] = useState(null);
+
     const handleEnquire = (e, property) => {
         e.preventDefault();
         e.stopPropagation();
+        setEnquiryErrors((current) => ({ ...current, [property.id]: null }));
         router.post(route('tenant.enquiries.store', { property: property.id }), { message: `Hi, I'm interested in ${property.title}. Please get in touch.` }, {
             preserveScroll: true,
+            onStart: () => setEnquiring(property.id),
+            onFinish: () => setEnquiring(null),
+            onError: (errors) => setEnquiryErrors((current) => ({
+                ...current,
+                [property.id]: Object.values(errors)[0] || 'Your enquiry could not be sent.',
+            })),
         });
     };
 
@@ -124,8 +125,8 @@ export default function TenantDashboard({ stats = {}, favourites = [], applicati
                                         {[application?.property?.suburb, application?.property?.city].filter(Boolean).join(', ') || 'Location on request'}
                                     </p>
                                     <div className="mt-1 text-sm font-bold text-foreground">
-                                        {formatPrice(application?.property?.price)}
-                                        <span className="font-semibold text-muted-foreground">/mo</span>
+                                        {formatPrice(application?.property?.price, application?.property?.currency)}
+                                        <span className="font-semibold text-muted-foreground">{priceSuffix(application?.property?.payment_terms)}</span>
                                     </div>
                                     {application.message && (
                                         <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-muted-foreground">“{application.message}”</p>
@@ -190,14 +191,23 @@ export default function TenantDashboard({ stats = {}, favourites = [], applicati
                                     </div>
                                     <div className="mt-auto flex items-end justify-between gap-3 pt-4">
                                         <div className="text-lg font-extrabold tracking-tight">
-                                            {formatPrice(property.price)}
-                                            <span className="text-xs font-semibold text-muted-foreground">/mo</span>
+                                            {formatPrice(property.price, property.currency)}
+                                            <span className="text-xs font-semibold text-muted-foreground">{priceSuffix(property.payment_terms)}</span>
                                         </div>
                                         <div className="flex gap-2">
-                                            <Button size="sm" variant="outline" onClick={(e) => handleEnquire(e, property)}>Enquire</Button>
+                                            {property.status === 'available' ? (
+                                                <Button size="sm" variant="outline" disabled={enquiring === property.id} onClick={(e) => handleEnquire(e, property)}>
+                                                    {enquiring === property.id ? 'Sending…' : 'Enquire'}
+                                                </Button>
+                                            ) : (
+                                                <StatusBadge status={property.status} />
+                                            )}
                                             <Link href={route('property.show', property.id)} className={cn(buttonVariants({ size: 'sm' }))}>View</Link>
                                         </div>
                                     </div>
+                                    {enquiryErrors[property.id] && (
+                                        <p role="alert" className="mt-2 text-xs font-semibold text-rose-600">{enquiryErrors[property.id]}</p>
+                                    )}
                                     {property?.owner?.name && (
                                         <p className="mt-1 flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
                                             <Mail className="h-3 w-3" /> Listed by {property.owner.name}

@@ -4,16 +4,7 @@ import MainLayout from '@/Layouts/MainLayout';
 import EmptyState from '@/Components/Shared/EmptyState';
 import { Button, buttonVariants } from '@/Components/ui/button';
 import { cn } from '@/lib/utils';
-
-const typeLabels = {
-    house: 'House',
-    flat: 'Flat / Apartment',
-    townhouse: 'Townhouse',
-    cottage: 'Cottage',
-    room: 'Room',
-    commercial: 'Commercial',
-    land: 'Land',
-};
+import { TYPE_LABELS as typeLabels } from '@/lib/listing';
 
 const availabilityLabels = { now: 'Available now', upcoming: 'Available soon' };
 

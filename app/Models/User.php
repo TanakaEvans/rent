@@ -30,6 +30,9 @@ class User extends Authenticatable
         'locked_at',
         'verified',
         'verified_at',
+        'badge_tier',
+        'rating_avg',
+        'ratings_count',
     ];
 
     /**
@@ -57,8 +60,17 @@ class User extends Authenticatable
             'locked_at' => 'datetime',
             'verified' => 'boolean',
             'verified_at' => 'datetime',
+            'badge_tier' => 'string',
+            'rating_avg' => 'decimal:2',
+            'ratings_count' => 'integer',
         ];
     }
+
+    /**
+     * Accepted owner badge tiers (Preservation-Release S2/S5). Tiers derive
+     * from the KYC tier + verification decisions made in S5 — none by default.
+     */
+    public const BADGE_TIERS = ['none', 'bronze', 'silver', 'gold'];
 
     /**
      * Get the roles assigned to the user.
@@ -134,6 +146,30 @@ class User extends Authenticatable
     public function properties()
     {
         return $this->hasMany(Property::class, 'owner_id');
+    }
+
+    /**
+     * Get the tenant profile for this user (S4 — one per tenant account).
+     */
+    public function tenantProfile()
+    {
+        return $this->hasOne(TenantProfile::class, 'user_id');
+    }
+
+    /**
+     * Get the tenant's identity-evidence scans (S4 KYC, private disk).
+     */
+    public function identityDocuments()
+    {
+        return $this->hasMany(IdentityDocument::class, 'user_id');
+    }
+
+    /**
+     * Get the tenant's identity-evidence audit trail (S4).
+     */
+    public function identityDocumentAudits()
+    {
+        return $this->hasMany(IdentityDocumentAudit::class, 'user_id');
     }
 
     /**

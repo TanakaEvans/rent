@@ -66,8 +66,8 @@ export default function DepartmentsIndex({ auth, departments }) {
                                     <tr key={department.id} className="hover:bg-gray-50">
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="flex items-center">
-                                                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                                                    <span className="text-blue-600">🏬</span>
+                                                <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
+                                                    <span className="text-emerald-600">🏬</span>
                                                 </div>
                                                 <div className="ml-4">
                                                     <div className="text-sm font-medium text-gray-900">
@@ -114,6 +114,12 @@ export default function DepartmentsIndex({ auth, departments }) {
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                             <div className="flex justify-end gap-2">
+                                                <Link
+                                                    href={route('admin.departments.show', department.id)}
+                                                    className="text-gray-600 hover:text-gray-900"
+                                                >
+                                                    View
+                                                </Link>
                                                 <Link
                                                     href={route('admin.departments.edit', department.id)}
                                                     className="text-orange-600 hover:text-orange-900"

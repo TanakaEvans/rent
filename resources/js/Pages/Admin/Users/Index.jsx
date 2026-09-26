@@ -27,14 +27,14 @@ export default function Index({ users, roles, filters = {} }) {
     };
 
     const toggleStatus = (userId) => {
-        router.post(route('auth.users.toggle-status', userId), {}, {
+        router.patch(route('auth.users.toggle-status', userId), {}, {
             preserveState: true,
             preserveScroll: true,
         });
     };
 
     const deleteUser = (userId) => {
-        if (confirm('Are you sure you want to delete this user?')) {
+        if (confirm('Delete this user permanently? Users with properties, leases, invoices, payments or subscriptions cannot be deleted; deactivate them instead.')) {
             router.delete(route('auth.users.destroy', userId), {
                 preserveState: true,
                 preserveScroll: true,
@@ -52,7 +52,6 @@ export default function Index({ users, roles, filters = {} }) {
                         <div className="p-6 text-gray-900">
                             <div className="flex justify-between items-center mb-6">
                                 <h1 className="text-2xl font-semibold">Users Management</h1>
-                                {/* Add User button removed as users are managed via Employee creation */}
                             </div>
 
                             {/* Search and Filter Form */}
@@ -100,7 +99,7 @@ export default function Index({ users, roles, filters = {} }) {
                                         >
                                             <option value="">All Roles</option>
                                             {roles && roles.map((r) => (
-                                                <option key={r.id} value={r.id}>
+                                                <option key={r.id} value={r.name}>
                                                     {r.name}
                                                 </option>
                                             ))}
@@ -110,7 +109,7 @@ export default function Index({ users, roles, filters = {} }) {
                                     <div className="flex items-end space-x-2">
                                         <button
                                             type="submit"
-                                            className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+                                            className="bg-emerald-500 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded"
                                         >
                                             Search
                                         </button>
@@ -167,7 +166,7 @@ export default function Index({ users, roles, filters = {} }) {
                                                             {user.roles && user.roles.map((r) => (
                                                                 <span
                                                                     key={r.id}
-                                                                    className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                                                                    className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800"
                                                                 >
                                                                     {r.name}
                                                                 </span>
@@ -239,7 +238,7 @@ export default function Index({ users, roles, filters = {} }) {
                                                 })}
                                                 disabled={!link.url}
                                                 className={`px-3 py-2 text-sm rounded ${link.active
-                                                    ? 'bg-blue-500 text-white'
+                                                    ? 'bg-emerald-500 text-white'
                                                     : link.url
                                                         ? 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
                                                         : 'bg-gray-100 text-gray-400 cursor-not-allowed'

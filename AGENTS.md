@@ -1,10 +1,10 @@
-# Dzimba - Global Working Rules (MANDATORY)
+# ZimRent - Global Working Rules (MANDATORY)
 
 These rules apply to every task. The original product concept notes are preserved below the separator at the end of this file.
 
 ## 1. Context
 
-Dzimba is a direct property-rental marketplace + property-management ERP (Laravel + Inertia + React + Tailwind v4, MySQL dev / SQLite tests). Three parties drive it: **Admin**, **Property Owner**, **Tenant** (a Contractor actor appears in Phase 2). Full module docs: `docs/modules/`.
+ZimRent is a direct property-rental marketplace + property-management ERP (Laravel + Inertia + React + Tailwind v4, MySQL dev / SQLite tests). Three parties drive it: **Admin**, **Property Owner**, **Tenant** (a Contractor actor appears in Phase 2). Full module docs: `docs/modules/`.
 
 ### Sources of truth (read these first, in order)
 
@@ -16,7 +16,7 @@ Dzimba is a direct property-rental marketplace + property-management ERP (Larave
 
 ### Where the files live (map)
 
-- **DB migrations:** `database/migrations/` (core Dzimba tables are dated `2024_/2025_/2026_09_09_*`).
+- **DB migrations:** `database/migrations/` (core ZimRent tables are dated `2024_/2025_/2026_09_09_*`).
 - **Models:** `app/Models/` (business logic lives in services, not models).
 - **Services:** `app/Services/` (search for the existing `PropertyService` pattern).
 - **Controllers:** `app/Http/Controllers/`.

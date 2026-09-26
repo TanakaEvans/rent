@@ -36,12 +36,16 @@ class Enquiry extends Model
     ];
 
     /**
-     * Allowed status transitions (explicit state machine).
+     * Allowed status transitions (explicit state machine). Statuses read
+     * from the owner's side: `new` = the tenant wrote last and the owner has
+     * not opened it, `read` = opened, `replied` = the owner wrote last. A
+     * tenant follow-up moves the thread back to `new`; an owner follow-up on
+     * a `replied` thread keeps it `replied`.
      */
     public const TRANSITIONS = [
         'new' => ['read', 'replied', 'closed'],
-        'read' => ['replied', 'closed'],
-        'replied' => ['closed'],
+        'read' => ['new', 'replied', 'closed'],
+        'replied' => ['new', 'closed'],
         'closed' => [],
     ];
 
@@ -78,5 +82,14 @@ class Enquiry extends Model
     public function tenant()
     {
         return $this->belongsTo(User::class, 'tenant_id');
+    }
+
+    /**
+     * The append-only replies on the thread (oldest first). The opening
+     * tenant message stays on `message`.
+     */
+    public function messages()
+    {
+        return $this->hasMany(EnquiryMessage::class)->oldest()->orderBy('id');
     }
 }

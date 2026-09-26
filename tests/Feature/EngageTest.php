@@ -804,7 +804,10 @@ class EngageTest extends TestCase
         $this->actingAs($this->owner())->post('/owner/enquiries/'.$enquiry->id.'/reply', ['reply' => 'Sure'])
             ->assertRedirect();
 
-        $notification = $this->tenant()->notifications()->latest()->first();
+        $notification = $this->tenant()->notifications()
+            ->where('type', \App\Notifications\EnquiryRepliedNotification::class)
+            ->latest()
+            ->first();
         $this->assertNotNull($notification);
         $this->assertNull($notification->read_at);
 
@@ -826,7 +829,10 @@ class EngageTest extends TestCase
         $this->actingAs($this->owner())->post('/owner/enquiries/'.$enquiry->id.'/reply', ['reply' => 'Sure'])
             ->assertRedirect();
 
-        $notification = $this->tenant()->notifications()->latest()->first();
+        $notification = $this->tenant()->notifications()
+            ->where('type', \App\Notifications\EnquiryRepliedNotification::class)
+            ->latest()
+            ->first();
 
         $this->actingAs($this->owner())
             ->post('/notifications/'.$notification->id.'/read')

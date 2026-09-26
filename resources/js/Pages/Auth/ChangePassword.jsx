@@ -1,11 +1,11 @@
-import { Head, useForm } from '@inertiajs/react';
+import { Head, Link, useForm } from '@inertiajs/react';
 import Button from '@/Components/Button';
 import TextInput from '@/Components/TextInput';
 import InputError from '@/Components/InputError';
 import InputLabel from '@/Components/InputLabel';
 import { useState } from 'react';
 
-export default function ChangePassword({ flash }) {
+export default function ChangePassword({ flash, forced = true }) {
     const { data, setData, put, processing, errors, reset } = useForm({
         current_password: '',
         password: '',
@@ -31,14 +31,16 @@ export default function ChangePassword({ flash }) {
 
             <div className="max-w-lg w-full space-y-8 bg-white p-10 rounded-xl shadow-lg">
                 <div>
-                    <div className="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
+                    <div className="mx-auto w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center">
                         <span className="text-4xl">🔐</span>
                     </div>
                     <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
                         Change Password
                     </h2>
                     <p className="mt-2 text-center text-sm text-gray-600">
-                        {flash?.warning || "You must update your password to continue."}
+                        {forced
+                            ? flash?.warning || 'You must update your password to continue.'
+                            : 'Choose a new password for your account.'}
                     </p>
                 </div>
 
@@ -53,7 +55,7 @@ export default function ChangePassword({ flash }) {
                                     type={showCurrentPassword ? "text" : "password"}
                                     value={data.current_password}
                                     onChange={(e) => setData('current_password', e.target.value)}
-                                    className="block w-full text-lg p-3 pr-10 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                                    className="block w-full text-lg p-3 pr-10 border-gray-300 rounded-lg focus:ring-emerald-500 focus:border-emerald-500"
                                     required
                                 />
                                 <button
@@ -76,7 +78,7 @@ export default function ChangePassword({ flash }) {
                                     type={showNewPassword ? "text" : "password"}
                                     value={data.password}
                                     onChange={(e) => setData('password', e.target.value)}
-                                    className="block w-full text-lg p-3 pr-10 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                                    className="block w-full text-lg p-3 pr-10 border-gray-300 rounded-lg focus:ring-emerald-500 focus:border-emerald-500"
                                     required
                                 />
                                 <button
@@ -102,7 +104,7 @@ export default function ChangePassword({ flash }) {
                                     type={showConfirmPassword ? "text" : "password"}
                                     value={data.password_confirmation}
                                     onChange={(e) => setData('password_confirmation', e.target.value)}
-                                    className={`block w-full text-lg p-3 pr-10 border rounded-lg focus:ring-blue-500 focus:border-blue-500 ${data.password_confirmation && (doPasswordsMatch ? 'border-green-300 focus:border-green-500 focus:ring-green-500' : 'border-red-300 focus:border-red-500 focus:ring-red-500')
+                                    className={`block w-full text-lg p-3 pr-10 border rounded-lg focus:ring-emerald-500 focus:border-emerald-500 ${data.password_confirmation && (doPasswordsMatch ? 'border-green-300 focus:border-green-500 focus:ring-green-500' : 'border-red-300 focus:border-red-500 focus:ring-red-500')
                                         }`}
                                     required
                                 />
@@ -126,11 +128,16 @@ export default function ChangePassword({ flash }) {
                     <div>
                         <Button
                             type="submit"
-                            className="w-full flex justify-center py-4 text-lg font-bold bg-blue-600 hover:bg-blue-700 transition duration-150 ease-in-out"
+                            className="w-full flex justify-center py-4 text-lg font-bold bg-emerald-600 hover:bg-emerald-700 transition duration-150 ease-in-out"
                             processing={processing}
                         >
                             Update Password
                         </Button>
+                        {!forced && (
+                            <Link href={route('dashboard')} className="mt-4 block text-center text-sm font-medium text-emerald-600 hover:text-emerald-700">
+                                Cancel and go back
+                            </Link>
+                        )}
                     </div>
                 </form>
             </div>

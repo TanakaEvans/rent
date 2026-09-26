@@ -6,6 +6,8 @@ use App\Models\SubscriptionPlan;
 use App\Models\User;
 use App\Services\ConfigurationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
@@ -21,6 +23,7 @@ class ConfigurationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        Storage::fake('public');
         $this->seed();
     }
 
@@ -160,6 +163,14 @@ class ConfigurationTest extends TestCase
                 'status' => 'available',
                 'suburb' => 'Test Suburb',
                 'city' => 'Harare',
+                'currency' => 'USD',
+                'payment_terms' => 'monthly',
+                'security_type' => 'fenced',
+                'minimum_stay' => 12,
+                'preferred_tenant' => 'any',
+                'landlord_type' => 'direct',
+                'contact_preference' => 'platform',
+                'cover' => UploadedFile::fake()->image('cover.jpg'),
             ])
             ->assertSessionHasErrors(['status' => 'Please upgrade to list more homes.']);
     }
@@ -169,9 +180,9 @@ class ConfigurationTest extends TestCase
         $this->config()->set('subscriptions.suspension.behaviour', 'hide_listings', $this->admin()->id, 'Hide suspended owners.', $this->admin()->id);
 
         $owner = User::factory()->create(['password_changed_at' => now()]);
-        $freePlan = SubscriptionPlan::where('name', 'Free')->firstOrFail();
+        $paidPlan = SubscriptionPlan::where('name', 'Basic')->firstOrFail(); // a paid plan: $0 plans renew themselves and never lapse
         $subscription = $owner->subscriptions()->create([
-            'plan_id' => $freePlan->id,
+            'plan_id' => $paidPlan->id,
             'status' => 'active',
             'starts_at' => now()->subDays(30),
             'ends_at' => now()->subDay(),
@@ -214,7 +225,7 @@ class ConfigurationTest extends TestCase
     {
         $owner = User::factory()->create(['password_changed_at' => now()]);
         $subscription = $owner->subscriptions()->create([
-            'plan_id' => SubscriptionPlan::where('name', 'Free')->firstOrFail()->id,
+            'plan_id' => SubscriptionPlan::where('name', 'Basic')->firstOrFail()->id,
             'status' => 'active',
             'starts_at' => now()->subDays(30),
             'ends_at' => now()->subDays(10),

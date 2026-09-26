@@ -3,85 +3,77 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Services\AuthService;
+use Illuminate\Http\Request;
 use Inertia\Inertia;
 
 class AuthManagementController extends Controller
 {
-    /**
-     * Display the auth management page.
-     */
-    public function index()
+    public function __construct(private readonly AuthService $authService)
     {
-        $users = User::with(['employee', 'roles'])
+    }
+
+    /**
+     * Display the auth management page (server-side search + pagination).
+     */
+    public function index(Request $request)
+    {
+        $search = trim((string) $request->query('search', ''));
+
+        $users = User::with(['employee:id,user_id,last_name', 'roles'])
+            ->when($search !== '', function ($query) use ($search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('name', 'like', "%{$search}%")
+                        ->orWhere('email', 'like', "%{$search}%")
+                        ->orWhere('username', 'like', "%{$search}%");
+                });
+            })
             ->latest()
-            ->paginate(15);
+            ->paginate(15)
+            ->withQueryString();
 
         return Inertia::render('Auth/Management', [
             'users' => $users,
+            'filters' => ['search' => $search],
         ]);
     }
 
     /**
-     * Reset user password to default.
+     * Reset a user's password to a temporary one (shown once to the admin).
      */
-    public function resetUser(User $user)
+    public function resetUser(Request $request, User $user)
     {
-        try {
-            if (! $user->employee) {
-                return back()->with('error', 'User is not linked to an employee. Cannot generate default password.');
-            }
-
-            // Default password: lowercase last_name
-            if (! $user->employee->last_name) {
-                return back()->with('error', 'Employee data incomplete (missing last name).');
-            }
-
-            $defaultPassword = strtolower($user->employee->last_name);
-            $user->update([
-                'password' => bcrypt($defaultPassword),
-                'password_changed_at' => null, // Force change on next login
-                'password_expires_at' => now()->addMonths(5),
-                'failed_login_attempts' => 0,
-                'locked_at' => null, // Unlock account
-            ]);
-
-            return back()->with('success', "Password reset successfully. Default password is: {$defaultPassword}. The user has been unlocked and must change their password on login.");
-        } catch (\Exception $e) {
-            return back()->with('error', 'Error resetting password: '.$e->getMessage());
+        if ($blocker = $this->authService->manageBlocker($request->user(), $user)) {
+            return back()->with('error', $blocker);
         }
+
+        $temporary = $this->authService->resetPassword($user);
+
+        return back()->with('success', "Password for {$user->name} reset. Temporary password: {$temporary} — share it privately; it is shown only once. The account is unlocked and the user must change the password at next sign-in.");
     }
 
     /**
-     * Lock/Unlock user (Toggle Status).
+     * Activate or deactivate a user.
      */
-    public function toggleStatus(User $user)
+    public function toggleStatus(Request $request, User $user)
     {
-        try {
-            $user->status = $user->status === 'active' ? 'inactive' : 'active';
-            $user->save();
-
-            $status = ucfirst($user->status);
-
-            return back()->with('success', "User account is now {$status}.");
-        } catch (\Exception $e) {
-            return back()->with('error', 'Error updating status: '.$e->getMessage());
+        if ($blocker = $this->authService->toggleStatus($request->user(), $user)) {
+            return back()->with('error', $blocker);
         }
+
+        return back()->with('success', 'User account is now '.ucfirst($user->status).'.');
     }
 
     /**
-     * Unlock a locked user account.
+     * Unlock an account locked by too many failed sign-in attempts.
      */
     public function unlockUser(User $user)
     {
-        try {
-            $user->update([
-                'locked_at' => null,
-                'failed_login_attempts' => 0,
-            ]);
+        $user->update([
+            'locked_at' => null,
+            'failed_login_attempts' => 0,
+        ]);
 
-            return back()->with('success', 'User account unlocked successfully.');
-        } catch (\Exception $e) {
-            return back()->with('error', 'Error unlocking user: '.$e->getMessage());
-        }
+        return back()->with('success', 'User account unlocked successfully.');
     }
 }

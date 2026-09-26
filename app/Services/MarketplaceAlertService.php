@@ -6,6 +6,7 @@ use App\Models\Property;
 use App\Models\SavedSearch;
 use App\Models\User;
 use Illuminate\Notifications\DatabaseNotification;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Marketplace alerting: match alerts for saved searches (new listing) and
@@ -29,9 +30,8 @@ class MarketplaceAlertService
         }
 
         foreach ($this->searches->alertable() as $search) {
-            if ($this->searches->matches($property, (array) $search->criteria)) {
-                $this->dedupe($search->user, \App\Notifications\SavedSearchMatchNotification::class)
-                    ?->notify(new \App\Notifications\SavedSearchMatchNotification($property, $search));
+            if ($this->searches->matches($property, (array) $search->criteria) && $this->claimSearchAlertSlot($search)) {
+                $search->user->notify(new \App\Notifications\SavedSearchMatchNotification($property, $search));
             }
         }
     }
@@ -65,6 +65,16 @@ class MarketplaceAlertService
             $this->dedupe($favourite, \App\Notifications\AvailabilityAlertNotification::class)
                 ?->notify(new \App\Notifications\AvailabilityAlertNotification($property));
         }
+    }
+
+    /**
+     * At most one match alert per saved search per 24 hours. The slot is
+     * claimed atomically (cache add), so each saved search is throttled on
+     * its own — a match on one search never silences the tenant's others.
+     */
+    private function claimSearchAlertSlot(SavedSearch $search): bool
+    {
+        return Cache::add('saved-search-alert:'.$search->id, now()->toIso8601String(), now()->addDay());
     }
 
     /**

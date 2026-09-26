@@ -70,6 +70,11 @@ system_configurations ─< configuration_audits (config change history; drives b
 | failed_login_attempts | INT | default 0 |
 | locked_at | TIMESTAMP NULL | lockout |
 | created_at/updated_at | TIMESTAMP | |
+| verified | BOOLEAN default false | verified owner (added `2026_09_09_000020`) |
+| verified_at | TIMESTAMP NULL | stamped on owner verification |
+| **badge_tier** | **VARCHAR(20) default `none`** | gold/silver/bronze/none — KYC-tier typed badge (S2, `2026_09_09_000033`) |
+| **rating_avg** | **DECIMAL(3,2) default 0** | owner rating for the Top-rated marketplace sort (S2, `2026_09_09_000033`) |
+| **ratings_count** | **INT unsigned default 0** | rating count driving Top-rated ranking (S2, `2026_09_09_000033`) |
 
 Indexes: `(email, status)`, `(username, status)`.
 
@@ -89,14 +94,14 @@ Unique `(user_id, role_id)`.
 user_id FK → auth_users (cascade), ip_address VARCHAR(45), user_agent TEXT, login_at, logout_at.
 Indexes `(user_id, login_at)`, `(login_at)`.
 
-### properties (Dzimba core)
+### properties (ZimRent core)
 | Column | Type |
 |---|---|
 | id | BIGINT UNSIGNED PK |
 | owner_id | FK → auth_users (cascade) |
 | title | VARCHAR(200) |
 | description | TEXT NULL |
-| property_type | ENUM(house,flat,townhouse,cottage,room,commercial,land) default house |
+| property_type | VARCHAR(50) default house — S1 catalogue: room, flat, apartment, house ("Full house"), townhouse, cottage, commercial, land (was ENUM, migrated `2026_09_09_000032`) |
 | bedrooms | TINYINT UNSIGNED default 1 |
 | bathrooms | TINYINT UNSIGNED default 1 |
 | building_size | DECIMAL(9,2) NULL | m² |
@@ -114,11 +119,38 @@ Indexes `(user_id, login_at)`, `(login_at)`.
 | featured | BOOLEAN default false |
 | verified | BOOLEAN default false |
 | available_from | DATE NULL |
+| floor_area | DECIMAL(10,2) NULL | m² (S1) |
+| year_built | SMALLINT UNSIGNED NULL | (S1) |
+| currency | ENUM(USD,ZWL) default USD | (S1) |
+| payment_terms | ENUM(monthly,quarterly,yearly) default monthly | (S1) |
+| water_cost | DECIMAL(10,2) default 0 | per month, base currency (S1) |
+| electricity_cost | DECIMAL(10,2) default 0 | per month (S1) |
+| trash_cost | DECIMAL(10,2) default 0 | per month (S1) |
+| negotiable | BOOLEAN default false | (S1) |
+| entrance_type | VARCHAR(50) NULL | (S1) |
+| bathroom_type | VARCHAR(50) NULL | (S1) |
+| parking_type | VARCHAR(50) NULL | (S1) |
+| security_type | VARCHAR(50) NULL | (S1) |
+| families_allowed | BOOLEAN default false | (S1) |
+| children_allowed | BOOLEAN default false | (S1) |
+| pets_allowed | BOOLEAN default false | (S1) |
+| smoking_allowed | BOOLEAN default false | (S1) |
+| parties_allowed | BOOLEAN default false | (S1) |
+| distance_to_cbd | DECIMAL(10,2) NULL | km (S1) |
+| minimum_stay | INT UNSIGNED default 6 | months (S1) |
+| preferred_tenant | VARCHAR(50) default any | couple/family/professional... (S1) |
+| landlord_type | VARCHAR(50) default direct | (S1) |
+| contact_preference | VARCHAR(50) default platform | phone/whatsapp/platform (S1) |
+| show_phone | BOOLEAN default false | (S1) |
+| landmark | VARCHAR(255) NULL | (S1) |
 | timestamps | |
 
 Indexes: `(status, city)`, `(owner_id, status)`, and `(status, price)` for the marketplace price range.
 
-### property_favourites (Dzimba core)
+### locations (Zimbabwe location catalogue, `2026_09_09_000037`)
+id, type (`city` | `suburb` | `landmark`), name, province (one of the 10 provinces), city, zone NULL (e.g. Harare North, Western Suburbs), suburb NULL (landmarks: the suburb they sit in), density NULL (`low` | `medium` | `high` | `industrial` | `commercial`), category NULL (landmarks: `shopping` | `education` | `health` | `transport` | `recreation` | `market` | `business`), latitude/longitude DECIMAL(10,7) NULL (set for cities and towns), is_popular (rental hotspot), timestamps. Unique `(type, city, name)`; indexes `(type, province)`, `(city, zone)`. Reference data only — `properties.city/zone/suburb` stay free text.
+
+### property_favourites (ZimRent core)
 user_id FK → auth_users (cascade), property_id FK → properties (cascade). Unique `(user_id, property_id)`.
 
 ### rental_applications (IMPLEMENTED, Wave 3)
@@ -182,6 +214,7 @@ Writes on every allowed transition (matrix in `Property::TRANSITIONS`).
 ### contractors + contractor_trades
 - **contractors (IMPLEMENTED, Wave 5 slice 2 - `2026_09_09_000029`)**: id, user_id FK auth_users nullable (nullOnDelete), business_name VARCHAR(120), contact VARCHAR(120), service_area JSON, status ENUM(unverified,vetting,verified,suspended) default unverified, rating_avg DECIMAL(3,2) default 0, jobs_completed INT unsigned default 0, **verified_at nullable timestamp (slice 2)**, index (user_id, status), timestamps.
 - **contractor_trades (IMPLEMENTED, Wave 5 slice 2)**: id, contractor_id FK cascade, trade VARCHAR(60), rate DECIMAL(10,2) nullable, timestamps.
+- **contractor_ratings (IMPLEMENTED, Wave 5 slice 4 - `2026_09_09_000031`)**: id, request_id FK → maintenance_requests UNIQUE (one rating per job), contractor_id FK cascade, owner_id FK auth_users nullable (nullOnDelete), rating TINYINT unsigned 1-5, note VARCHAR(500) nullable, index (contractor_id), timestamps. `ContractorService::rate` requires a fully `closed` request + owner ownership; the schema unique enforces the one-per-request guard; on each rating `rating_avg`/`jobs_completed` recompute server-side as a jobs-weighted average.
 
 ### subscription_plans + subscription_features + subscription_plan_features + subscriptions + subscription_invoices + subscription_history
 
@@ -203,6 +236,11 @@ Escaping the `group` column name (a SQL keyword in some SQLite versions) is hand
 - **ad_packages (IMPLEMENTED, Wave 4 slice 6)**: id, code VARCHAR(40) unique, name VARCHAR(100), placement_type ENUM(featured,top,homepage,premium_badge) default `featured`, price DECIMAL(12,2), duration_days SMALLINT UNSIGNED default 30, description VARCHAR(255) nullable, is_active BOOLEAN default true, timestamps.
 - **ad_placements (IMPLEMENTED, Wave 4 slice 6)**: id, property_id FK → properties (cascade), owner_id FK → auth_users (cascade), package_id FK nullable → ad_packages (nullOnDelete), amount DECIMAL(12,2) (price snapshot), starts_at/ends_at/paused_at/paid_at nullable timestamps, status ENUM(reserved,active,paused,expired,cancelled) default `reserved`, credit_amount DECIMAL(12,2) default 0.00 (prorated refund on cancel), admin_note VARCHAR(500) nullable, timestamps; indexes (property_id), (owner_id), (status), (status, ends_at). State machine: reserved→active→expired/cancelled; `paused` freezes the window (resume extends `ends_at`).
 - **ad_events (IMPLEMENTED, Wave 4 slice 6)**: id, placement_id FK → ad_placements (cascade), event_type ENUM(impression,click,enquiry,application), created_at (useCurrent, no updated_at); indexes (placement_id), (placement_id, event_type). Attribution stats only — no personal data (NFR-03).
+
+### tenant_profiles + identity_documents + identity_document_audits (S4/S5 — Presentation Release 2.0)
+- **tenant_profiles (IMPLEMENTED, S4)**: id, user_id FK → auth_users **unique** (cascade), phone VARCHAR(30) nullable, city VARCHAR(100) nullable, employment_status ENUM(employed,self_employed,student,unemployed,retired) nullable, salary_band ENUM(under_250,250_to_500,501_to_1000,1000_to_2000,over_2000) nullable, preferred_contact ENUM(platform,phone,whatsapp) nullable, about TEXT nullable — all six optional; one profile row per tenant (profile is created on first save).
+- **identity_documents (IMPLEMENTED, S4 review in S5)**: id, user_id FK → auth_users (cascade), type ENUM(national_id,driving_licence), file_path VARCHAR(255) (private disk `kyc/{user_id}/…`, metadata-only in DB), original_name VARCHAR(255), mime VARCHAR(100), size BIGINT, status ENUM(pending,approved,rejected) default `pending`, timestamps; **UNIQUE (user_id, type)** — one scan per type, re-upload replaces the file and resets status to `pending`; index (status, user_id). Files live on the **private `local` disk** (`storage/app/private/kyc/`), never under `public/`. **S5 state machine:** `pending → approved|rejected`, `approved → rejected` (revoke), `rejected` terminal. The `auth_users.badge_tier` value is **derived** from the approved types (none/basic/full KYC tier → gold/silver/bronze — never hand-set).
+- **identity_document_audits (IMPLEMENTED, S4/S5)**: id, user_id FK → auth_users (cascade), document_id FK nullable → identity_documents **nullOnDelete** (trail survives document deletion), action (**widened to VARCHAR(20) by `2026_09_09_000035`**; values `uploaded`,`replaced`,`removed`,`approved`,`rejected`,`revoked`), actor_id FK nullable → auth_users (nullOnDelete), details VARCHAR(255), created_at (useCurrent, no updated_at); index (user_id), (document_id).
 
 ### verification_cases + verification_documents
 - **verification_cases**: id, subject_type ENUM(owner,property,listing), subject_id, owner_id FK, status ENUM(unverified,pending,verified,revoked), submitted_at, reviewed_by FK, decision_at, decision_note.
@@ -236,3 +274,4 @@ Escaping the `group` column name (a SQL keyword in some SQLite versions) is hand
 - Roles: Superuser, Admin, Owner, Tenant, Staff.
 - Demo users (password `password123`): `admin@system.local` (Superuser), `owner@dzimba.local` (Owner), `tenant@dzimba.local` (Tenant), `staff@dzimba.local` (Admin).
 - All demo users have `password_changed_at` set to avoid forced first-login change.
+- Locations (`LocationSeeder`, data in `database/seeders/data/zimbabwe_locations.php`): all 10 provinces, 64 cities/towns with coordinates, 313 suburbs across 24 cities (zone + density), 44 landmarks (malls, universities, hospitals, airports, markets), and rental hotspots flagged `is_popular`. Idempotent (upsert) and self-validating — it fails loudly on duplicate suburbs or landmarks/hotspots that reference an unknown suburb.

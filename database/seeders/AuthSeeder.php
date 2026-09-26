@@ -112,5 +112,50 @@ class AuthSeeder extends Seeder
                 'updated_at' => now(),
             ]);
         }
+
+        // Demo tenant profile (Presentation Release S4) - identity scans are not seeded
+        $tenantId = DB::table('auth_users')->where('username', 'tenant')->value('id');
+        DB::table('tenant_profiles')->updateOrInsert(
+            ['user_id' => $tenantId],
+            [
+                'user_id' => $tenantId,
+                'phone' => '+263 771 234 567',
+                'city' => 'Harare',
+                'employment_status' => 'employed',
+                'salary_band' => '501_to_1000',
+                'preferred_contact' => 'platform',
+                'about' => 'Demo tenant profile - quiet professional with references available.',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]
+        );
+
+        // Demo owner KYC (Presentation Release S5): both identity types recorded
+        // as approved so the derived badge tier lands on gold for the marketplace
+        // demo. These are metadata-only rows - no scan files are written and there
+        // is no owner KYC page to ever download them (downloads 404 on a missing
+        // file by design). The badge itself is never seeded directly; it is
+        // recomputed through the KYC tier ladder below.
+        $ownerId = DB::table('auth_users')->where('username', 'owner')->value('id');
+        foreach (['national_id', 'driving_licence'] as $type) {
+            DB::table('identity_documents')->updateOrInsert(
+                ['user_id' => $ownerId, 'type' => $type],
+                [
+                    'user_id' => $ownerId,
+                    'type' => $type,
+                    'file_path' => 'kyc/'.$ownerId.'/'.$type.'-demo.jpg',
+                    'original_name' => ($type === 'national_id' ? 'demo-national-id' : 'demo-driving-licence').'.jpg',
+                    'mime' => 'image/jpeg',
+                    'size' => 0,
+                    'status' => 'approved',
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]
+            );
+        }
+        $owner = \App\Models\User::whereKey($ownerId)->first();
+        if ($owner) {
+            app(\App\Services\TenantProfileService::class)->recomputeBadgeTier($owner);
+        }
     }
 }

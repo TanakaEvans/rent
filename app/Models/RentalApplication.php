@@ -67,6 +67,14 @@ class RentalApplication extends Model
     }
 
     /**
+     * Get the lease generated from this application, if any.
+     */
+    public function lease()
+    {
+        return $this->hasOne(Lease::class, 'application_id');
+    }
+
+    /**
      * Get the applicant (tenant) who submitted the application.
      */
     public function applicant()

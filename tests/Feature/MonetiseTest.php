@@ -21,9 +21,11 @@ use App\Services\PaymentService;
 use App\Services\RentService;
 use App\Services\SubscriptionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
@@ -35,6 +37,7 @@ class MonetiseTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        Storage::fake('public');
         $this->seed();
     }
 
@@ -106,6 +109,14 @@ class MonetiseTest extends TestCase
             'status' => $status,
             'suburb' => 'Test Suburb',
             'city' => 'Harare',
+            'currency' => 'USD',
+            'payment_terms' => 'monthly',
+            'security_type' => 'fenced',
+            'minimum_stay' => 12,
+            'preferred_tenant' => 'any',
+            'landlord_type' => 'direct',
+            'contact_preference' => 'platform',
+            'cover' => UploadedFile::fake()->image('cover.jpg'),
         ];
     }
 
@@ -432,7 +443,13 @@ class MonetiseTest extends TestCase
 
         foreach ($invoices as $invoice) {
             $this->assertSame('850.00', $invoice->amount);
-            $this->assertSame('draft', $invoice->status);
+            // Periods whose billing date has already arrived are advanced the
+            // moment the schedule is generated; future periods stay draft.
+            if ($invoice->period_start->isFuture()) {
+                $this->assertSame('draft', $invoice->status);
+            } else {
+                $this->assertContains($invoice->status, ['due', 'overdue']);
+            }
             $this->assertSame('RNT-2026-', substr($invoice->invoice_no, 0, 9));
         }
 
@@ -511,7 +528,9 @@ class MonetiseTest extends TestCase
         $lease = $this->activeLease();
         $this->rentService()->generateFor($lease);
 
-        $this->assertSame(3, RentInvoice::where('lease_id', $lease->id)->where('status', 'draft')->count());
+        // Generation already advances the current period to due (and sends its
+        // reminder); re-running the lifecycle changes nothing.
+        $this->assertSame(1, RentInvoice::where('lease_id', $lease->id)->where('status', 'due')->count());
 
         $this->rentService()->runInvoiceLifecycle();
 

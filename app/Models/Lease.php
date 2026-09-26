@@ -24,8 +24,11 @@ class Lease extends Model
         'end_date',
         'rent_amount',
         'deposit_amount',
+        'currency',
         'payment_terms',
         'status',
+        'terminated_on',
+        'termination_reason',
         'clause_version',
     ];
 
@@ -40,6 +43,7 @@ class Lease extends Model
             'rent_amount' => 'decimal:2',
             'deposit_amount' => 'decimal:2',
             'payment_terms' => 'array',
+            'terminated_on' => 'date',
             'clause_version' => 'integer',
         ];
     }
@@ -72,6 +76,12 @@ class Lease extends Model
      * Statuses that close a lease for further state changes.
      */
     public const TERMINAL = ['terminated'];
+
+    /**
+     * Statuses of a lease that still holds the property (in progress or
+     * running). A property takes a new lease only when it has none of these.
+     */
+    public const OPEN = ['draft', 'sent', 'signed', 'active'];
 
     /**
      * Determine whether the lease can move to the given status.

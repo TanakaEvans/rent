@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\AuthService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -11,6 +12,10 @@ use Inertia\Inertia;
 
 class LoginController extends Controller
 {
+    public function __construct(private readonly AuthService $authService)
+    {
+    }
+
     public function showLoginForm()
     {
         return Inertia::render('Auth/Login');
@@ -18,9 +23,10 @@ class LoginController extends Controller
 
     public function login(Request $request)
     {
-        $credentials = $request->validate([
+        $request->validate([
             'login' => 'required|string',
             'password' => 'required|string',
+            'remember' => 'nullable|boolean',
         ]);
 
         $login = $request->login;
@@ -30,9 +36,9 @@ class LoginController extends Controller
             ->orWhere('username', $login)
             ->first();
 
-        // Check if user exists and is locked
+        // A locked account stays blocked until an administrator unlocks it
         if ($user && $user->locked_at) {
-            return back()->with('error', 'Your account has been locked due to too many failed login attempts. Please contact an administrator.');
+            return back()->with('error', AuthService::LOCKED_MESSAGE);
         }
 
         if (! $user || ! Hash::check($request->password, $user->password)) {
@@ -43,7 +49,7 @@ class LoginController extends Controller
                 if ($user->failed_login_attempts >= 7) {
                     $user->update(['locked_at' => now()]);
 
-                    return back()->with('error', 'Your account has been locked due to too many failed login attempts. Please contact an administrator.');
+                    return back()->with('error', AuthService::LOCKED_MESSAGE);
                 }
             }
 
@@ -52,40 +58,20 @@ class LoginController extends Controller
             ]);
         }
 
+        // Deactivated accounts are only revealed to someone who knows the password
+        if ($user->status === 'inactive') {
+            return back()->with('error', AuthService::DEACTIVATED_MESSAGE);
+        }
+
         // Reset failed login attempts on successful login
         $user->update([
             'failed_login_attempts' => 0,
-            'locked_at' => null, // Ensure locked_at is cleared just in case
         ]);
 
-        Auth::login($user);
+        Auth::login($user, $request->boolean('remember'));
         $request->session()->regenerate();
 
-        return redirect()->intended($this->landingFor($user));
-    }
-
-    /**
-     * Determine the landing page for a user based on their role.
-     */
-    protected function landingFor(User $user): string
-    {
-        if ($user->hasAnyRole(['Admin', 'Superuser'])) {
-            return route('admin.dashboard');
-        }
-
-        if ($user->hasRole('Owner')) {
-            return route('owner.dashboard');
-        }
-
-        if ($user->hasRole('Tenant')) {
-            return route('tenant.dashboard');
-        }
-
-        if ($user->hasRole('Contractor')) {
-            return route('contractor.maintenance.index');
-        }
-
-        return route('dashboard');
+        return redirect()->intended($this->authService->landingUrlFor($user) ?? route('dashboard'));
     }
 
     public function logout(Request $request)

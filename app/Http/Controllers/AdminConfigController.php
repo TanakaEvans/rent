@@ -8,7 +8,6 @@ use App\Models\SubscriptionPlan;
 use App\Models\SystemConfiguration;
 use App\Services\ConfigurationService;
 use Illuminate\Http\Request;
-use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class AdminConfigController extends Controller
@@ -27,6 +26,7 @@ class AdminConfigController extends Controller
 
         return Inertia::render('Admin/Configuration/Index', [
             'groups' => $rows->groupBy('group_name'),
+            'options' => ConfigurationService::optionMap(),
             'features' => SubscriptionFeature::orderBy('code')->get(),
             'plans' => SubscriptionPlan::with('features')->orderBy('price')->get(),
             'audits' => ConfigurationAudit::with('changedBy:id,name')->latest('id')->take(10)->get(),
@@ -34,8 +34,9 @@ class AdminConfigController extends Controller
     }
 
     /**
-     * Apply configuration edits. Every change is audited; high/critical risk
-     * changes must be explicitly approved by the acting staff member.
+     * Apply configuration edits. Only values that actually change are
+     * written and audited; high/critical risk changes record the acting
+     * staff member as the approver.
      */
     public function update(Request $request)
     {
@@ -44,36 +45,16 @@ class AdminConfigController extends Controller
             'reason' => 'nullable|string|max:255',
         ]);
 
-        $changes = 0;
-        $errors = [];
+        $result = $this->config->applyChanges($validated['values'], $request->user()->id, $validated['reason'] ?? null);
 
-        foreach ($validated['values'] as $key => $value) {
-            $row = SystemConfiguration::where('key', $key)->first();
-
-            if (! $row || ! $row->is_editable) {
-                $errors['values.'.$key] = "Configuration key [{$key}] does not exist or is locked.";
-                continue;
-            }
-
-            try {
-                $this->config->set(
-                    $key,
-                    $value,
-                    $request->user()->id,
-                    $validated['reason'] ?? null,
-                    in_array($row->risk, ['high', 'critical'], true) ? $request->user()->id : null
-                );
-                $changes++;
-            } catch (ValidationException $e) {
-                $errors['values.'.$key] = $e->errors();
-            }
-        }
-
-        if ($errors) {
-            return back()->withErrors($errors);
+        if ($result['errors']) {
+            return back()->withErrors($result['errors'])
+                ->with('success', $result['changed'] > 0 ? "{$result['changed']} configuration value(s) updated; fix the highlighted values." : null);
         }
 
         return redirect()->route('admin.configuration.index')
-            ->with('success', "{$changes} configuration value(s) updated.");
+            ->with('success', $result['changed'] > 0
+                ? "{$result['changed']} configuration value(s) updated."
+                : 'No changes to save.');
     }
 }

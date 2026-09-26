@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import AdminLayout from '@/Layouts/AdminLayout';
 
@@ -7,12 +7,7 @@ export default function EmployeeCreate({ auth, branches, departments, roles, fla
     const [submitError, setSubmitError] = useState(null);
     const { props } = usePage();
 
-    // Log props for debugging
-    useEffect(() => {
-        console.log('EmployeeCreate props:', { branches, departments, roles, flash });
-    }, [branches, departments, roles, flash]);
-
-    const { data, setData, post, processing, errors, recentlySuccessful } = useForm({
+    const { data, setData, post, processing, errors } = useForm({
         employee_number: '',
         first_name: '',
         last_name: '',
@@ -46,19 +41,10 @@ export default function EmployeeCreate({ auth, branches, departments, roles, fla
         e.preventDefault();
         setSubmitError(null);
 
-        console.log('Submitting employee form with data:', data);
-
         post(route('admin.employees.store'), {
-            onSuccess: () => {
-                console.log('Employee created successfully!');
-            },
-            onError: (errors) => {
-                console.error('Form submission errors:', errors);
+            onError: () => {
                 setSubmitError('Form submission failed. Please check the errors below.');
             },
-            onFinish: () => {
-                console.log('Form submission finished. Processing:', processing);
-            }
         });
     };
 

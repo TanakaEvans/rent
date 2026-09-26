@@ -999,7 +999,7 @@ class CommitTest extends TestCase
         $this->assertSame('text/plain', $document->mime);
         $this->assertSame(1, $document->version);
         $this->assertSame('Lease Agreement LSE-2026-8101', $document->name);
-        $this->assertStringContainsString('DZIMBA LEASE AGREEMENT', $document->content);
+        $this->assertStringContainsString('ZIMRENT LEASE AGREEMENT', $document->content);
         $this->assertStringContainsString('LSE-2026-8101', $document->content);
         $this->assertStringContainsString('O. Dzimba', $document->content);
         $this->assertStringContainsString('T. Gwese', $document->content);
@@ -1056,7 +1056,7 @@ class CommitTest extends TestCase
             ->assertOk()
             ->assertHeader('Content-Type', 'text/plain; charset=utf-8')
             ->assertHeader('Content-Disposition', 'attachment; filename="'.strtolower($lease->lease_no).'-agreement-v1.txt"')
-            ->assertSeeText('DZIMBA LEASE AGREEMENT');
+            ->assertSeeText('ZIMRENT LEASE AGREEMENT');
     }
 
     public function test_other_tenants_and_owners_get_a_404_on_a_document(): void

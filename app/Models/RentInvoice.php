@@ -72,6 +72,17 @@ class RentInvoice extends Model
     }
 
     /**
+     * The exact amount a payment must carry to settle this invoice: the rent
+     * plus any accrued late fee, as a two-decimal money string (cent math).
+     */
+    public function payableAmount(): string
+    {
+        $cents = (int) round(((float) $this->amount) * 100) + (int) round(((float) ($this->late_fee ?? 0)) * 100);
+
+        return sprintf('%01.2f', $cents / 100);
+    }
+
+    /**
      * The property the billing period covers.
      */
     public function property()

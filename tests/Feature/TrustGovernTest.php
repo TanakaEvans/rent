@@ -154,7 +154,7 @@ class TrustGovernTest extends TestCase
 
         $this->actingAs($tenant)->post('/properties/'.$property->id.'/report', $this->reportPayload($property));
 
-        $report = Report::where('reporter_id', $tenant->id)->firstOrFail();
+        $report = Report::where('reporter_id', $tenant->id)->where('subject_id', $property->id)->firstOrFail();
         $this->assertSame('open', $report->status);
 
         $this->actingAs($this->admin())
@@ -174,7 +174,7 @@ class TrustGovernTest extends TestCase
         $property = $this->listed();
         $this->actingAs($tenant)->post('/properties/'.$property->id.'/report', $this->reportPayload($property));
 
-        $report = Report::where('reporter_id', $tenant->id)->firstOrFail();
+        $report = Report::where('reporter_id', $tenant->id)->where('subject_id', $property->id)->firstOrFail();
 
         $admin = $this->admin();
 
@@ -203,7 +203,7 @@ class TrustGovernTest extends TestCase
 
         $this->actingAs($tenant)->post('/properties/'.$property->id.'/report', $this->reportPayload($property));
 
-        $report = Report::where('reporter_id', $tenant->id)->firstOrFail();
+        $report = Report::where('reporter_id', $tenant->id)->where('subject_id', $property->id)->firstOrFail();
 
         $this->actingAs($this->admin())
             ->post('/admin/marketplace/reports/'.$report->id.'/resolved', [

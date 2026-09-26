@@ -20,7 +20,7 @@ class TenantDashboardController extends Controller
             ->get();
 
         $applications = RentalApplication::where('applicant_id', $user->id)
-            ->with('property:id,title,price,property_type,suburb,city,cover_image')
+            ->with('property:id,title,price,currency,payment_terms,property_type,suburb,city,cover_image,status')
             ->latest()
             ->get();
 

@@ -191,7 +191,7 @@ export default function EmployeesIndex({ auth, employees, branches, departments,
                                             ) : (
                                                 <Link
                                                     href={route('admin.employees.create-user', employee.id)}
-                                                    className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full hover:bg-blue-200"
+                                                    className="px-2 py-1 text-xs bg-emerald-100 text-emerald-800 rounded-full hover:bg-emerald-200"
                                                 >
                                                     Create Account
                                                 </Link>

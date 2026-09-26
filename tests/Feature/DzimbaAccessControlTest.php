@@ -128,6 +128,36 @@ class DzimbaAccessControlTest extends TestCase
         $this->get('/tenant/enquiries')->assertRedirect(route('login'));
     }
 
+    public function test_owner_can_access_interest_queue(): void
+    {
+        $owner = User::where('username', 'owner')->first();
+        $this->actingAs($owner)->get('/owner/interests')->assertOk();
+    }
+
+    public function test_tenant_cannot_access_owner_interest_queue(): void
+    {
+        $tenant = User::where('username', 'tenant')->first();
+        $this->actingAs($tenant)->get('/owner/interests')->assertForbidden();
+    }
+
+    public function test_owner_cannot_access_tenant_interests(): void
+    {
+        $owner = User::where('username', 'owner')->first();
+        $this->actingAs($owner)->get('/tenant/interests')->assertForbidden();
+    }
+
+    public function test_tenant_can_access_own_interests(): void
+    {
+        $tenant = User::where('username', 'tenant')->first();
+        $this->actingAs($tenant)->get('/tenant/interests')->assertOk();
+    }
+
+    public function test_guest_cannot_access_interest_routes(): void
+    {
+        $this->get('/owner/interests')->assertRedirect(route('login'));
+        $this->get('/tenant/interests')->assertRedirect(route('login'));
+    }
+
     public function test_owner_can_access_viewing_slots_for_their_property(): void
     {
         $property = \App\Models\Property::first();
@@ -313,6 +343,31 @@ class DzimbaAccessControlTest extends TestCase
     public function test_login_page_renders(): void
     {
         $this->get('/login')->assertOk()->assertInertia(fn ($page) => $page->component('Auth/Login'));
+    }
+
+    public function test_guest_can_access_register_page(): void
+    {
+        $this->get('/register')->assertOk()->assertInertia(fn ($page) => $page->component('Auth/Register'));
+    }
+
+    public function test_authenticated_user_is_redirected_from_register(): void
+    {
+        $tenant = User::where('username', 'tenant')->first();
+        $this->actingAs($tenant)->get('/register')->assertRedirect(route('tenant.dashboard'));
+    }
+
+    public function test_owner_cannot_post_public_signup(): void
+    {
+        $owner = User::where('username', 'owner')->first();
+        $this->actingAs($owner)->post('/register', [
+            'name' => 'Intruder',
+            'email' => 'intruder@example.com',
+            'password' => 'StrongPass123',
+            'password_confirmation' => 'StrongPass123',
+            'terms' => true,
+        ])->assertRedirect(route('owner.dashboard'));
+
+        $this->assertNull(\App\Models\User::where('email', 'intruder@example.com')->first());
     }
 
     private function seededDocument(): Document
@@ -1079,5 +1134,141 @@ class DzimbaAccessControlTest extends TestCase
     public function test_guest_redirected_from_owner_rate(): void
     {
         $this->post('/owner/maintenance/1/rate', ['rating' => 5])->assertRedirect(route('login'));
+    }
+
+    // ---------- S4 Presentation Release: tenant profiles & KYC identity ----------
+
+    public function test_tenant_can_access_own_profile(): void
+    {
+        $this->actingAs(User::where('username', 'tenant')->first())
+            ->get(route('tenant.profile'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->component('Tenant/Profile'));
+    }
+
+    public function test_owner_cannot_access_tenant_profile_routes(): void
+    {
+        $owner = User::where('username', 'owner')->first();
+        $tenant = User::where('username', 'tenant')->first();
+
+        $document = \App\Models\IdentityDocument::create([
+            'user_id' => $tenant->id,
+            'type' => 'national_id',
+            'file_path' => 'kyc/'.$tenant->id.'/national_id-access-test.jpg',
+            'original_name' => 'tenant-id.jpg',
+            'mime' => 'image/jpeg',
+            'size' => 1024,
+            'status' => 'pending',
+        ]);
+
+        $this->actingAs($owner)->get(route('tenant.profile'))->assertForbidden();
+        $this->actingAs($owner)->put(route('tenant.profile'), ['phone' => '0711 000 000'])->assertForbidden();
+        $this->actingAs($owner)->post(route('tenant.profile.documents.store'), [])->assertForbidden();
+        $this->actingAs($owner)
+            ->delete(route('tenant.profile.documents.destroy', ['document' => $document->id]))
+            ->assertForbidden();
+        $this->actingAs($owner)
+            ->get(route('tenant.profile.documents.download', ['document' => $document->id]))
+            ->assertForbidden();
+    }
+
+    public function test_guest_redirected_from_tenant_profile_routes(): void
+    {
+        $this->get(route('tenant.profile'))->assertRedirect(route('login'));
+        $this->put(route('tenant.profile'), ['phone' => '0711 000 000'])->assertRedirect(route('login'));
+        $this->post(route('tenant.profile.documents.store'), [])->assertRedirect(route('login'));
+        $this->delete('/tenant/profile/documents/1')->assertRedirect(route('login'));
+        $this->get('/tenant/profile/documents/1/download')->assertRedirect(route('login'));
+    }
+
+    // ---------- S5 Presentation Release: admin KYC review ----------
+
+    public function test_admin_and_superuser_can_review_identity_evidence(): void
+    {
+        foreach (['admin', 'staff'] as $username) {
+            $this->actingAs(User::where('username', $username)->first())
+                ->get(route('admin.kyc.index'))
+                ->assertOk()
+                ->assertInertia(fn ($page) => $page->component('Admin/Kyc/Index'));
+        }
+    }
+
+    public function test_tenant_and_owner_cannot_access_review_routes(): void
+    {
+        foreach (['tenant', 'owner'] as $username) {
+            $this->actingAs(User::where('username', $username)->first())
+                ->get(route('admin.kyc.index'))
+                ->assertForbidden();
+            $this->actingAs(User::where('username', $username)->first())
+                ->post(route('admin.kyc.approve', ['document' => 1]))
+                ->assertForbidden();
+            $this->actingAs(User::where('username', $username)->first())
+                ->get('/admin/kyc/1/download')
+                ->assertForbidden();
+        }
+    }
+
+    public function test_guest_redirected_from_review_routes(): void
+    {
+        $this->get(route('admin.kyc.index'))->assertRedirect(route('login'));
+        $this->post(route('admin.kyc.approve', ['document' => 1]))->assertRedirect(route('login'));
+        $this->get('/admin/kyc/1/download')->assertRedirect(route('login'));
+    }
+
+    public function test_only_owners_can_end_a_lease(): void
+    {
+        $url = route('owner.leases.terminate', Lease::firstOrFail()->id);
+
+        foreach (['tenant', 'admin', 'contractor'] as $username) {
+            $this->actingAs(User::where('username', $username)->first())->post($url)->assertForbidden();
+        }
+        auth()->logout();
+        $this->post($url)->assertRedirect(route('login'));
+    }
+
+    public function test_only_tenants_can_reply_to_an_enquiry(): void
+    {
+        $url = route('tenant.enquiries.reply', \App\Models\Enquiry::firstOrFail()->id);
+
+        foreach (['owner', 'admin', 'contractor'] as $username) {
+            $this->actingAs(User::where('username', $username)->first())->post($url, ['reply' => 'Hi'])->assertForbidden();
+        }
+        auth()->logout();
+        $this->post($url, ['reply' => 'Hi'])->assertRedirect(route('login'));
+    }
+
+    public function test_only_owners_can_cancel_an_ad_order(): void
+    {
+        $url = route('owner.advertising.cancel', AdPlacement::firstOrFail()->id);
+
+        foreach (['tenant', 'admin', 'contractor'] as $username) {
+            $this->actingAs(User::where('username', $username)->first())->post($url)->assertForbidden();
+        }
+        auth()->logout();
+        $this->post($url)->assertRedirect(route('login'));
+    }
+
+    public function test_only_admins_can_link_a_contractor_login(): void
+    {
+        $url = route('admin.contractors.link', Contractor::firstOrFail()->id);
+
+        foreach (['tenant', 'owner', 'contractor'] as $username) {
+            $this->actingAs(User::where('username', $username)->first())->post($url, ['user_email' => 'x@example.com'])->assertForbidden();
+        }
+        auth()->logout();
+        $this->post($url, ['user_email' => 'x@example.com'])->assertRedirect(route('login'));
+    }
+
+    public function test_only_admins_can_open_payment_proofs_and_receipts(): void
+    {
+        $payment = Payment::firstOrFail();
+
+        foreach (['admin.rent.payments.pop', 'admin.rent.payments.receipt'] as $name) {
+            foreach (['tenant', 'owner', 'contractor'] as $username) {
+                $this->actingAs(User::where('username', $username)->first())->get(route($name, $payment->id))->assertForbidden();
+            }
+            auth()->logout();
+            $this->get(route($name, $payment->id))->assertRedirect(route('login'));
+        }
     }
 }

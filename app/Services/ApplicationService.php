@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Lease;
 use App\Models\Property;
 use App\Models\RentalApplication;
 use App\Models\User;
@@ -27,9 +28,8 @@ class ApplicationService
      */
     public function create(User $tenant, Property $property, ?string $message): RentalApplication
     {
-        if (RentalApplication::where('property_id', $property->id)
+        if ($this->holding(RentalApplication::where('property_id', $property->id))
             ->where('applicant_id', $tenant->id)
-            ->whereIn('status', self::ACTIVE)
             ->exists()) {
             throw ValidationException::withMessages([
                 'message' => ['You already have an active application for this property.'],
@@ -55,7 +55,7 @@ class ApplicationService
     public function listForTenant(User $tenant)
     {
         return RentalApplication::where('applicant_id', $tenant->id)
-            ->with('property:id,title,price,property_type,suburb,city,cover_image,status')
+            ->with('property:id,title,price,currency,payment_terms,property_type,suburb,city,cover_image,status')
             ->latest()
             ->get();
     }
@@ -68,9 +68,11 @@ class ApplicationService
     {
         return Property::where('owner_id', $owner->id)
             ->whereHas('applications')
-            ->withCount('leases')
-            ->with(['applications' => fn ($query) => $query->with('applicant:id,name,email')->latest()])
-            ->get()
+            ->withCount(['leases as open_leases_count' => fn ($query) => $query->whereIn('status', Lease::OPEN)])
+            ->with(['applications' => fn ($query) => $query
+                ->with(['applicant:id,name,email', 'lease:id,application_id,lease_no,status'])
+                ->latest()])
+            ->get(['id', 'owner_id', 'title', 'suburb', 'city', 'status', 'price', 'deposit', 'currency', 'payment_terms'])
             ->map(function (Property $property) {
                 $property->latest_application_at = $property->applications->max('created_at');
 
@@ -95,6 +97,18 @@ class ApplicationService
     }
 
     /**
+     * Narrow a query to applications that still hold their place: pending,
+     * shortlisted, or approved without a lease that has since been ended.
+     * An approved application whose lease was terminated no longer blocks a
+     * new approval or a fresh application on the property.
+     */
+    private function holding($query)
+    {
+        return $query->whereIn('status', self::ACTIVE)
+            ->whereDoesntHave('lease', fn ($lease) => $lease->where('status', 'terminated'));
+    }
+
+    /**
      * Move a reviewable application through the transition guard.
      */
     private function assertTransition(RentalApplication $application, string $target): void
@@ -116,7 +130,7 @@ class ApplicationService
         $application = $this->findOwnedByOwner($owner, $id);
         $this->assertTransition($application, 'approved');
 
-        $exists = RentalApplication::where('property_id', $application->property_id)
+        $exists = $this->holding(RentalApplication::where('property_id', $application->property_id))
             ->where('id', '!=', $application->id)
             ->where('status', 'approved')
             ->exists();

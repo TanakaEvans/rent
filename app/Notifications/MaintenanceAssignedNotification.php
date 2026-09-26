@@ -31,7 +31,7 @@ class MaintenanceAssignedNotification extends Notification
             'title' => 'New maintenance job',
             'body' => $this->request->request_no.' — '.$this->request->title
                 .' at '.($property->title ?? 'a property')
-                .' ('.ucfirst($this->request->priority).' priority).'
+                .' ('.ucfirst($this->request->priority).' priority). '
                 .'$'.number_format((float) $this->request->approved_quote, 2).' quoted.',
             'link' => route('contractor.maintenance.index'),
         ];

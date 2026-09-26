@@ -8,6 +8,7 @@ use App\Models\RentSchedule;
 use App\Models\User;
 use App\Notifications\RentInvoiceDueNotification;
 use App\Notifications\RentInvoiceOverdueNotification;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -32,9 +33,21 @@ final class RentService
     }
 
     /**
-     * Generate the rent schedule + one invoice per calendar month for an
-     * active lease (FR-01). Idempotent: a lease already on a schedule is
-     * never double-billed, and non-active leases generate nothing.
+     * Months covered by one billing period of each payment term. The listing
+     * price (and so the lease rent) is quoted per payment term.
+     */
+    private const TERM_MONTHS = [
+        'monthly' => 1,
+        'quarterly' => 3,
+        'yearly' => 12,
+    ];
+
+    /**
+     * Generate the rent schedule + one invoice per billing period of the
+     * lease's payment term (FR-01), each at the per-term rent. Idempotent: a
+     * lease already on a schedule is never double-billed, and non-active
+     * leases generate nothing. Invoices whose due date has already arrived
+     * move straight through the lifecycle, so the tenant can pay at once.
      */
     public function generateFor(Lease $lease): void
     {
@@ -46,16 +59,21 @@ final class RentService
             return;
         }
 
-        DB::transaction(function () use ($lease) {
+        $frequency = $this->billingFrequency($lease);
+
+        DB::transaction(function () use ($lease, $frequency) {
             $schedule = RentSchedule::create([
                 'lease_id' => $lease->id,
                 'start_date' => $lease->start_date,
                 'end_date' => $lease->end_date,
                 'rent_amount' => $lease->rent_amount,
-                'payment_terms' => $lease->payment_terms,
+                'payment_terms' => array_merge(
+                    is_array($lease->payment_terms) ? $lease->payment_terms : [],
+                    ['frequency' => $frequency]
+                ),
             ]);
 
-            foreach ($this->buildPeriods($lease->start_date, $lease->end_date) as $period) {
+            foreach ($this->buildPeriods($lease->start_date, $lease->end_date, self::TERM_MONTHS[$frequency]) as $period) {
                 RentInvoice::create([
                     'property_id' => $lease->property_id,
                     'tenant_id' => $lease->tenant_id,
@@ -69,24 +87,55 @@ final class RentService
                 ]);
             }
         });
+
+        $this->runInvoiceLifecycle(true, $lease->id);
     }
 
     /**
-     * Split the lease term into contiguous calendar months. Each period runs
-     * from the previous month's end (or the term start) to the end of its own
-     * calendar month; the first and last periods clamp to the term boundaries,
-     * so the whole term is covered exactly once and periods never overlap.
+     * The payment term the lease is billed on: the lease's own
+     * `payment_terms.frequency` when it names a known term, otherwise the
+     * property's listing payment term, otherwise monthly.
+     */
+    private function billingFrequency(Lease $lease): string
+    {
+        $terms = $lease->payment_terms;
+        $frequency = is_array($terms) ? ($terms['frequency'] ?? null) : $terms;
+
+        if (is_string($frequency) && isset(self::TERM_MONTHS[$frequency])) {
+            return $frequency;
+        }
+
+        $propertyTerms = $lease->property?->payment_terms;
+
+        return is_string($propertyTerms) && isset(self::TERM_MONTHS[$propertyTerms]) ? $propertyTerms : 'monthly';
+    }
+
+    /**
+     * Split the lease term into contiguous billing periods that cover the
+     * whole term exactly once and never overlap; the last period clamps to
+     * the term end.
+     *
+     * Monthly terms follow calendar months (the first period runs from the
+     * term start to the end of its month). Quarterly and yearly terms are
+     * anchored on the lease start date, so a 12-month yearly lease is one
+     * period and each quarter spans exactly three months from the start.
      *
      * @return array<int, array{start: Carbon, end: Carbon}>
      */
-    private function buildPeriods(Carbon $start, Carbon $end): array
+    private function buildPeriods(Carbon $start, Carbon $end, int $months = 1): array
     {
         $periods = [];
-        $cursor = $start->copy()->startOfDay();
+        $anchor = $start->copy()->startOfDay();
+        $cursor = $anchor->copy();
         $limit = $end->copy()->startOfDay();
+        $index = 0;
 
         while (true) {
-            $periodEnd = $cursor->copy()->endOfMonth();
+            $index++;
+            $periodEnd = $months === 1
+                ? $cursor->copy()->endOfMonth()->startOfDay()
+                : $anchor->copy()->addMonthsNoOverflow($index * $months)->subDay();
+
             if ($periodEnd->greaterThan($limit)) {
                 $periodEnd = $limit->copy();
             }
@@ -97,28 +146,56 @@ final class RentService
                 break;
             }
 
-            $cursor = $periodEnd->copy()->addDay()->startOfMonth();
+            $cursor = $periodEnd->copy()->addDay();
         }
 
         return $periods;
     }
 
     /**
+     * A lease ended early: invoices for periods that start after the end date
+     * are cancelled so they never fall due. Invoices that already have a
+     * pending or settled payment are left alone for staff to resolve.
+     *
+     * @return int invoices cancelled
+     */
+    public function cancelInvoicesAfter(Lease $lease, CarbonInterface $endedOn): int
+    {
+        $cancelled = 0;
+
+        RentInvoice::where('lease_id', $lease->id)
+            ->whereIn('status', ['draft', 'due', 'overdue'])
+            ->whereDate('period_start', '>', $endedOn->toDateString())
+            ->whereDoesntHave('payments', fn ($query) => $query->whereIn('status', ['pending', 'settled']))
+            ->get()
+            ->each(function (RentInvoice $invoice) use (&$cancelled) {
+                if ($invoice->canTransitionTo('cancelled')) {
+                    $invoice->update(['status' => 'cancelled']);
+                    $cancelled++;
+                }
+            });
+
+        return $cancelled;
+    }
+
+    /**
      * Advance every unsettled invoice through the lifecycle in one sweep
-     * (scheduled via `rent:process`):
+     * (scheduled daily via `rent:process`; limited to one lease when given):
      *  - draft → due once the configured due date arrives (`invoices.timing`);
      *  - due → overdue once the cycle plus `invoices.overdue_days` has passed;
      *  - a one-time due reminder to the tenant within `invoices.reminder_lead_days`
      *    of the due date (recorded in `reminded_at`, never repeated).
      */
-    public function runInvoiceLifecycle(bool $notify = true): void
+    public function runInvoiceLifecycle(bool $notify = true, ?int $leaseId = null): void
     {
-        RentInvoice::whereIn('status', ['draft', 'due'])->get()
+        RentInvoice::whereIn('status', ['draft', 'due'])
+            ->when($leaseId !== null, fn ($query) => $query->where('lease_id', $leaseId))
+            ->get()
             ->each(function (RentInvoice $invoice) use ($notify) {
                 $this->advance($invoice, $notify);
             });
 
-        $this->accrueLateFees();
+        $this->accrueLateFees(null, $leaseId);
     }
 
     private function advance(RentInvoice $invoice, bool $notify = true): void
@@ -163,7 +240,7 @@ final class RentService
      * drift, no double accrual). A documented `late_fee` is written back to
      * the invoice so the ledger always carries the exact amount a tenant owes.
      */
-    public function accrueLateFees(?Carbon $asOf = null): void
+    public function accrueLateFees(?Carbon $asOf = null, ?int $leaseId = null): void
     {
         if (! $this->lateFeesEnabled()) {
             return;
@@ -171,7 +248,9 @@ final class RentService
 
         $asOf = $asOf?->copy() ?? Carbon::today();
 
-        RentInvoice::where('status', 'overdue')->get()
+        RentInvoice::where('status', 'overdue')
+            ->when($leaseId !== null, fn ($query) => $query->where('lease_id', $leaseId))
+            ->get()
             ->each(function (RentInvoice $invoice) use ($asOf) {
                 $fee = $this->lateFeeFor($invoice, $asOf);
                 if ($this->cents($fee) !== $this->cents($invoice->late_fee)) {
@@ -296,14 +375,16 @@ final class RentService
     }
 
     /**
-     * Schedules (with their invoices) against an owner's properties.
+     * Schedules (with their invoices and every payment raised against them)
+     * on an owner's properties.
      */
     public function schedulesForOwner(User $owner)
     {
         return RentSchedule::with([
             'lease:id,lease_no,start_date,end_date,status,rent_amount,property_id',
-            'lease.property:id,title,cover_image,suburb,city,status,owner_id',
+            'lease.property:id,title,cover_image,suburb,city,status,owner_id,currency,payment_terms',
             'invoices:id,schedule_id,period_start,period_end,amount,late_fee,status,invoice_no,reminded_at',
+            'invoices.payments:id,invoice_id,amount,method,reference,receipt_no,status,paid_at',
         ])
             ->whereHas('lease.property', fn ($query) => $query->where('owner_id', $owner->id))
             ->latest('id')
@@ -334,18 +415,20 @@ final class RentService
     }
 
     /**
-     * Invoices owed by one tenant (any lease), newest period first.
+     * Invoices owed by one tenant (any lease), newest period first, each with
+     * the exact `payable_amount` (rent + accrued late fee) a payment must match.
      */
     public function invoicesForTenant(User $tenant)
     {
         return RentInvoice::with([
-            'property:id,title,cover_image,suburb,city,status',
+            'property:id,title,cover_image,suburb,city,status,currency,payment_terms',
             'lease:id,lease_no,start_date,end_date,status',
             'payment:id,invoice_id,status,receipt_no,method,reference,paid_at',
         ])
             ->where('tenant_id', $tenant->id)
             ->orderByDesc('period_start')
-            ->get();
+            ->get()
+            ->each(fn (RentInvoice $invoice) => $invoice->setAttribute('payable_amount', $invoice->payableAmount()));
     }
 
     /**
@@ -392,7 +475,7 @@ final class RentService
     public function ownerStatement(User $owner): array
     {
         $rows = RentInvoice::with([
-            'property:id,title,cover_image,suburb,city,status',
+            'property:id,title,cover_image,suburb,city,status,currency',
             'lease:id,lease_no,start_date,end_date,status',
         ])
             ->whereHas('property', fn ($query) => $query->where('owner_id', $owner->id))
@@ -418,6 +501,7 @@ final class RentService
                 'title' => $invoice->property->title,
                 'suburb' => $invoice->property->suburb,
                 'city' => $invoice->property->city,
+                'currency' => $invoice->property->currency,
             ],
             'lease_no' => $invoice->lease->lease_no,
             'period' => [

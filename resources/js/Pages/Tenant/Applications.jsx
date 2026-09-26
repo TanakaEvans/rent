@@ -3,6 +3,7 @@ import { ClipboardCheck, MapPin, Clock3, ArrowUpRight } from 'lucide-react';
 import MainLayout from '@/Layouts/MainLayout';
 import StatusBadge from '@/Components/Shared/StatusBadge';
 import EmptyState from '@/Components/Shared/EmptyState';
+import { formatPrice, priceSuffix } from '@/lib/listing';
 
 const formatDate = (value) =>
     value ? new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
@@ -43,7 +44,7 @@ export default function TenantApplications({ applications = [] }) {
                                         <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                                             <MapPin className="h-3 w-3 shrink-0 text-emerald-500" />
                                             {[app.property?.suburb, app.property?.city].filter(Boolean).join(', ') || 'Location on request'}
-                                            <span className="font-bold text-foreground">${Number(app.property?.price).toLocaleString()}/mo</span>
+                                            <span className="font-bold text-foreground">{formatPrice(app.property?.price, app.property?.currency)}{priceSuffix(app.property?.payment_terms)}</span>
                                         </p>
                                     </div>
                                     <StatusBadge status={app.status} />
@@ -63,7 +64,7 @@ export default function TenantApplications({ applications = [] }) {
                                 </p>
                             </div>
 
-                            {app.property?.status === 'available' && (
+                            {app.property && (
                                 <Link
                                     href={route('property.show', app.property_id)}
                                     className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-primary/30 px-3.5 py-2 text-xs font-bold text-primary transition-colors hover:bg-primary hover:text-white"

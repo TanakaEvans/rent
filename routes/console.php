@@ -10,6 +10,8 @@ Artisan::command('inspire', function () {
 
 Schedule::command('subscriptions:expire')->daily();
 
+Schedule::command('rent:process')->daily();
+
 Schedule::command('marketplace:housekeeping')->daily();
 
 Schedule::command('ads:expire')->daily();

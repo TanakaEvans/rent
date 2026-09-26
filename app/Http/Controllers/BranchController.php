@@ -62,7 +62,7 @@ class BranchController extends Controller
 
     public function show(Branch $branch)
     {
-        $branch->load(['company', 'departments', 'employees']);
+        $branch->load(['company', 'head', 'departments', 'employees']);
 
         return Inertia::render('Admin/Branches/Show', [
             'branch' => $branch,

@@ -113,7 +113,7 @@ export default function RolesIndex({ auth, roles, filters }) {
                                                     <div className="text-gray-600">{role.description || 'No description'}</div>
                                                 </td>
                                                 <td className="py-4 px-6">
-                                                    <span className="px-2 py-1 bg-blue-100 text-blue-800 text-sm rounded-full">
+                                                    <span className="px-2 py-1 bg-emerald-100 text-emerald-800 text-sm rounded-full">
                                                         {role.users_count}
                                                     </span>
                                                 </td>
@@ -129,7 +129,7 @@ export default function RolesIndex({ auth, roles, filters }) {
                                                     <div className="flex justify-end gap-2">
                                                         <Link
                                                             href={route('auth.roles.show', role.id)}
-                                                            className="text-blue-600 hover:text-blue-800 px-2 py-1 rounded transition-colors"
+                                                            className="text-emerald-600 hover:text-emerald-800 px-2 py-1 rounded transition-colors"
                                                             title="View Details"
                                                         >
                                                             👁️

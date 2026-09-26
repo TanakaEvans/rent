@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Head, router } from '@inertiajs/react';
+import { Head, router, usePage } from '@inertiajs/react';
 import { CreditCard, Plus, Pencil, Save, Archive, X, Check } from 'lucide-react';
 import AdminLayout from '@/Layouts/AdminLayout';
 import StatusBadge from '@/Components/Shared/StatusBadge';
@@ -97,6 +97,8 @@ function PlanEditor({ plan = null, onDone }) {
 }
 
 export default function AdminPlans({ plans = [] }) {
+    const { errors = {} } = usePage().props;
+    const errorMessages = Object.values(errors).filter(Boolean);
     const [creating, setCreating] = useState(false);
     const [editingId, setEditingId] = useState(null);
 
@@ -120,6 +122,14 @@ export default function AdminPlans({ plans = [] }) {
                     <Plus className="size-4" /> New plan
                 </Button>
             </div>
+
+            {errorMessages.length > 0 && (
+                <div role="alert" className="mb-5 space-y-1 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">
+                    {errorMessages.map((message) => (
+                        <p key={message}>{message}</p>
+                    ))}
+                </div>
+            )}
 
             <div className="surface overflow-hidden">
                 <div className="overflow-x-auto">

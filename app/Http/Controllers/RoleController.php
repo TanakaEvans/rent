@@ -5,10 +5,16 @@ namespace App\Http\Controllers;
 use App\Models\Role;
 use App\Models\SystemModule;
 use App\Models\User;
+use App\Services\AuthService;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 class RoleController extends Controller
 {
+    public function __construct(private readonly AuthService $authService)
+    {
+    }
+
     /**
      * Display a listing of roles.
      */
@@ -117,6 +123,7 @@ class RoleController extends Controller
             'role' => $role,
             'routesByModule' => $routesByModule,
             'assignedRouteIds' => $assignedRouteIds,
+            'isSystemRole' => in_array($role->name, AuthService::SYSTEM_ROLES, true),
         ]);
     }
 
@@ -131,6 +138,12 @@ class RoleController extends Controller
             'route_ids' => ['array'],
             'route_ids.*' => ['exists:system_routes,id'],
         ]);
+
+        if ($request->name !== $role->name && in_array($role->name, AuthService::SYSTEM_ROLES, true)) {
+            throw ValidationException::withMessages([
+                'name' => "The {$role->name} role is a system role and cannot be renamed.",
+            ]);
+        }
 
         $role->update([
             'name' => $request->name,
@@ -151,10 +164,10 @@ class RoleController extends Controller
      */
     public function destroy(Role $role)
     {
-        // Prevent deletion of Superuser role
-        if ($role->name === 'Superuser') {
+        // System roles are referenced by name in code and can never be deleted
+        if (in_array($role->name, AuthService::SYSTEM_ROLES, true)) {
             return redirect()->route('auth.roles.index')
-                ->with('error', 'Cannot delete the Superuser role.');
+                ->with('error', "Cannot delete the {$role->name} role; it is a system role.");
         }
 
         // Prevent deletion of roles that have users
@@ -198,20 +211,7 @@ class RoleController extends Controller
             'user_ids.*' => ['exists:auth_users,id'],
         ]);
 
-        $roleIds = $request->role_ids;
-        $userIds = $request->user_ids;
-        $assignedCount = 0;
-
-        foreach ($userIds as $userId) {
-            $user = User::find($userId);
-            if ($user) {
-                // Sync without detaching existing roles? Or attach?
-                // The request implies "Assign", usually meaning "Add to existing".
-                // syncWithoutDetaching is safer to avoid duplicates.
-                $user->roles()->syncWithoutDetaching($roleIds);
-                $assignedCount++;
-            }
-        }
+        $assignedCount = $this->authService->bulkAssignRoles($request->user(), $request->user_ids, $request->role_ids);
 
         return redirect()->route('auth.roles.index')
             ->with('success', "Roles assigned successfully to {$assignedCount} users.");
@@ -247,18 +247,7 @@ class RoleController extends Controller
             'user_ids.*' => ['exists:auth_users,id'],
         ]);
 
-        $roleIds = $request->role_ids;
-        $userIds = $request->user_ids;
-        $processedCount = 0;
-
-        foreach ($userIds as $userId) {
-            $user = User::find($userId);
-            if ($user) {
-                // Detach the selected roles
-                $user->roles()->detach($roleIds);
-                $processedCount++;
-            }
-        }
+        $processedCount = $this->authService->bulkRemoveRoles($request->user(), $request->user_ids, $request->role_ids);
 
         return redirect()->route('auth.roles.index')
             ->with('success', "Roles removed successfully from {$processedCount} users.");

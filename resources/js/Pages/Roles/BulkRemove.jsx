@@ -48,7 +48,7 @@ export default function BulkRemove({ auth, roles, users }) {
 
     const submit = (e) => {
         e.preventDefault();
-        post(route('roles.bulk-remove.store'));
+        post(route('auth.roles.bulk-remove.store'));
     };
 
     return (
@@ -132,7 +132,7 @@ export default function BulkRemove({ auth, roles, users }) {
                                     <div>
                                         <div className="text-gray-700 font-medium">{user.name}</div>
                                         <div className="text-xs text-gray-500">{user.email}</div>
-                                        <div className="text-xs text-blue-400">
+                                        <div className="text-xs text-emerald-400">
                                             {user.roles && user.roles.map(r => r.name).join(', ')}
                                         </div>
                                     </div>

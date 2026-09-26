@@ -5,6 +5,9 @@ namespace App\Services;
 use App\Models\Payment;
 use App\Models\RentInvoice;
 use App\Models\User;
+use App\Notifications\PaymentRejectedNotification;
+use App\Notifications\ReceiptIssuedNotification;
+use App\Notifications\RentPaymentReceivedNotification;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -28,7 +31,7 @@ final class PaymentService
 
     /**
      * Record a tenant payment against one of their invoices (FR-04). Exact
-     * amount only, idempotent per invoice (AC-02/NFR-02), method must be an
+     * payable amount only (rent + accrued late fee), idempotent per invoice (AC-02/NFR-02), method must be an
      * enabled `payments.methods` value, and bank/mobile methods require a
      * proof-of-payment when `payments.pop.approval_required` is on.
      */
@@ -98,9 +101,10 @@ final class PaymentService
 
     /**
      * Staff reject a pending payment (e.g. POP mismatch, bank marker). The
-     * invoice stays owing and the tenant may pay again.
+     * invoice stays owing, the tenant may pay again and is told why (the
+     * optional staff note).
      */
-    public function reject(User $staff, Payment $payment): Payment
+    public function reject(User $staff, Payment $payment, ?string $note = null): Payment
     {
         $this->assertPending($payment);
 
@@ -109,11 +113,15 @@ final class PaymentService
             'received_by' => $staff->id,
         ]);
 
+        $note = $note !== null ? trim($note) : null;
+        $payment->paidBy->notify(new PaymentRejectedNotification($payment->fresh(['invoice']), $note ?: null));
+
         return $payment->fresh();
     }
 
     /**
-     * Mark the payment settled and issue a unique receipt (AC-03).
+     * Mark the payment settled and issue a unique receipt (AC-03). The tenant
+     * receives the receipt and the property owner is told the rent arrived.
      */
     private function settle(?User $staff, Payment $payment): void
     {
@@ -135,7 +143,12 @@ final class PaymentService
 
         $invoice->update(['status' => 'paid']);
 
-        $payment->paidBy->notify(new \App\Notifications\ReceiptIssuedNotification($payment->fresh(['invoice'])));
+        $settled = $payment->fresh(['invoice.property.owner']);
+        $payment->paidBy->notify(new ReceiptIssuedNotification($settled));
+
+        if ($owner = $settled->invoice->property?->owner) {
+            $owner->notify(new RentPaymentReceivedNotification($settled));
+        }
     }
 
     private function assertPending(Payment $payment): void
@@ -175,8 +188,8 @@ final class PaymentService
     {
         return Payment::where('status', 'pending')
             ->with([
-                'invoice:id,invoice_no,amount,period_start,period_end,status',
-                'invoice.property:id,title',
+                'invoice:id,invoice_no,amount,late_fee,period_start,period_end,status,property_id',
+                'invoice.property:id,title,currency',
                 'paidBy:id,name,email',
             ])
             ->latest()
@@ -190,8 +203,8 @@ final class PaymentService
     {
         return Payment::where('status', '!=', 'pending')
             ->with([
-                'invoice:id,invoice_no,period_start,period_end,amount,status',
-                'invoice.property:id,title',
+                'invoice:id,invoice_no,period_start,period_end,amount,late_fee,status,property_id',
+                'invoice.property:id,title,currency',
                 'paidBy:id,name,email',
             ])
             ->latest()
@@ -209,14 +222,14 @@ final class PaymentService
         $property = $invoice->property;
 
         $lines = [
-            'DZIMBA — RENT RECEIPT',
+            'ZIMRENT — RENT RECEIPT',
             '----------------------',
             'Receipt No:    '.$payment->receipt_no,
             'Invoice No:    '.$invoice->invoice_no,
             'Tenant:        '.$payment->paidBy->name,
             'Property:      '.($property->title ?? '—'),
             'Period:        '.$invoice->period_start->format('d M Y').' → '.$invoice->period_end->format('d M Y'),
-            'Amount:        $'.$payment->amount,
+            'Amount:        '.($property?->currency === 'ZWL' ? 'ZWL ' : '$').$payment->amount,
             'Method:        '.ucfirst($payment->method),
         ];
 
@@ -239,11 +252,21 @@ final class PaymentService
         }
     }
 
+    /**
+     * The payment must equal the invoice's payable total: the rent plus any
+     * accrued late fee, compared in integer cents.
+     */
     private function assertExactAmount(RentInvoice $invoice, string $amount): void
     {
-        if ($amount !== $invoice->amount) {
+        $payable = $invoice->payableAmount();
+
+        if ($this->cents($amount) !== $this->cents($payable)) {
+            $lateFee = $this->cents($invoice->late_fee ?? 0) > 0
+                ? ' (rent '.$invoice->amount.' + late fee '.$invoice->late_fee.')'
+                : '';
+
             throw ValidationException::withMessages([
-                'amount' => 'The payment must match the invoice amount of $'.$invoice->amount.'.',
+                'amount' => 'The payment must match the amount payable of '.$payable.$lateFee.'.',
             ]);
         }
     }

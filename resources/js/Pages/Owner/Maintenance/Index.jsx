@@ -5,6 +5,7 @@ import MainLayout from '@/Layouts/MainLayout';
 import StatusBadge from '@/Components/Shared/StatusBadge';
 import StatCard from '@/Components/Shared/StatCard';
 import EmptyState from '@/Components/Shared/EmptyState';
+import Pagination from '@/Components/Pagination';
 import { Button } from '@/Components/ui/button';
 
 const priorityPill = {
@@ -43,6 +44,14 @@ const sorted = (requests) =>
         return (priorityRank[a.priority] ?? 4) - (priorityRank[b.priority] ?? 4);
     });
 
+// Dropdown label: business, trades (with rate) and service areas so owners
+// can pick the right tradesperson for the fault.
+const contractorLabel = (c) => {
+    const trades = (c.trades || []).map((t) => (t.rate ? `${t.trade} $${t.rate}` : t.trade)).join(', ') || 'No trades listed';
+    const areas = (c.service_area || []).join(', ') || 'No areas';
+    return `${c.business_name} — ${trades} · Areas: ${areas} · ★ ${c.rating_avg} (${c.jobs_completed} jobs)`;
+};
+
 function AssignForm({ request, contractors }) {
     const [contractorId, setContractorId] = useState('');
     const [quote, setQuote] = useState('');
@@ -63,7 +72,7 @@ function AssignForm({ request, contractors }) {
                     <option value="">Choose a verified contractor…</option>
                     {contractors.map((c) => (
                         <option key={c.id} value={c.id}>
-                            {c.business_name} — {(c.service_area || []).join(', ')} · ★ {c.rating_avg} ({c.jobs_completed} jobs)
+                            {contractorLabel(c)}
                         </option>
                     ))}
                 </select>
@@ -143,12 +152,11 @@ function RateForm({ request }) {
     );
 }
 
-export default function OwnerMaintenance({ requests = {}, contractors = [] }) {
+export default function OwnerMaintenance({ requests = {}, stats = {}, contractors = [], errors = {} }) {
     const items = requests.data || [];
     const reportable = items.filter((r) => ['reported', 'assigned', 'in_progress', 'completed'].includes(r.status));
-    const open = items.filter((r) => r.status === 'reported');
-    const breached = open.filter((r) => r.escalated_at);
     const done = items.filter((r) => ['closed', 'declined'].includes(r.status));
+    const formErrors = ['request', 'contractor_id', 'approved_quote', 'notes', 'rating', 'note'].map((key) => errors[key]).filter(Boolean);
 
     return (
         <MainLayout title="Maintenance">
@@ -162,11 +170,19 @@ export default function OwnerMaintenance({ requests = {}, contractors = [] }) {
             </div>
 
             <div className="mb-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                <StatCard icon={Wrench} label="Open requests" value={String(reportable.length)} hint="Awaiting action" tone="emerald" />
-                <StatCard icon={TriangleAlert} label="SLA breaches" value={String(breached.length)} hint="Escalated to staff" tone="amber" />
-                <StatCard icon={HardHat} label="Awaiting assignment" value={String(open.length)} hint="Pick a verified contractor" tone="sky" />
-                <StatCard icon={Wrench} label="Closed" value={String(done.length)} hint="Completed or declined" tone="teal" />
+                <StatCard icon={Wrench} label="Open requests" value={String(stats.open ?? 0)} hint="Awaiting action" tone="emerald" />
+                <StatCard icon={TriangleAlert} label="SLA breaches" value={String(stats.breached ?? 0)} hint="Escalated to staff" tone="amber" />
+                <StatCard icon={HardHat} label="Awaiting assignment" value={String(stats.awaiting_assignment ?? 0)} hint="Pick a verified contractor" tone="sky" />
+                <StatCard icon={Wrench} label="Closed" value={String(stats.closed ?? 0)} hint="Completed or declined" tone="teal" />
             </div>
+
+            {formErrors.length > 0 && (
+                <div className="mb-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">
+                    {formErrors.map((message) => (
+                        <p key={message}>{message}</p>
+                    ))}
+                </div>
+            )}
 
             <h3 className="mb-3 px-1 text-sm font-bold uppercase tracking-wider text-muted-foreground">Repair queue</h3>
 
@@ -295,6 +311,8 @@ export default function OwnerMaintenance({ requests = {}, contractors = [] }) {
                     ))}
                 </div>
             )}
+
+            <Pagination data={requests} className="mt-8" />
         </MainLayout>
     );
 }

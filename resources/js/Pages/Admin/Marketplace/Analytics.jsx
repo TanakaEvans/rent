@@ -5,18 +5,7 @@ import {
 } from 'lucide-react';
 import AdminLayout from '@/Layouts/AdminLayout';
 import StatCard from '@/Components/Shared/StatCard';
-
-const typeLabels = {
-    house: 'House',
-    flat: 'Flat / Apartment',
-    townhouse: 'Townhouse',
-    cottage: 'Cottage',
-    room: 'Room',
-    commercial: 'Commercial',
-    land: 'Land',
-};
-
-const formatPrice = (value) => '$' + Number(value).toLocaleString();
+import { TYPE_LABELS as typeLabels, formatPrice } from '@/lib/listing';
 
 function TrendChart({ data = [], className }) {
     const max = Math.max(...data.map((d) => d.views), 1);

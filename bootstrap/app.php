@@ -26,4 +26,27 @@ return Application::configure(basePath: dirname(__DIR__))
                 ? response()->json(['message' => 'This action is unauthorized.'], 403)
                 : back()->with('error', 'You do not have permission to perform this action.');
         });
+
+        // A broken business rule on an in-app action (e.g. "this slot is already
+        // taken", "listing no longer available") should read as a message on the
+        // page the user was on, not a bare error page. Only browser (Inertia)
+        // form submissions are converted; page loads and API calls keep their status.
+        $exceptions->render(function (\Symfony\Component\HttpKernel\Exception\HttpExceptionInterface $e, \Illuminate\Http\Request $request) {
+            if ($request->isMethod('GET') || ! $request->header('X-Inertia')) {
+                return null;
+            }
+
+            if (! in_array($e->getStatusCode(), [403, 404, 409, 410, 422], true)) {
+                return null;
+            }
+
+            $message = $e->getMessage();
+            if ($message === '' || str_starts_with($message, 'No query results')) {
+                $message = $e->getStatusCode() === 403
+                    ? 'You do not have permission to perform this action.'
+                    : 'That item is no longer available. Please refresh the page and try again.';
+            }
+
+            return back()->with('error', $message);
+        });
     })->create();

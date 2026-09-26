@@ -3,18 +3,25 @@
 namespace App\Http\Controllers;
 
 use App\Models\Property;
+use App\Services\ConfigurationService;
+use App\Services\ListingLifecycleService;
 use App\Services\PropertyService;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
 class PropertyController extends Controller
 {
-    public function __construct(private readonly PropertyService $properties)
-    {
+    public function __construct(
+        private readonly PropertyService $properties,
+        private readonly ConfigurationService $config,
+        private readonly ListingLifecycleService $lifecycle,
+    ) {
     }
 
     /**
-     * List the signed-in owner's properties.
+     * List the signed-in owner's properties with their listing window.
      */
     public function index()
     {
@@ -23,7 +30,8 @@ class PropertyController extends Controller
         $properties = Property::withCount('applications')
             ->where('owner_id', $owner->id)
             ->latest()
-            ->get();
+            ->get()
+            ->each(fn (Property $property) => $property->setAttribute('listing', $this->lifecycle->stateFor($property)));
 
         return Inertia::render('Owner/Properties/Index', [
             'properties' => $properties,
@@ -35,7 +43,9 @@ class PropertyController extends Controller
      */
     public function create()
     {
-        return Inertia::render('Owner/Properties/Create');
+        return Inertia::render('Owner/Properties/Create', [
+            'amenityOptions' => $this->amenityOptions(),
+        ]);
     }
 
     /**
@@ -43,28 +53,12 @@ class PropertyController extends Controller
      */
     public function store(Request $request)
     {
-        $validated = $request->validate([
-            'title' => 'required|string|max:200',
-            'description' => 'nullable|string',
-            'property_type' => 'required|in:house,flat,townhouse,cottage,room,commercial,land',
-            'bedrooms' => 'required|integer|min:0|max:50',
-            'bathrooms' => 'required|integer|min:0|max:50',
-            'building_size' => 'nullable|numeric|min:0',
-            'land_size' => 'nullable|numeric|min:0',
-            'price' => 'required|numeric|min:0',
-            'deposit' => 'nullable|numeric|min:0',
-            'furnished' => 'boolean',
-            'status' => 'required|in:available,reserved,occupied,unavailable',
-            'suburb' => 'nullable|string|max:100',
-            'zone' => 'nullable|string|max:100',
-            'city' => 'nullable|string|max:100',
-            'address' => 'nullable|string|max:255',
-            'amenities' => 'nullable|array',
-            'cover_image' => 'nullable|string|max:255',
-            'available_from' => 'nullable|date',
-        ]);
+        $validated = $request->validate($this->rules(true));
 
-        $property = $this->properties->create($validated, $request->user());
+        $property = $this->properties->create($validated, $request->user(), [
+            'cover' => $request->file('cover'),
+            'images' => $validated['images'] ?? [],
+        ]);
 
         return redirect()->route('owner.properties.show', $property)
             ->with('success', 'Property created successfully.');
@@ -93,6 +87,8 @@ class PropertyController extends Controller
         return Inertia::render('Owner/Properties/Show', [
             'property' => $property,
             'navigation' => $navigation,
+            'listing' => $this->lifecycle->stateFor($property),
+            'deleteBlockedReason' => $this->properties->deleteBlockReason($property),
         ]);
     }
 
@@ -105,35 +101,30 @@ class PropertyController extends Controller
 
         return Inertia::render('Owner/Properties/Edit', [
             'property' => $property,
+            'amenityOptions' => $this->amenityOptions(),
         ]);
     }
 
     /**
-     * Update an owned property.
+     * Update an owned property's details. Status is not part of the edit —
+     * it only moves through the status and renew actions. The edit form
+     * always submits `cover_image` (the retained cover, or empty once
+     * removed), so its gallery is authoritative; a request carrying neither
+     * `images` nor `cover_image` leaves the gallery untouched.
      */
     public function update(Request $request, int $id)
     {
-        $validated = $request->validate([
-            'title' => 'required|string|max:200',
-            'description' => 'nullable|string',
-            'property_type' => 'required|in:house,flat,townhouse,cottage,room,commercial,land',
-            'bedrooms' => 'required|integer|min:0|max:50',
-            'bathrooms' => 'required|integer|min:0|max:50',
-            'building_size' => 'nullable|numeric|min:0',
-            'land_size' => 'nullable|numeric|min:0',
-            'price' => 'required|numeric|min:0',
-            'deposit' => 'nullable|numeric|min:0',
-            'furnished' => 'boolean',
-            'suburb' => 'nullable|string|max:100',
-            'zone' => 'nullable|string|max:100',
-            'city' => 'nullable|string|max:100',
-            'address' => 'nullable|string|max:255',
-            'amenities' => 'nullable|array',
-            'cover_image' => 'nullable|string|max:255',
-            'available_from' => 'nullable|date',
-        ]);
+        $validated = $request->validate($this->rules(false));
 
-        $property = $this->properties->update($id, $validated, $request->user());
+        $media = ['cover' => $request->file('cover')];
+        if ($request->exists('images') || $request->exists('cover_image')) {
+            $media['images'] = $validated['images'] ?? [];
+        }
+        if ($request->exists('cover_image')) {
+            $media['cover_image'] = $validated['cover_image'] ?? null;
+        }
+
+        $property = $this->properties->update($id, $validated, $request->user(), $media);
 
         return redirect()->route('owner.properties.show', $property)
             ->with('success', 'Property updated successfully.');
@@ -172,9 +163,91 @@ class PropertyController extends Controller
     {
         $property = $this->properties->findOwned($id, $request->user());
 
-        $renewed = app(\App\Services\ListingLifecycleService::class)->renew($property, $request->user());
+        $renewed = $this->lifecycle->renew($property, $request->user());
 
         return redirect()->route('owner.properties.show', $renewed)
             ->with('success', 'Listing renewed. It will stay live until '.$renewed->expires_at->format('d M Y').'.');
+    }
+
+    /**
+     * Shared validation rules for the preservation-release listing form.
+     * Every answer is an option drawn from the Property constants. Only the
+     * create form picks the initial status.
+     */
+    private function rules(bool $creating): array
+    {
+        $imageEntry = function ($attribute, $value, $fail) {
+            if ($value instanceof UploadedFile) {
+                if (! $value->isValid() || ! str_starts_with((string) $value->getMimeType(), 'image/') || $value->getSize() > 8192 * 1024) {
+                    $fail('Each photo must be a valid image file under 8 MB.');
+                }
+                return;
+            }
+            if (! is_string($value) || trim($value) === '' || mb_strlen($value) > 255) {
+                $fail('Each photo must be an uploaded image or an existing photo path.');
+            }
+        };
+
+        return [
+            'title' => 'required|string|max:200',
+            'description' => 'nullable|string|max:2000',
+            'property_type' => ['required', Rule::in(array_keys(Property::TYPES))],
+            'bedrooms' => 'required|integer|min:0|max:50',
+            'bathrooms' => 'required|integer|min:0|max:50',
+            'building_size' => 'nullable|numeric|min:0',
+            'land_size' => 'nullable|numeric|min:0',
+            'floor_area' => 'nullable|numeric|min:0',
+            'year_built' => 'nullable|integer|min:1900|max:2100',
+            'price' => 'required|numeric|min:0',
+            'deposit' => 'nullable|numeric|min:0',
+            'currency' => ['required', Rule::in(Property::CURRENCIES)],
+            'payment_terms' => ['required', Rule::in(Property::PAYMENT_TERMS)],
+            'water_cost' => 'nullable|numeric|min:0',
+            'electricity_cost' => 'nullable|numeric|min:0',
+            'trash_cost' => 'nullable|numeric|min:0',
+            'negotiable' => 'boolean',
+            'furnished' => 'boolean',
+            'entrance_type' => 'nullable|in:own,shared',
+            'bathroom_type' => 'nullable|in:own,shared',
+            'parking_type' => ['nullable', Rule::in(Property::PARKING_TYPES)],
+            'families_allowed' => 'nullable|boolean',
+            'distance_to_cbd' => 'nullable|numeric|min:0',
+            'security_type' => ['required', Rule::in(Property::SECURITY_TYPES)],
+            'children_allowed' => 'boolean',
+            'pets_allowed' => 'boolean',
+            'smoking_allowed' => 'boolean',
+            'parties_allowed' => 'boolean',
+            'minimum_stay' => 'required|integer|min:0|max:120',
+            'preferred_tenant' => ['required', Rule::in(Property::PREFERRED_TENANTS)],
+            'landlord_type' => ['required', Rule::in(Property::LANDLORD_TYPES)],
+            'contact_preference' => ['required', Rule::in(Property::CONTACT_PREFERENCES)],
+            'show_phone' => 'boolean',
+            'landmark' => 'nullable|string|max:255',
+            'status' => $creating ? 'required|in:available,reserved,occupied,unavailable' : 'exclude',
+            'suburb' => 'nullable|string|max:100',
+            'zone' => 'nullable|string|max:100',
+            'city' => 'nullable|string|max:100',
+            'address' => 'nullable|string|max:255',
+            'amenities' => 'nullable|array',
+            'amenities.*' => 'string|max:60',
+            'cover_image' => 'nullable|string|max:255',
+            'cover' => 'nullable|image|max:8192',
+            'images' => 'nullable|array|max:8',
+            'images.*' => ['required', $imageEntry],
+            'available_from' => 'nullable|date',
+        ];
+    }
+
+    /**
+     * The amenity catalogue (key => label) shipped to the listing form so the
+     * chips owners pick from always match the marketplace filter set.
+     */
+    private function amenityOptions(): array
+    {
+        return array_map(
+            fn ($label, $key) => ['key' => $key, 'label' => $label],
+            (array) $this->config->get('marketplace.amenities', []),
+            array_keys((array) $this->config->get('marketplace.amenities', []))
+        );
     }
 }

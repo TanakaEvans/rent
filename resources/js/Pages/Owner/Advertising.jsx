@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Head, router } from '@inertiajs/react';
-import { Megaphone, Clock3, BadgeDollarSign, MousePointerClick, Eye, MessageSquareText, ClipboardCheck, ImagePlay } from 'lucide-react';
+import { Megaphone, Clock3, BadgeDollarSign, MousePointerClick, Eye, MessageSquareText, ClipboardCheck, ImagePlay, XCircle } from 'lucide-react';
 import MainLayout from '@/Layouts/MainLayout';
 import StatusBadge from '@/Components/Shared/StatusBadge';
 import StatCard from '@/Components/Shared/StatCard';
@@ -17,7 +17,7 @@ const typeLabel = {
     premium_badge: 'Premium badge',
 };
 
-export default function OwnerAdvertising({ enabled = true, approval_required = true, packages = [], placements = [], properties = [] }) {
+export default function OwnerAdvertising({ enabled = true, approval_required = true, packages = [], placements = [], properties = [], errors = {} }) {
     const [propertyId, setPropertyId] = useState('');
     const [packageId, setPackageId] = useState('');
 
@@ -28,6 +28,11 @@ export default function OwnerAdvertising({ enabled = true, approval_required = t
 
     const bookable = properties.filter((p) => !p.promotion_open);
     const selectedPackage = packages.find((p) => String(p.id) === String(packageId));
+
+    const cancelOrder = (placement) => {
+        if (!window.confirm(`Cancel the promotion order for ${placement.property?.title || 'this listing'}? The full amount is credited back.`)) return;
+        router.post(route('owner.advertising.cancel', { placement: placement.id }), {}, { preserveScroll: true });
+    };
 
     const book = () => {
         if (!propertyId || !packageId) return;
@@ -74,7 +79,7 @@ export default function OwnerAdvertising({ enabled = true, approval_required = t
                         <EmptyState
                             icon={ImagePlay}
                             title={properties.length === 0 ? 'No published listings' : 'All listings promoted'}
-                            description={properties.length === 0 ? 'Publish an available property first, then promote it here.' : 'Every available listing already holds a placement. Let a window expire or ask staff to cancel one.'}
+                            description={properties.length === 0 ? 'Publish an available property first, then promote it here.' : 'Every available listing already holds a placement. Cancel an order awaiting approval, let a window expire, or ask staff to cancel a live one.'}
                             className="bg-background rounded-xl"
                         />
                     ) : (
@@ -103,6 +108,12 @@ export default function OwnerAdvertising({ enabled = true, approval_required = t
                                 </select>
                             </div>
 
+                            {['property_id', 'package_id'].map((field) =>
+                                errors[field] ? (
+                                    <p key={field} className="text-xs font-semibold text-rose-600">{errors[field]}</p>
+                                ) : null
+                            )}
+
                             {selectedPackage && (
                                 <p className="rounded-lg bg-muted/40 px-3 py-2 text-xs font-medium text-muted-foreground">
                                     {selectedPackage.description}
@@ -123,6 +134,9 @@ export default function OwnerAdvertising({ enabled = true, approval_required = t
 
                 <section className="lg:col-span-3">
                     <h3 className="mb-3 px-1 text-sm font-bold uppercase tracking-wider text-muted-foreground">My placements</h3>
+                    {errors.status && (
+                        <p className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">{errors.status}</p>
+                    )}
 
                     {placements.length === 0 ? (
                         <EmptyState
@@ -169,6 +183,15 @@ export default function OwnerAdvertising({ enabled = true, approval_required = t
                                             </span>
                                         ))}
                                     </div>
+
+                                    {p.status === 'reserved' && (
+                                        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
+                                            <p className="text-xs text-muted-foreground">Awaiting staff approval — cancel to free the slot (full credit).</p>
+                                            <Button size="sm" variant="outline" onClick={() => cancelOrder(p)} className="border-rose-200 text-rose-700 hover:bg-rose-50">
+                                                <XCircle className="h-3.5 w-3.5" /> Cancel order
+                                            </Button>
+                                        </div>
+                                    )}
                                 </article>
                             ))}
                         </div>

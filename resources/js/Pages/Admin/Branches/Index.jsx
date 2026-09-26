@@ -70,7 +70,7 @@ export default function BranchesIndex({ auth, branches }) {
                                                     <div className="text-sm font-medium text-gray-900 flex items-center gap-2">
                                                         {branch.name}
                                                         {branch.is_main_branch && (
-                                                            <span className="px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded-full">
+                                                            <span className="px-2 py-0.5 text-xs bg-emerald-100 text-emerald-800 rounded-full">
                                                                 Main
                                                             </span>
                                                         )}

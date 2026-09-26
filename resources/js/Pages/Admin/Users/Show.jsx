@@ -16,7 +16,7 @@ export default function Show({ user }) {
                                 <div className="space-x-2">
                                     <a
                                         href={route('auth.users.edit', user?.id)}
-                                        className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+                                        className="bg-emerald-500 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded"
                                     >
                                         Edit User
                                     </a>
@@ -70,7 +70,7 @@ export default function Show({ user }) {
                                                 user.roles.map((role) => (
                                                     <div key={role.id} className="flex items-center justify-between p-2 bg-white rounded border">
                                                         <div>
-                                                            <span className="font-medium text-blue-600">{role.name}</span>
+                                                            <span className="font-medium text-emerald-600">{role.name}</span>
                                                             {role.description && (
                                                                 <p className="text-sm text-gray-500">{role.description}</p>
                                                             )}

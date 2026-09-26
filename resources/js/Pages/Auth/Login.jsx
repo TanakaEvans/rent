@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Head, Link, useForm } from '@inertiajs/react';
+import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 
 export default function Login({ status, errors }) {
+    const { flash } = usePage().props;
     const { data, setData, post, processing, reset } = useForm({
         login: '',
         password: '',
@@ -32,7 +33,7 @@ export default function Login({ status, errors }) {
             label: 'Property Owner',
             sub: 'owner@dzimba.local',
             icon: 'M3 12l9-9 9 9M5 10v10h5v-6h4v6h5V10',
-            gradient: 'from-cyan-500 to-blue-600',
+            gradient: 'from-cyan-500 to-emerald-600',
         },
         {
             label: 'Tenant',
@@ -50,18 +51,18 @@ export default function Login({ status, errors }) {
 
     return (
         <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
-            <Head title="Dzimba - Login" />
+            <Head title="ZimRent - Login" />
 
             {/* Full-screen background */}
             <div className="absolute inset-0 bg-slate-900">
-                <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900" />
+                <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-emerald-950 to-slate-900" />
                 <div className="absolute inset-0 opacity-[0.04]"
                     style={{
                         backgroundImage: 'radial-gradient(circle at 25% 50%, white 1px, transparent 1px)',
                         backgroundSize: '40px 40px',
                     }}
                 />
-                <div className="absolute inset-0 bg-gradient-to-r from-blue-600/10 to-transparent" />
+                <div className="absolute inset-0 bg-gradient-to-r from-emerald-600/10 to-transparent" />
             </div>
 
             <div className="relative w-full max-w-6xl grid lg:grid-cols-5 bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl shadow-slate-900/30 min-h-[680px] overflow-hidden">
@@ -83,7 +84,7 @@ export default function Login({ status, errors }) {
                             <div className="w-10 h-10 bg-cyan-600 rounded-lg flex items-center justify-center text-xl shadow-lg shadow-cyan-900/30">
                                 <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l9-9 9 9M5 10v10h5v-6h4v6h5V10" /></svg>
                             </div>
-                            <h2 className="text-2xl font-bold text-white tracking-tight">Dzimba</h2>
+                            <h2 className="text-2xl font-bold text-white tracking-tight">ZimRent</h2>
                         </div>
 
                         {/* Title + description */}
@@ -92,31 +93,31 @@ export default function Login({ status, errors }) {
                                 Rent direct.<br />No agents.<br />No commissions.
                             </h1>
                             <p className="text-sm text-slate-400 leading-relaxed max-w-sm">
-                                Dzimba is the direct property rental platform. Property owners list their homes
+                                ZimRent is the direct property rental platform. Property owners list their homes
                                 and tenants find and apply for them — with no traditional agent fees, just
                                 affordable subscriptions.
                             </p>
 
                             {/* Divider */}
-                            <div className="w-12 h-0.5 bg-blue-500 rounded-full my-8" />
+                            <div className="w-12 h-0.5 bg-emerald-500 rounded-full my-8" />
 
                             {/* Value props */}
                             <div className="space-y-4">
                                 <div className="flex items-start gap-3">
-                                    <div className="w-5 h-5 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                                        <svg className="w-3 h-3 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                                    <div className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                        <svg className="w-3 h-3 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
                                     </div>
                                     <span className="text-sm text-slate-300">Owners upload &amp; manage their own properties</span>
                                 </div>
                                 <div className="flex items-start gap-3">
-                                    <div className="w-5 h-5 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                                        <svg className="w-3 h-3 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                                    <div className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                        <svg className="w-3 h-3 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
                                     </div>
                                     <span className="text-sm text-slate-300">Tenants search, save &amp; apply for free</span>
                                 </div>
                                 <div className="flex items-start gap-3">
-                                    <div className="w-5 h-5 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                                        <svg className="w-3 h-3 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                                    <div className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                        <svg className="w-3 h-3 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
                                     </div>
                                     <span className="text-sm text-slate-300">Verified property &amp; owner badges for trust</span>
                                 </div>
@@ -125,7 +126,7 @@ export default function Login({ status, errors }) {
 
                         {/* Footer */}
                         <div className="text-[11px] text-slate-600 tracking-wide">
-                            Dzimba Property Platform
+                            ZimRent Property Platform
                         </div>
                     </div>
                 </div>
@@ -136,7 +137,7 @@ export default function Login({ status, errors }) {
                         {/* Form header */}
                         <div className="mb-10">
                             <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Welcome back</h2>
-                            <p className="text-sm text-slate-500 mt-1.5">Sign in to your Dzimba account to continue.</p>
+                            <p className="text-sm text-slate-500 mt-1.5">Sign in to your ZimRent account to continue.</p>
                         </div>
 
                         {/* Status messages */}
@@ -144,6 +145,13 @@ export default function Login({ status, errors }) {
                             <div className="mb-6 p-3.5 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center gap-3 text-sm text-emerald-700">
                                 <svg className="w-4 h-4 text-emerald-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                                 {status}
+                            </div>
+                        )}
+
+                        {flash?.error && (
+                            <div role="alert" className="mb-6 p-3.5 bg-red-50 border border-red-200 rounded-lg flex items-center gap-3 text-sm text-red-700">
+                                <svg className="w-4 h-4 text-red-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                {flash.error}
                             </div>
                         )}
 
@@ -169,7 +177,7 @@ export default function Login({ status, errors }) {
                                     onBlur={() => setFocusedField(null)}
                                     className={`h-11 text-sm border rounded-lg transition-all duration-200 ${
                                         focusedField === 'login'
-                                            ? 'border-blue-400 ring-2 ring-blue-100'
+                                            ? 'border-emerald-400 ring-2 ring-emerald-100'
                                             : 'border-slate-300'
                                     }`}
                                     placeholder="you@example.com"
@@ -193,7 +201,7 @@ export default function Login({ status, errors }) {
                                         onBlur={() => setFocusedField(null)}
                                         className={`h-11 text-sm border rounded-lg pr-12 transition-all duration-200 ${
                                             focusedField === 'password'
-                                                ? 'border-blue-400 ring-2 ring-blue-100'
+                                                ? 'border-emerald-400 ring-2 ring-emerald-100'
                                                 : 'border-slate-300'
                                         }`}
                                         placeholder="Enter your password"
@@ -222,21 +230,21 @@ export default function Login({ status, errors }) {
                                         id="remember"
                                         checked={data.remember}
                                         onCheckedChange={(checked) => setData('remember', checked)}
-                                        className="border-slate-300 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
+                                        className="border-slate-300 data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600"
                                     />
                                     <Label htmlFor="remember" className="text-sm text-slate-500 cursor-pointer select-none">
                                         Remember me
                                     </Label>
                                 </div>
-                                <a href="#" className="text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors">
-                                    Forgot password?
-                                </a>
                             </div>
+                            <p className="text-xs text-slate-500">
+                                Forgot your password? Contact ZimRent support to reset it.
+                            </p>
 
                             <Button
                                 type="submit"
                                 disabled={processing}
-                                className="w-full h-11 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold text-sm rounded-lg shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-semibold text-sm rounded-lg shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 {processing ? (
                                     <span className="flex items-center gap-2">
@@ -262,7 +270,7 @@ export default function Login({ status, errors }) {
                                 {demoAccounts.map((account) => (
                                     <div
                                         key={account.label}
-                                        className="flex items-center justify-between bg-white rounded-lg px-4 py-2.5 border border-slate-200 cursor-pointer hover:border-blue-200 hover:shadow-sm transition-all duration-200 group"
+                                        className="flex items-center justify-between bg-white rounded-lg px-4 py-2.5 border border-slate-200 cursor-pointer hover:border-emerald-200 hover:shadow-sm transition-all duration-200 group"
                                         onClick={() => fillDemo(account.sub)}
                                     >
                                         <div className="flex items-center gap-3">
@@ -274,15 +282,22 @@ export default function Login({ status, errors }) {
                                                 <p className="text-xs text-slate-500">{account.sub}</p>
                                             </div>
                                         </div>
-                                        <svg className="w-4 h-4 text-slate-300 group-hover:text-blue-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
+                                        <svg className="w-4 h-4 text-slate-300 group-hover:text-emerald-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
                                     </div>
                                 ))}
                             </CardContent>
                         </Card>
 
                         {/* Footer */}
-                        <p className="mt-8 text-xs text-slate-400 text-center">
-                            &copy; {new Date().getFullYear()} Dzimba Property Platform. All rights reserved.
+                        <p className="mt-6 text-sm text-slate-500 text-center">
+                            New to ZimRent?{' '}
+                            <Link href={route('register')} className="font-medium text-emerald-600 hover:text-emerald-700 transition-colors">
+                                Create a free tenant account
+                            </Link>
+                        </p>
+
+                        <p className="mt-4 text-xs text-slate-400 text-center">
+                            &copy; {new Date().getFullYear()} ZimRent Property Platform. All rights reserved.
                         </p>
                     </div>
                 </div>

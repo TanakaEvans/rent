@@ -67,7 +67,7 @@ export default function SectionsIndex({ auth, sections, departments, employees }
                     </div>
                     <button
                         onClick={openCreateModal}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
                     >
                         + Add New Section
                     </button>
@@ -99,7 +99,7 @@ export default function SectionsIndex({ auth, sections, departments, employees }
                                         <td className="px-6 py-4">
                                             {section.head ? (
                                                 <div className="flex items-center gap-2">
-                                                    <div className="w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs">
+                                                    <div className="w-6 h-6 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-xs">
                                                         {section.head.first_name.charAt(0)}
                                                     </div>
                                                     <span className="text-sm text-gray-700">{section.head.first_name} {section.head.last_name}</span>
@@ -112,7 +112,7 @@ export default function SectionsIndex({ auth, sections, departments, employees }
                                             <div className="flex items-center gap-2">
                                                 <button
                                                     onClick={() => openEditModal(section)}
-                                                    className="text-blue-600 hover:bg-blue-50 p-2 rounded-lg transition-colors"
+                                                    className="text-emerald-600 hover:bg-emerald-50 p-2 rounded-lg transition-colors"
                                                     title="Edit"
                                                 >
                                                     ✏️
@@ -147,7 +147,7 @@ export default function SectionsIndex({ auth, sections, departments, employees }
                                         key={i}
                                         onClick={() => link.url && router.get(link.url, {}, { preserveState: true, preserveScroll: true })}
                                         className={`px-3 py-1 rounded border ${link.active
-                                            ? 'bg-blue-600 text-white border-blue-600'
+                                            ? 'bg-emerald-600 text-white border-emerald-600'
                                             : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'} 
                                         ${!link.url && 'opacity-50 cursor-not-allowed'}`}
                                         dangerouslySetInnerHTML={{ __html: link.label }}
@@ -177,7 +177,7 @@ export default function SectionsIndex({ auth, sections, departments, employees }
                                     type="text"
                                     value={data.name}
                                     onChange={e => setData('name', e.target.value)}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
                                     required
                                 />
                                 {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
@@ -188,7 +188,7 @@ export default function SectionsIndex({ auth, sections, departments, employees }
                                 <select
                                     value={data.department_id}
                                     onChange={e => setData('department_id', e.target.value)}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
                                     required
                                 >
                                     <option value="">Select Department</option>
@@ -204,7 +204,7 @@ export default function SectionsIndex({ auth, sections, departments, employees }
                                 <select
                                     value={data.head_id}
                                     onChange={e => setData('head_id', e.target.value)}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
                                 >
                                     <option value="">Select Head</option>
                                     {employees.map(emp => (
@@ -219,7 +219,7 @@ export default function SectionsIndex({ auth, sections, departments, employees }
                                 <textarea
                                     value={data.description}
                                     onChange={e => setData('description', e.target.value)}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
                                     rows="3"
                                 />
                             </div>
@@ -235,7 +235,7 @@ export default function SectionsIndex({ auth, sections, departments, employees }
                                 <button
                                     type="submit"
                                     disabled={processing}
-                                    className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors disabled:opacity-50"
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-lg transition-colors disabled:opacity-50"
                                 >
                                     {processing ? 'Saving...' : 'Save Section'}
                                 </button>

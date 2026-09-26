@@ -29,7 +29,7 @@ function Actions({ placement }) {
                 )}
                 {placement.status === 'active' && (
                     <button
-                        onClick={() => post('admin.advertising.pause', { placement: placement.id })}
+                        onClick={() => post('admin.advertising.pause', { placement: placement.id }, body, () => setNote(''))}
                         className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-700 transition-colors hover:bg-amber-100"
                     >
                         <Pause className="h-3.5 w-3.5" /> Pause
@@ -37,7 +37,7 @@ function Actions({ placement }) {
                 )}
                 {placement.status === 'paused' && (
                     <button
-                        onClick={() => post('admin.advertising.resume', { placement: placement.id })}
+                        onClick={() => post('admin.advertising.resume', { placement: placement.id }, body, () => setNote(''))}
                         className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-emerald-500"
                     >
                         <Play className="h-3.5 w-3.5" /> Resume
@@ -45,7 +45,7 @@ function Actions({ placement }) {
                 )}
                 {['reserved', 'active', 'paused'].includes(placement.status) && (
                     <button
-                        onClick={() => post('admin.advertising.cancel', { placement: placement.id }, body)}
+                        onClick={() => post('admin.advertising.cancel', { placement: placement.id }, body, () => setNote(''))}
                         className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-700 transition-colors hover:bg-rose-100"
                     >
                         <XCircle className="h-3.5 w-3.5" /> Cancel
@@ -64,7 +64,7 @@ function Actions({ placement }) {
     );
 }
 
-export default function AdminAdvertising({ pending = [], live = [], history = [] }) {
+export default function AdminAdvertising({ pending = [], live = [], history = [], errors = {} }) {
     const pendingValue = pending.reduce((sum, p) => sum + Number(p.amount || 0), 0);
     return (
         <AdminLayout title="Ad Placements">
@@ -77,6 +77,10 @@ export default function AdminAdvertising({ pending = [], live = [], history = []
                     time-bounded and cleaned daily by the scheduler.
                 </p>
             </div>
+
+            {(errors.status || errors.note) && (
+                <p className="mb-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">{errors.status || errors.note}</p>
+            )}
 
             <div className="mb-8 grid gap-4 sm:grid-cols-3">
                 <StatCard icon={Clock3} label="Awaiting approval" value={String(pending.length)} hint="Reserved orders" tone="amber" />

@@ -1,6 +1,5 @@
-import { Head } from '@inertiajs/react';
-import { router } from '@inertiajs/react';
-import { BadgeDollarSign, Sparkles, Check, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { Head, router, usePage } from '@inertiajs/react';
+import { BadgeDollarSign, Sparkles, Check, ArrowUpRight, ArrowDownRight, RefreshCw, CalendarClock } from 'lucide-react';
 import MainLayout from '@/Layouts/MainLayout';
 import StatusBadge from '@/Components/Shared/StatusBadge';
 import { Button } from '@/Components/ui/button';
@@ -11,10 +10,13 @@ const cycleLabel = (cycle) => (cycle === 'annual' ? '/yr' : '/mo');
 const fmt = (value) => (value ? new Date(value).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
 const limitLabel = (limit) => (limit === null ? 'Unlimited listings' : `${limit} ${limit === 1 ? 'listing' : 'listings'}`);
 
-export default function OwnerSubscriptionsIndex({ current, usage, plans = [], invoices = [], proration_mode = 'credit_new_invoice' }) {
+export default function OwnerSubscriptionsIndex({ current, usage, plans = [], invoices = [], proration_mode = 'credit_new_invoice', pending_change = null }) {
+    const { errors = {} } = usePage().props;
     const plan = current?.plan;
     const isCurrent = (id) => plan?.id === id;
     const blocked = current?.status === 'suspended';
+    const lapsed = ['grace', 'suspended'].includes(current?.status);
+    const graceUntil = current?.details?.grace_until;
     const usedPct = usage.limit ? Math.min(100, Math.round(((usage.published || 0) / usage.limit) * 100)) : 0;
 
     const subscribe = (planId) => router.post(route('owner.subscriptions.subscribe'), { plan_id: planId });
@@ -54,7 +56,9 @@ export default function OwnerSubscriptionsIndex({ current, usage, plans = [], in
                                 {money(plan?.price)}
                                 <span className="text-sm font-semibold text-muted-foreground">{cycleLabel(plan?.billing_cycle)}</span>
                             </span>
-                            <span className="text-xs font-semibold text-muted-foreground">Renews {fmt(current?.ends_at)}</span>
+                            <span className="text-xs font-semibold text-muted-foreground">
+                                {lapsed ? `Expired ${fmt(current?.ends_at)}` : `Renews ${fmt(current?.ends_at)}`}
+                            </span>
                         </div>
                     </div>
 
@@ -68,7 +72,26 @@ export default function OwnerSubscriptionsIndex({ current, usage, plans = [], in
 
                     {blocked && (
                         <p className="mt-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm font-medium text-rose-700">
-                            Your subscription is suspended. Choose a plan below to resume publishing.
+                            Your subscription is suspended. Renew your plan or choose another plan below to resume publishing.
+                        </p>
+                    )}
+
+                    {current?.status === 'grace' && (
+                        <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm font-medium text-amber-800">
+                            Your plan has expired and is in its grace period{graceUntil ? ` until ${fmt(graceUntil)}` : ''}. Renew now to keep your listings live.
+                        </p>
+                    )}
+
+                    {pending_change && (
+                        <p className="mt-4 flex items-start gap-2 rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm font-medium text-sky-800">
+                            <CalendarClock className="mt-0.5 h-4 w-4 shrink-0" />
+                            Switches to {pending_change.plan_name || 'another plan'} on {fmt(pending_change.applies_at)}.
+                        </p>
+                    )}
+
+                    {errors.plan_id && (
+                        <p role="alert" className="mt-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm font-medium text-rose-700">
+                            {errors.plan_id}
                         </p>
                     )}
 
@@ -96,6 +119,9 @@ export default function OwnerSubscriptionsIndex({ current, usage, plans = [], in
                         {plans.map((plan) => {
                             const currentPlan = isCurrent(plan.id);
                             const upgrade = !currentPlan && Number(plan.price || 0) >= Number(current?.plan?.price || 0);
+                            const renewable = currentPlan && lapsed;
+                            const keepable = currentPlan && !lapsed && Boolean(pending_change);
+                            const pendingTarget = pending_change?.plan_id === plan.id;
                             return (
                                 <article key={plan.id} className="surface flex flex-col p-5">
                                     <div className="mb-2 flex items-center justify-between gap-2">
@@ -105,7 +131,12 @@ export default function OwnerSubscriptionsIndex({ current, usage, plans = [], in
                                                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> current
                                             </span>
                                         )}
-                                        {plan.analytics_enabled && !currentPlan && <Sparkles className="h-4 w-4 text-emerald-500" />}
+                                        {pendingTarget && (
+                                            <span className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[11px] font-semibold text-sky-700">
+                                                from {fmt(pending_change.applies_at)}
+                                            </span>
+                                        )}
+                                        {plan.analytics_enabled && !currentPlan && !pendingTarget && <Sparkles className="h-4 w-4 text-emerald-500" />}
                                     </div>
                                     <div className="mb-4">
                                         <span className="text-xl font-extrabold text-foreground">{money(plan.price)}</span>
@@ -121,11 +152,23 @@ export default function OwnerSubscriptionsIndex({ current, usage, plans = [], in
                     </ul>
                                     <Button
                                         className="mt-auto w-full"
-                                        variant={currentPlan ? 'outline' : 'default'}
-                                        disabled={currentPlan}
+                                        variant={currentPlan && !renewable ? 'outline' : 'default'}
+                                        disabled={(currentPlan && !renewable && !keepable) || pendingTarget}
                                         onClick={() => subscribe(plan.id)}
                                     >
-                                        {currentPlan ? 'Current plan' : upgrade ? (<><ArrowUpRight className="size-4" /> Upgrade</>) : (<><ArrowDownRight className="size-4" /> Switch</>)}
+                                        {renewable ? (
+                                            <><RefreshCw className="size-4" /> Renew</>
+                                        ) : keepable ? (
+                                            'Keep current plan'
+                                        ) : currentPlan ? (
+                                            'Current plan'
+                                        ) : pendingTarget ? (
+                                            'Scheduled'
+                                        ) : upgrade ? (
+                                            <><ArrowUpRight className="size-4" /> Upgrade</>
+                                        ) : (
+                                            <><ArrowDownRight className="size-4" /> Switch</>
+                                        )}
                                     </Button>
                                 </article>
                             );

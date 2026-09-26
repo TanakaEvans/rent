@@ -1,29 +1,25 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { Plus, MapPin, Pencil, Trash2, Home as HomeIcon, Building2, BadgeCheck, ArrowRight } from 'lucide-react';
+import { Plus, MapPin, Pencil, Trash2, Home as HomeIcon, BadgeCheck, ArrowRight, CalendarClock, RefreshCw } from 'lucide-react';
 import MainLayout from '@/Layouts/MainLayout';
 import StatusBadge from '@/Components/Shared/StatusBadge';
 import PropertyArt from '@/Components/Shared/PropertyArt';
 import EmptyState from '@/Components/Shared/EmptyState';
+import ActionErrors from '@/Components/Shared/ActionErrors';
 import { Button, buttonVariants } from '@/Components/ui/button';
 import { cn } from '@/lib/utils';
+import { TYPE_LABELS as typeLabels, formatPrice, priceSuffix } from '@/lib/listing';
 
-const typeLabels = {
-    house: 'House',
-    flat: 'Flat / Apartment',
-    townhouse: 'Townhouse',
-    cottage: 'Cottage',
-    room: 'Room',
-    commercial: 'Commercial',
-    land: 'Land',
-};
-
-const formatPrice = (value) => '$' + Number(value).toLocaleString();
+const formatDay = (value) => new Date(value).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 
 export default function PropertiesIndex({ auth, properties = [] }) {
     const destroy = (property) => {
         if (confirm(`Delete "${property.title}"? This cannot be undone.`)) {
-            router.delete(route('owner.properties.destroy', property.id));
+            router.delete(route('owner.properties.destroy', property.id), { preserveScroll: true });
         }
+    };
+
+    const renew = (property) => {
+        router.post(route('owner.properties.renew', property.id));
     };
 
     return (
@@ -39,6 +35,8 @@ export default function PropertiesIndex({ auth, properties = [] }) {
                     <Plus className="h-4 w-4" /> List a New Property
                 </Link>
             </div>
+
+            <ActionErrors className="mb-5" />
 
             {properties.length === 0 ? (
                 <EmptyState
@@ -79,7 +77,7 @@ export default function PropertiesIndex({ auth, properties = [] }) {
                                 </p>
 
                                 <div className="mt-2 text-sm font-bold text-foreground">
-                                    {formatPrice(property.price)}<span className="font-semibold text-muted-foreground">/mo</span>
+                                    {formatPrice(property.price, property.currency)}<span className="font-semibold text-muted-foreground">{priceSuffix(property.payment_terms)}</span>
                                 </div>
 
                                 <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
@@ -88,6 +86,15 @@ export default function PropertiesIndex({ auth, properties = [] }) {
                                     <span>· {property.applications_count ?? 0} applications</span>
                                 </div>
 
+                                {property.listing?.expires_at && (property.status === 'available' || property.listing.expired) && (
+                                    <p className={cn('mt-2 flex items-center gap-1.5 text-[11px] font-semibold', property.listing.expired ? 'text-amber-700' : 'text-muted-foreground')}>
+                                        <CalendarClock className="h-3 w-3 shrink-0" />
+                                        {property.listing.expired
+                                            ? `Expired on ${formatDay(property.listing.expires_at)}`
+                                            : `Listed until ${formatDay(property.listing.expires_at)}`}
+                                    </p>
+                                )}
+
                                 <div className="mt-auto flex items-center gap-2 pt-5">
                                     <Link href={route('owner.properties.show', property.id)} className={cn(buttonVariants({ size: 'sm' }), 'flex-1')}>
                                         View <ArrowRight className="h-3.5 w-3.5" />
@@ -95,6 +102,11 @@ export default function PropertiesIndex({ auth, properties = [] }) {
                                     <Link href={route('owner.properties.edit', property.id)} className={cn(buttonVariants({ variant: 'outline', size: 'sm' }))}>
                                         <Pencil className="h-3.5 w-3.5" /> Edit
                                     </Link>
+                                    {property.listing?.expired && property.listing.can_renew && (
+                                        <Button variant="outline" size="sm" onClick={() => renew(property)} title="Renew listing">
+                                            <RefreshCw className="h-3.5 w-3.5" /> Renew
+                                        </Button>
+                                    )}
                                     <Button variant="ghost" size="sm" onClick={() => destroy(property)} className="text-rose-600 hover:bg-rose-50 hover:text-rose-700">
                                         <Trash2 className="h-3.5 w-3.5" />
                                     </Button>

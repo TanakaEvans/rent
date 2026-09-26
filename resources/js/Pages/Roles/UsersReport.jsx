@@ -35,7 +35,7 @@ export default function UsersReport({ auth, users, roles }) {
                                     <tr key={user.id} className="hover:bg-gray-50 transition-colors">
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-semibold text-sm">
+                                                <div className="w-8 h-8 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center font-semibold text-sm">
                                                     {user.name.charAt(0)}
                                                 </div>
                                                 <div>
@@ -50,7 +50,7 @@ export default function UsersReport({ auth, users, roles }) {
                                                     user.roles.map((role) => (
                                                         <span
                                                             key={role.id}
-                                                            className="px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded-md border border-blue-100"
+                                                            className="px-2 py-1 bg-emerald-50 text-emerald-700 text-xs rounded-md border border-emerald-100"
                                                         >
                                                             {role.name}
                                                         </span>
@@ -88,7 +88,7 @@ export default function UsersReport({ auth, users, roles }) {
                                     preserveState
                                     preserveScroll
                                     className={`px-3 py-1 rounded border ${link.active
-                                        ? 'bg-blue-600 text-white border-blue-600'
+                                        ? 'bg-emerald-600 text-white border-emerald-600'
                                         : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'} 
                                         ${!link.url && 'opacity-50 cursor-not-allowed'}`}
                                     dangerouslySetInnerHTML={{ __html: link.label }}

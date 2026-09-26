@@ -51,6 +51,17 @@ class AdPlacementController extends Controller
     }
 
     /**
+     * The owner withdraws one of their own orders still awaiting approval.
+     */
+    public function ownerCancel(Request $request, int $placement)
+    {
+        $this->advertisements->cancelByOwner($request->user(), AdPlacement::findOrFail($placement));
+
+        return redirect()->route('owner.advertising.index')
+            ->with('success', 'Order cancelled — the full amount was credited and the slot is free to book again.');
+    }
+
+    /**
      * Admin moderation & approval queue.
      */
     public function adminIndex(): Response

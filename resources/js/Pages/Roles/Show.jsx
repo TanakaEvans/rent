@@ -24,7 +24,7 @@ export default function RolesShow({ auth, role, routesByModule = {} }) {
 
     const getModuleColor = (module) => {
         const colors = {
-            'Authentication & User Management': 'border-blue-200 bg-blue-50',
+            'Authentication & User Management': 'border-emerald-200 bg-emerald-50',
             'Dashboard & Analytics': 'border-green-200 bg-green-50',
             'Academic Management': 'border-purple-200 bg-purple-50',
             'Student Portal': 'border-indigo-200 bg-indigo-50',
@@ -42,7 +42,7 @@ export default function RolesShow({ auth, role, routesByModule = {} }) {
     const getMethodColor = (method) => {
         const colors = {
             'GET': 'bg-green-100 text-green-800',
-            'POST': 'bg-blue-100 text-blue-800',
+            'POST': 'bg-emerald-100 text-emerald-800',
             'PUT': 'bg-yellow-100 text-yellow-800',
             'PATCH': 'bg-orange-100 text-orange-800',
             'DELETE': 'bg-red-100 text-red-800'
@@ -75,7 +75,7 @@ export default function RolesShow({ auth, role, routesByModule = {} }) {
                 <div className="bg-white rounded-xl shadow-sm p-6">
                     <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                         <div className="flex items-start gap-4">
-                            <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center text-white text-2xl font-bold">
+                            <div className="w-16 h-16 bg-gradient-to-br from-emerald-500 to-purple-600 rounded-xl flex items-center justify-center text-white text-2xl font-bold">
                                 {role.name.charAt(0)}
                             </div>
                             <div>
@@ -115,9 +115,9 @@ export default function RolesShow({ auth, role, routesByModule = {} }) {
                         <div className="bg-white rounded-xl shadow-sm p-6">
                             <h3 className="text-lg font-semibold text-gray-900 mb-4">📊 Quick Stats</h3>
                             <div className="space-y-3">
-                                <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
-                                    <span className="text-blue-700 font-medium">Total Permissions</span>
-                                    <span className="text-blue-900 font-bold">{totalRoutes}</span>
+                                <div className="flex justify-between items-center p-3 bg-emerald-50 rounded-lg">
+                                    <span className="text-emerald-700 font-medium">Total Permissions</span>
+                                    <span className="text-emerald-900 font-bold">{totalRoutes}</span>
                                 </div>
                                 <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
                                     <span className="text-green-700 font-medium">Active Modules</span>
@@ -136,7 +136,7 @@ export default function RolesShow({ auth, role, routesByModule = {} }) {
                             <select
                                 value={selectedModule}
                                 onChange={(e) => setSelectedModule(e.target.value)}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
                             >
                                 <option value="all">All Modules ({totalModules})</option>
                                 {Object.entries(routesByModule).map(([module, routes]) => (
@@ -160,11 +160,11 @@ export default function RolesShow({ auth, role, routesByModule = {} }) {
                                             href={route('auth.users.show', user.id)}
                                             className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg transition-colors group"
                                         >
-                                            <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white text-sm font-semibold">
+                                            <div className="w-8 h-8 bg-emerald-600 rounded-full flex items-center justify-center text-white text-sm font-semibold">
                                                 {user.name.charAt(0)}
                                             </div>
                                             <div className="flex-1 min-w-0">
-                                                <div className="font-medium text-gray-900 text-sm truncate group-hover:text-blue-600">{user.name}</div>
+                                                <div className="font-medium text-gray-900 text-sm truncate group-hover:text-emerald-600">{user.name}</div>
                                                 <div className="text-xs text-gray-500 truncate">@{user.username}</div>
                                             </div>
                                             <span className={`px-2 py-0.5 text-xs rounded-full ${user.status === 'active'
@@ -203,7 +203,7 @@ export default function RolesShow({ auth, role, routesByModule = {} }) {
                                         placeholder="Search permissions..."
                                         value={searchTerm}
                                         onChange={(e) => setSearchTerm(e.target.value)}
-                                        className="w-64 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        className="w-64 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
                                     />
                                 </div>
                             </div>
@@ -215,7 +215,7 @@ export default function RolesShow({ auth, role, routesByModule = {} }) {
                                     <div className="text-gray-500 mb-4">This role has no route permissions assigned.</div>
                                     <Link
                                         href={route('auth.roles.edit', role.id)}
-                                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
+                                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg transition-colors"
                                     >
                                         Assign Permissions
                                     </Link>

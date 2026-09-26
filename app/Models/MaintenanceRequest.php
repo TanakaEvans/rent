@@ -38,6 +38,7 @@ class MaintenanceRequest extends Model
             'escalated_at' => 'datetime',
             'tenant_confirmed_at' => 'datetime',
             'resolved_at' => 'datetime',
+            'assigned_at' => 'datetime',
             'approved_quote' => 'decimal:2',
         ];
     }
@@ -94,6 +95,16 @@ class MaintenanceRequest extends Model
     public function actions()
     {
         return $this->hasMany(MaintenanceAction::class, 'request_id')->oldest();
+    }
+
+    /**
+     * The staff member's "take ownership" entry on the timeline, if any.
+     */
+    public function acknowledgement()
+    {
+        return $this->hasOne(MaintenanceAction::class, 'request_id')
+            ->where('action', 'acknowledged')
+            ->latest('id');
     }
 
     /**

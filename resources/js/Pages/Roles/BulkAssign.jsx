@@ -49,7 +49,7 @@ export default function BulkAssign({ auth, roles, users }) {
 
     const submit = (e) => {
         e.preventDefault();
-        post(route('roles.bulk-assign.store'));
+        post(route('auth.roles.bulk-assign.store'));
     };
 
     return (
@@ -80,7 +80,7 @@ export default function BulkAssign({ auth, roles, users }) {
                                 placeholder="Search roles..."
                                 value={roleSearch}
                                 onChange={(e) => setRoleSearch(e.target.value)}
-                                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
                             />
                             {errors.role_ids && <p className="text-red-500 text-sm mt-1">{errors.role_ids}</p>}
                         </div>
@@ -91,7 +91,7 @@ export default function BulkAssign({ auth, roles, users }) {
                                         type="checkbox"
                                         checked={data.role_ids.includes(role.id)}
                                         onChange={() => toggleRole(role.id)}
-                                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                        className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
                                     />
                                     <span className="text-gray-700 font-medium">{role.name}</span>
                                 </label>
@@ -108,7 +108,7 @@ export default function BulkAssign({ auth, roles, users }) {
                         <div className="mb-4">
                             <div className="flex justify-between items-center mb-2">
                                 <h2 className="text-lg font-semibold text-gray-900">2. Select Users</h2>
-                                <button type="button" onClick={selectAllUsers} className="text-sm text-blue-600 hover:text-blue-800">
+                                <button type="button" onClick={selectAllUsers} className="text-sm text-emerald-600 hover:text-emerald-800">
                                     Select/Deselect All Found
                                 </button>
                             </div>
@@ -117,7 +117,7 @@ export default function BulkAssign({ auth, roles, users }) {
                                 placeholder="Search users by name or email..."
                                 value={userSearch}
                                 onChange={(e) => setUserSearch(e.target.value)}
-                                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
                             />
                             {errors.user_ids && <p className="text-red-500 text-sm mt-1">{errors.user_ids}</p>}
                         </div>
@@ -128,12 +128,12 @@ export default function BulkAssign({ auth, roles, users }) {
                                         type="checkbox"
                                         checked={data.user_ids.includes(user.id)}
                                         onChange={() => toggleUser(user.id)}
-                                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                        className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
                                     />
                                     <div>
                                         <div className="text-gray-700 font-medium">{user.name}</div>
                                         <div className="text-xs text-gray-500">{user.email}</div>
-                                        <div className="text-xs text-blue-400">
+                                        <div className="text-xs text-emerald-400">
                                             {user.roles && user.roles.map(r => r.name).join(', ')}
                                         </div>
                                     </div>
@@ -150,7 +150,7 @@ export default function BulkAssign({ auth, roles, users }) {
                         <button
                             type="submit"
                             disabled={processing || data.role_ids.length === 0 || data.user_ids.length === 0}
-                            className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-semibold shadow-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 rounded-lg font-semibold shadow-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             {processing ? 'Assigning...' : 'Assign Selected Roles to Selected Users'}
                         </button>

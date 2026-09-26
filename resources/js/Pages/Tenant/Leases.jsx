@@ -5,12 +5,10 @@ import PropertyArt from '@/Components/Shared/PropertyArt';
 import StatusBadge from '@/Components/Shared/StatusBadge';
 import EmptyState from '@/Components/Shared/EmptyState';
 import LeaseSignPad from '@/Components/Shared/LeaseSignPad';
+import { formatPrice, priceSuffix, PAYMENT_TERM_LABELS } from '@/lib/listing';
 
-const money = (value) => new Intl.NumberFormat('en-ZW', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 2,
-}).format(Number(value || 0));
+const leaseCurrency = (lease) => lease.currency || lease.property?.currency || 'USD';
+const leaseTerm = (lease) => lease.payment_terms?.frequency || lease.property?.payment_terms || 'monthly';
 
 const fmt = (value) => (value ? new Date(value).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
 
@@ -98,8 +96,8 @@ export default function TenantLeases({ leases = [] }) {
                                         </span>
                                         <div>
                                             <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Terms</p>
-                                            <p className="text-sm font-bold text-foreground">{money(lease.rent_amount)} / month</p>
-                                            <p className="text-xs text-muted-foreground">Deposit {money(lease.deposit_amount)}</p>
+                                            <p className="text-sm font-bold text-foreground">{formatPrice(lease.rent_amount, leaseCurrency(lease))}{priceSuffix(leaseTerm(lease))}</p>
+                                            <p className="text-xs text-muted-foreground">Deposit {formatPrice(lease.deposit_amount || 0, leaseCurrency(lease))}</p>
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2.5">
@@ -164,7 +162,7 @@ export default function TenantLeases({ leases = [] }) {
                                     {lease.status === 'active' && (
                                         <div className="flex flex-wrap items-center gap-2.5">
                                             <p className="flex items-center gap-1.5 text-sm font-medium text-emerald-700">
-                                                <CheckCircle2 className="h-4 w-4" /> Lease active — rent is invoiced monthly.
+                                                <CheckCircle2 className="h-4 w-4" /> Lease active — rent is invoiced {(PAYMENT_TERM_LABELS[leaseTerm(lease)] || 'Monthly').toLowerCase()}.
                                             </p>
                                             <Link href={route('tenant.rent.index')} className="inline-flex items-center gap-1 text-xs font-bold text-primary hover:text-primary/80">
                                                 View rent invoices <ArrowUpRight className="h-3.5 w-3.5" />
@@ -174,6 +172,11 @@ export default function TenantLeases({ leases = [] }) {
                                     {lease.status === 'renewed' && (
                                         <p className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
                                             <FileText className="h-4 w-4" /> This lease was renewed — see the newer agreement above.
+                                        </p>
+                                    )}
+                                    {lease.status === 'terminated' && (
+                                        <p className="flex items-center gap-1.5 text-sm font-medium text-rose-700">
+                                            <FileText className="h-4 w-4" /> This lease ended{lease.terminated_on ? ` on ${fmt(lease.terminated_on)}` : ''}{lease.termination_reason ? ` — ${lease.termination_reason}` : '.'}
                                         </p>
                                     )}
                                 </div>

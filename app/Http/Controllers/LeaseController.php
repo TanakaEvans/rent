@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Lease;
+use App\Models\Property;
 use App\Models\RentalApplication;
 use App\Services\LeaseService;
 use Illuminate\Http\Request;
@@ -67,6 +68,24 @@ class LeaseController extends Controller
         $this->service->renew($request->user(), $lease->id, $validated);
 
         return redirect()->route('owner.leases.index')->with('success', 'Renewal lease drafted — send it for signing when ready.');
+    }
+
+    /**
+     * End an active lease with its end date and reason (owner).
+     */
+    public function terminate(Request $request, Lease $lease)
+    {
+        $validated = $request->validate([
+            'terminated_on' => ['required', 'date', 'before_or_equal:today'],
+            'reason' => ['required', 'string', 'max:1000'],
+        ]);
+
+        $ended = $this->service->terminate($request->user(), $lease->id, $validated);
+
+        return redirect()->route('owner.leases.index')->with(
+            'success',
+            'Lease '.$ended->lease_no.' ended. The property is now '.strtolower(Property::STATUSES[$ended->property->status]).'.'
+        );
     }
 
     /**

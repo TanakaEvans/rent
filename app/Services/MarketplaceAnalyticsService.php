@@ -10,6 +10,7 @@ use App\Models\SavedSearch;
 use App\Models\Enquiry;
 use App\Models\User;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Read-side marketplace analytics for owners (per property performance) and
@@ -85,7 +86,14 @@ class MarketplaceAnalyticsService
     {
         $last30 = now()->subDays(29)->startOfDay();
 
-        $listed = Property::listed()->get(['id', 'property_type', 'price', 'building_size', 'verified', 'featured', 'created_at']);
+        $listed = Property::listed()
+            ->selectRaw('COUNT(*) as total')
+            ->selectRaw('SUM(CASE WHEN featured = 1 THEN 1 ELSE 0 END) as featured')
+            ->selectRaw('SUM(CASE WHEN verified = 1 THEN 1 ELSE 0 END) as verified')
+            ->selectRaw('AVG(price) as avg_price')
+            ->selectRaw('AVG(CASE WHEN building_size > 0 THEN price / building_size END) as avg_price_per_m2')
+            ->toBase()
+            ->first();
 
         $viewsByDay = PropertyView::query()
             ->where('viewed_at', '>=', $last30)
@@ -101,50 +109,57 @@ class MarketplaceAnalyticsService
             $trend[] = ['day' => $day, 'views' => (int) ($viewsByDay[$day] ?? 0)];
         }
 
-        $mostViewed = PropertyView::query()
+        $viewCounts = PropertyView::query()
             ->where('viewed_at', '>=', $last30)
             ->select('property_id')
             ->selectRaw('COUNT(*) as views')
-            ->groupBy('property_id')
-            ->orderByRaw('COUNT(*) desc')
-            ->limit(5)
-            ->get()
-            ->map(function ($row) {
-                $property = Property::with('owner:id,name')->find($row->property_id);
-                if (! $property) {
-                    return null;
-                }
+            ->groupBy('property_id');
 
-                return [
+        $top = (clone $viewCounts)->orderByRaw('COUNT(*) desc')->orderByDesc('property_id')->limit(5)->get();
+        $topProperties = Property::whereIn('id', $top->pluck('property_id'))->get(['id', 'title', 'suburb', 'city'])->keyBy('id');
+        $mostViewed = $top
+            ->map(function ($row) use ($topProperties) {
+                $property = $topProperties->get($row->property_id);
+
+                return $property ? [
                     'id' => $property->id,
                     'title' => $property->title,
                     'suburb' => $property->suburb,
                     'city' => $property->city,
                     'views' => (int) $row->views,
-                ];
+                ] : null;
             })
             ->filter()
             ->values();
 
-        $topAreas = PropertyView::query()
-            ->join('properties', 'properties.id', '=', 'property_views.property_id')
-            ->where('property_views.viewed_at', '>=', $last30)
-            ->selectRaw("TRIM(CONCAT(COALESCE(properties.suburb, ''), ' ', COALESCE(properties.city, ''))) as area")
-            ->selectRaw('COUNT(*) as views')
-            ->groupBy('area')
-            ->havingRaw("area <> ''")
-            ->orderByRaw('COUNT(*) desc')
-            ->limit(5)
-            ->get();
+        // Views are counted per listing first (uses the viewed_at index), then rolled up by area.
+        $topAreas = DB::query()
+            ->fromSub($viewCounts, 'v')
+            ->join('properties', 'properties.id', '=', 'v.property_id')
+            ->select('properties.suburb', 'properties.city')
+            ->selectRaw('SUM(v.views) as views')
+            ->groupBy('properties.suburb', 'properties.city')
+            ->orderByRaw('SUM(v.views) desc')
+            ->limit(6)
+            ->get()
+            ->map(fn ($row) => ['area' => trim(($row->suburb ?? '').' '.($row->city ?? '')), 'views' => (int) $row->views])
+            ->filter(fn (array $row) => $row['area'] !== '')
+            ->take(5)
+            ->values();
 
-        $byType = $listed->groupBy('property_type')->map->count();
+        $byType = Property::listed()
+            ->select('property_type')
+            ->selectRaw('COUNT(*) as total')
+            ->groupBy('property_type')
+            ->pluck('total', 'property_type')
+            ->map(fn ($total) => (int) $total);
 
         return [
             'totals' => [
                 'listings' => (int) Property::count(),
-                'listed' => $listed->count(),
-                'featured' => (int) $listed->where('featured', true)->count(),
-                'verified' => (int) $listed->where('verified', true)->count(),
+                'listed' => (int) $listed->total,
+                'featured' => (int) $listed->featured,
+                'verified' => (int) $listed->verified,
                 'views30d' => (int) PropertyView::where('viewed_at', '>=', $last30)->count(),
                 'openReports' => (int) Report::whereIn('status', ['open', 'under_review'])->count(),
                 'savedSearches' => (int) SavedSearch::count(),
@@ -154,8 +169,8 @@ class MarketplaceAnalyticsService
                     ->whereHas('roles', fn ($q) => $q->where('name', 'Tenant'))
                     ->count(),
             ],
-            'avgPrice' => round((float) $listed->avg('price'), 2),
-            'avgPricePerM2' => round((float) $listed->filter(fn ($p) => (int) $p->building_size > 0)->avg(fn ($p) => (float) $p->price / (float) $p->building_size), 2),
+            'avgPrice' => round((float) $listed->avg_price, 2),
+            'avgPricePerM2' => round((float) $listed->avg_price_per_m2, 2),
             'byType' => $byType,
             'trend' => $trend,
             'mostViewed' => $mostViewed,

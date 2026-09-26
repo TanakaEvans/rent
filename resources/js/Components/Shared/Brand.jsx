@@ -1,22 +1,22 @@
 import { House } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-export default function Brand({ dark = false, showText = true, size = 40, className }) {
+export default function Brand({ dark = false, showText = true, size = 36, className }) {
     return (
         <div className={cn('flex items-center gap-2.5', className)}>
             <div
-                className="relative grid shrink-0 place-items-center rounded-xl brand-gradient shadow-[0_8px_20px_-8px_rgba(10,140,100,0.55)] ring-1 ring-white/15"
+                className={cn('relative grid shrink-0 place-items-center rounded-[10px]', dark ? 'bg-white text-brand' : 'bg-brand text-white')}
                 style={{ width: size, height: size }}
             >
-                <House className="text-white" style={{ width: size * 0.5, height: size * 0.5 }} strokeWidth={2.2} />
-                <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-amber-400 ring-2 ring-[#0d3227]" />
+                <House style={{ width: size * 0.52, height: size * 0.52 }} strokeWidth={2.3} />
+                <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-pitch ring-2 ring-white" />
             </div>
             {showText && (
                 <div className="leading-tight">
-                    <div className={cn('text-lg font-extrabold tracking-tight', dark ? 'text-white' : 'text-foreground')}>
-                        Dzimba
+                    <div className={cn('text-[17px] font-bold tracking-tight', dark ? 'text-white' : 'text-slate-900')}>
+                        ZimRent
                     </div>
-                    <div className={cn('text-[10px] font-semibold uppercase tracking-[0.18em]', dark ? 'text-sidebar-accent-foreground/50' : 'text-muted-foreground')}>
+                    <div className={cn('text-[10px] font-medium uppercase tracking-[0.16em]', dark ? 'text-white/55' : 'text-slate-500')}>
                         Property Platform
                     </div>
                 </div>

@@ -54,6 +54,6 @@ class AdminReportController extends Controller
             return back()->withErrors($e->errors())->withInput();
         }
 
-        return back()->with('success', 'Report marked '.$status.'.');
+        return back()->with('success', 'Report marked '.mb_strtolower(\App\Models\Report::STATUSES[$status] ?? $status).'.');
     }
 }

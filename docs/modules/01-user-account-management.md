@@ -4,7 +4,7 @@
 
 ## 1. Purpose
 
-Manage every person who uses Dzimba: tenants, property owners, staff and administrators. It provides registration, authentication, roles, session security, password hygiene and account lifecycle controls.
+Manage every person who uses ZimRent: tenants, property owners, staff and administrators. It provides registration, authentication, roles, session security, password hygiene and account lifecycle controls.
 
 ## 2. Roles & Responsibilities
 
@@ -16,7 +16,7 @@ Manage every person who uses Dzimba: tenants, property owners, staff and adminis
 
 ## 3. Functional Requirements
 
-- FR-01 Register with name, email OR username, and password.
+- FR-01 Register with name, email OR username, and password. **Public self-service signup (S3)** creates a tenant: email lowercased, username auto-derived from the email local-part (sanitised `[a-z0-9._-]`, ≤60, numeric suffix on collision), `password_changed_at` stamped, **`Tenant` role assigned by default** (`assigned_by` null — no unassigned signups; staff/moderators stay invitation-only). Guests use `/register`; authenticated users bounce to their own dashboard.
 - FR-02 Authenticate by **email or username** plus password (bcrypt).
 - FR-03 Enforce password policy: minimum length, forced change on first login, expiry.
 - FR-04 Lockout after **7 failed attempts**; manual unlock by admin; reset attempts on success.
@@ -25,6 +25,8 @@ Manage every person who uses Dzimba: tenants, property owners, staff and adminis
 - FR-07 Admin can reset a user's password, toggle status and unlock (`/auth/management`).
 - FR-08 Record every login and logout in `auth_login_logs`.
 - FR-09 Role-aware redirect after login: Admin/Superuser → `/admin/dashboard`, Owner → `/owner`, Tenant → `/tenant`.
+- FR-10 **Tenant profile + KYC (S4/S5)**: a tenant maintains contact/employment/income/preferred-contact/about and uploads identity evidence (national ID card, driving licence) to the private disk; one scan per type, re-upload replaces and resets to `pending`; every change is audited.
+- FR-11 **Identity review (S5)**: Admin/Superuser approve, reject (with note) or revoke evidence through an explicit state machine (`pending → approved|rejected`, `approved → rejected`, rejected terminal). Decisions drive the **derived** `badge_tier` (full KYC→gold, basic→silver, any evidence→bronze) — there is no manual badge toggle. The tenant is notified in-app on every decision.
 
 ## 4. Non-Functional Requirements
 
@@ -52,6 +54,9 @@ Manage every person who uses Dzimba: tenants, property owners, staff and adminis
 | `auth_roles` | id, name (unique), description | Roles incl. Superuser, Admin, Owner, Tenant, Staff. |
 | `auth_user_roles` | user_id, role_id, assigned_by | Pivot; unique (user_id, role_id). |
 | `auth_login_logs` | user_id, ip_address, user_agent, login_at, logout_at | Session/audit trail. |
+| `tenant_profiles` (S4) | user_id (unique FK), phone, city, employment_status, salary_band, preferred_contact, about | Tenant's self-managed profile; created on first save, all fields optional. |
+| `identity_documents` (S4, review S5) | user_id, type (national_id/driving_licence), file_path, original_name, mime, size, status (pending/approved/rejected) | KYC evidence; private disk (`storage/app/private/kyc/…`, never public); unique (user_id, type) — re-upload replaces the file; **S5** adds the admin review state machine (pending→approved|rejected, approved→rejected) and derives `auth_users.badge_tier` from the approved types. |
+| `identity_document_audits` (S4/S5) | user_id, document_id (nullable, nullOnDelete), action (uploaded/replaced/removed/approved/rejected/revoked), actor_id, details | Immutable trail; survives document deletion; action widened to VARCHAR(20) in S5. |
 
 Relationships: `auth_users` hasMany `auth_user_roles` → belongsToMany `auth_roles`; a user can hold several roles concurrently (e.g. a tenant who also owns a property).
 
@@ -66,11 +71,14 @@ Relationships: `auth_users` hasMany `auth_user_roles` → belongsToMany `auth_ro
 | Route | Guard |
 |---|---|
 | /login | guest |
+| /register | guest |
 | /logout | auth |
 | /dashboard | auth (any role-holder) |
 | /admin/dashboard | auth + Admin/Superuser |
 | /owner | auth + Owner |
 | /tenant | auth + Tenant |
+| /tenant/profile (+ documents upload/delete/download, S4) | auth + Tenant (owner of the profile/KYC rows; Admin/Superuser may review others' — S5) |
+| /admin/kyc (+ approve/reject/revoke/download, S5) | auth + Admin/Superuser |
 | /auth/users, /auth/management/{user}/* | auth + Admin/Superuser |
 
 ## 9. Acceptance Criteria

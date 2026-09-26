@@ -8,6 +8,7 @@ use App\Models\PropertyFavourite;
 use App\Models\PropertyImage;
 use App\Models\RentalApplication;
 use App\Models\User;
+use App\Support\DemoPhotos;
 use Illuminate\Database\Seeder;
 
 class PropertySeeder extends Seeder
@@ -20,6 +21,18 @@ class PropertySeeder extends Seeder
         }
 
         $tenant = User::where('username', 'tenant')->first();
+
+        // S2 demo trust profile: the demo owner is identity-verified and, since
+        // S5, carries two approved KYC rows seeded by AuthSeeder, so the derived
+        // badge tier resolves to gold. This seeder only sets the staff-vouched
+        // `verified` flag plus landlord rating so the Top-rated sort and the
+        // tier badges have live data in the browser.
+        $owner->update([
+            'verified' => true,
+            'verified_at' => $owner->verified_at ?? now(),
+            'rating_avg' => 4.6,
+            'ratings_count' => 14,
+        ]);
 
         $properties = [
             [
@@ -116,6 +129,49 @@ class PropertySeeder extends Seeder
                 'verified' => true,
             ],
             [
+                'title' => '2 Bedroom Apartment in Avondale',
+                'building_size' => 96,
+                'floor_area' => 96,
+                'year_built' => 2018,
+                'zone' => 'Harare East',
+                'description' => 'Modern apartment in a gated complex with backup power, secure parking and a shared garden. Walking distance to shops and cafes.',
+                'property_type' => 'apartment',
+                'bedrooms' => 2,
+                'bathrooms' => 1,
+                'price' => 700,
+                'deposit' => 700,
+                'currency' => 'USD',
+                'payment_terms' => 'monthly',
+                'water_cost' => 25,
+                'electricity_cost' => 60,
+                'trash_cost' => 5,
+                'negotiable' => true,
+                'furnished' => false,
+                'entrance_type' => 'own',
+                'bathroom_type' => 'own',
+                'parking_type' => 'secure',
+                'families_allowed' => true,
+                'distance_to_cbd' => 6.5,
+                'security_type' => 'gated',
+                'children_allowed' => true,
+                'pets_allowed' => false,
+                'smoking_allowed' => false,
+                'parties_allowed' => false,
+                'minimum_stay' => 6,
+                'preferred_tenant' => 'professionals',
+                'landlord_type' => 'direct',
+                'contact_preference' => 'platform',
+                'show_phone' => false,
+                'landmark' => 'Near Avondale Shopping Centre',
+                'status' => 'available',
+                'suburb' => 'Avondale',
+                'city' => 'Harare',
+                'address' => '24 Seke Road',
+                'amenities' => ['backup_power', 'secure_parking', 'water_tank'],
+                'featured' => false,
+                'verified' => true,
+            ],
+            [
                 'title' => 'Office Space in Avondale',
                 'description' => 'Fitted office space with air conditioning, backup power and ample parking. Perfect for a small business.',
                 'property_type' => 'commercial',
@@ -143,6 +199,7 @@ class PropertySeeder extends Seeder
             'Townhouse near Bulawayo CBD' => ['latitude' => -20.1650, 'longitude' => 28.6050, 'available_from' => now()->addDays(14)],
             'Bachelor Room in Msasa' => ['latitude' => -17.8500, 'longitude' => 31.1167, 'available_from' => null],
             '4 Bedroom Family Home in Kumalo' => ['latitude' => -20.1740, 'longitude' => 28.5740, 'available_from' => now()->addDays(30)],
+            '2 Bedroom Apartment in Avondale' => ['latitude' => -17.7875, 'longitude' => 31.0157, 'available_from' => null],
             'Office Space in Avondale' => ['latitude' => -17.8000, 'longitude' => 31.0333, 'available_from' => now()->addDays(7)],
         ];
 
@@ -158,20 +215,17 @@ class PropertySeeder extends Seeder
             );
         }
 
-        // Photo gallery for every listing, so the marketplace and detail
-        // page render full carousels. Uses local SVG placeholders until the
-        // owner uploads real photos; the first image becomes the cover.
-        $imageFiles = ['house-1.svg', 'apartment-1.svg', 'townhouse-1.svg', 'room-1.svg', 'house-2.svg', 'office-1.svg'];
+        // Photo gallery for every listing (real photography, cover matched to
+        // the property type), so the marketplace and detail page render full
+        // carousels. Re-seeding replaces older placeholder images.
         foreach (Property::all() as $property) {
-            $paths = [];
-            foreach (range(0, 3) as $sort) {
-                $file = $imageFiles[($property->id + $sort) % count($imageFiles)];
-                $path = "/uploads/homes/{$file}";
-                PropertyImage::firstOrCreate(
+            $paths = DemoPhotos::forListing($property->property_type, $property->id);
+            PropertyImage::where('property_id', $property->id)->whereNotIn('path', $paths)->delete();
+            foreach ($paths as $sort => $path) {
+                PropertyImage::updateOrCreate(
                     ['property_id' => $property->id, 'path' => $path],
-                    ['caption' => 'Demo ' . ucfirst($property->property_type) . ' photo', 'sort_order' => $sort]
+                    ['caption' => $sort === 0 ? $property->title : null, 'sort_order' => $sort]
                 );
-                $paths[] = $path;
             }
             $property->update(['cover_image' => $paths[0]]);
         }
@@ -361,6 +415,24 @@ class PropertySeeder extends Seeder
                         ]
                     );
                     $owner->notify(new \App\Notifications\NewEnquiryNotification($demoEnquiry));
+                }
+
+                // Express-Interest queue (S6 — Presentation Release 2.0): one
+                // active lead and one contacted lead so the owner queue and
+                // the tenant's My Interests page both have demo content.
+                $interestTarget = $available->skip(3)->first();
+                if ($interestTarget) {
+                    \App\Models\ExpressInterest::firstOrCreate(
+                        ['property_id' => $interestTarget->id, 'tenant_id' => $tenant->id],
+                        ['note' => 'Please keep me informed — I would love to view this.', 'status' => 'interested']
+                    );
+                }
+                $contactedTarget = $available->skip(5)->first();
+                if ($contactedTarget) {
+                    \App\Models\ExpressInterest::firstOrCreate(
+                        ['property_id' => $contactedTarget->id, 'tenant_id' => $tenant->id],
+                        ['note' => 'Definitely interested in securing this for a December move-in.', 'status' => 'contacted']
+                    );
                 }
 
                 $slotTarget = $available->first();

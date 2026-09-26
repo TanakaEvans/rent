@@ -24,6 +24,7 @@ class MaintenanceController extends Controller
     {
         return Inertia::render('Tenant/Maintenance', [
             'requests' => $this->service->listForTenant($request->user()),
+            'stats' => $this->service->tenantStats($request->user()),
             'properties' => $this->service->reportableProperties($request->user()),
             'categories' => (array) app(\App\Services\ConfigurationService::class)
                 ->get('maintenance.categories', ['plumbing', 'electrical', 'appliance', 'structural', 'pest', 'safety', 'other']),
@@ -56,6 +57,7 @@ class MaintenanceController extends Controller
     {
         return Inertia::render('Owner/Maintenance/Index', [
             'requests' => $this->service->listForOwner($request->user()),
+            'stats' => $this->service->ownerStats($request->user()),
             'contractors' => $this->contractors->verifiedForAssign($request->user()),
         ]);
     }
@@ -78,23 +80,22 @@ class MaintenanceController extends Controller
     }
 
     /**
-     * The staff escalation queue for breached first-response SLAs.
+     * The staff desk: breached first-response SLAs, live emergencies and
+     * requests staff have already taken ownership of.
      */
     public function adminEscalations(Request $request)
     {
-        return Inertia::render('Admin/Maintenance/Escalations', [
-            'requests' => $this->service->listEscalationsForAdmin(),
-        ]);
+        return Inertia::render('Admin/Maintenance/Escalations', $this->service->listEscalationsForAdmin());
     }
 
     /**
-     * Take ownership of an escalated request (staff).
+     * Take ownership of an escalated or emergency request (staff).
      */
     public function adminAcknowledge(Request $request, MaintenanceRequest $maintenanceRequest)
     {
         $this->service->acknowledge($maintenanceRequest, $request->user());
 
-        return redirect()->back()->with('success', 'Escalation acknowledged — the case stays in the owner queue.');
+        return redirect()->back()->with('success', 'Ownership taken — the request moves to Acknowledged until the owner assigns a contractor.');
     }
 
     /**

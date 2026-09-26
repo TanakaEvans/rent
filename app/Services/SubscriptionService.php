@@ -132,6 +132,10 @@ class SubscriptionService
             return $this->startFreshSubscription($owner, $plan);
         }
 
+        if ((int) $current->plan_id === (int) $plan->id) {
+            return $this->reselectCurrentPlan($current, $plan);
+        }
+
         $currentCents = $this->cents($current->plan?->price ?? 0);
         $newCents = $this->cents($plan->price);
 
@@ -275,10 +279,72 @@ class SubscriptionService
     }
 
     /**
-     * Same-price plan switch: apply immediately, keep the cycle anchor.
+     * The owner picked the plan they are already on:
+     *  - in grace, the plan is renewed for a fresh cycle (full-price invoice);
+     *  - while active with a deferred change pending, the change is cancelled
+     *    and the owner keeps the current plan;
+     *  - otherwise there is nothing to change.
+     */
+    private function reselectCurrentPlan(Subscription $current, SubscriptionPlan $plan): Subscription
+    {
+        if ($current->status === 'grace') {
+            return $this->renew($current, $plan, 'renewed');
+        }
+
+        $details = $current->details ?? [];
+        if (! isset($details['pending_downgrade_to']) && ! isset($details['pending_upgrade_to'])) {
+            throw ValidationException::withMessages(['plan_id' => 'You are already on the '.$plan->name.' plan.']);
+        }
+
+        unset($details['pending_downgrade_to'], $details['pending_upgrade_to']);
+        $current->update(['details' => $details ?: null]);
+        $current->recordEvent('pending_change_cancelled', ['plan' => $plan->name]);
+
+        return $current->fresh(['plan']);
+    }
+
+    /**
+     * Reactivate a lapsed (grace) subscription on the given plan: a new cycle
+     * starts now and the full plan price is invoiced (free plans raise no
+     * invoice). Any deferred change and the grace marker are cleared.
+     */
+    private function renew(Subscription $current, SubscriptionPlan $plan, string $event): Subscription
+    {
+        return DB::transaction(function () use ($current, $plan, $event) {
+            $cycle = $plan->billing_cycle ?: $current->cycle ?: 'monthly';
+            $details = $current->details ?? [];
+            unset($details['pending_downgrade_to'], $details['pending_upgrade_to'], $details['grace_until']);
+
+            $current->update([
+                'plan_id' => $plan->id,
+                'status' => 'active',
+                'cycle' => $cycle,
+                'starts_at' => now(),
+                'ends_at' => $this->cycleEnd(now(), $cycle),
+                'details' => $details ?: null,
+            ]);
+            $current->recordEvent($event, ['plan' => $plan->name]);
+
+            $priceCents = $this->cents($plan->price);
+            if ($priceCents > 0) {
+                $this->issueInvoice($current, $priceCents, 'subscription', ['event' => $event]);
+            }
+
+            return $current->fresh(['plan']);
+        });
+    }
+
+    /**
+     * Same-price plan switch: apply immediately, keep the cycle anchor. A
+     * subscription in grace is reactivated on the new plan for a fresh,
+     * fully invoiced cycle instead.
      */
     private function switchEqual(Subscription $current, SubscriptionPlan $plan): Subscription
     {
+        if ($current->status === 'grace') {
+            return $this->renew($current, $plan, 'switched');
+        }
+
         $details = $current->details ?? [];
         unset($details['pending_downgrade_to'], $details['pending_upgrade_to']);
 
@@ -339,6 +405,8 @@ class SubscriptionService
                         'details' => $details ?: null,
                     ]);
                     $sub->recordEvent($target['event'], ['to_plan' => (string) $plan->id, 'at' => 'cycle_end']);
+                } elseif ($this->isFreePlan($sub)) {
+                    $this->rollFreeCycle($sub);
                 } else {
                     $details = $sub->details ?? [];
                     $details['grace_until'] = $sub->ends_at->copy()->addDays($this->graceDays())->toDateTimeString();
@@ -371,6 +439,8 @@ class SubscriptionService
                             'details' => $details ?: null,
                         ]);
                         $sub->recordEvent($target['event'], ['to_plan' => (string) $plan->id, 'at' => 'grace_end']);
+                    } elseif ($this->isFreePlan($sub)) {
+                        $this->rollFreeCycle($sub);
                     } else {
                         $sub->update(['status' => 'suspended']);
                         $sub->recordEvent('suspended');
@@ -380,6 +450,56 @@ class SubscriptionService
                 }
             }
         } while ($transitioned);
+    }
+
+    /**
+     * Whether the subscription is on a zero-price plan (never lapses).
+     */
+    private function isFreePlan(Subscription $sub): bool
+    {
+        return $sub->plan !== null && $this->cents($sub->plan->price) === 0;
+    }
+
+    /**
+     * Auto-renew a free (zero-price) subscription for a new cycle from now:
+     * there is nothing to pay, so it never falls into grace or suspension.
+     */
+    private function rollFreeCycle(Subscription $sub): void
+    {
+        $cycle = $sub->plan->billing_cycle ?: $sub->cycle ?: 'monthly';
+        $details = $sub->details ?? [];
+        unset($details['grace_until']);
+
+        $sub->update([
+            'status' => 'active',
+            'cycle' => $cycle,
+            'starts_at' => now(),
+            'ends_at' => $this->cycleEnd(now(), $cycle),
+            'details' => $details ?: null,
+        ]);
+        $sub->recordEvent('renewed', ['plan' => $sub->plan->name, 'auto' => true]);
+    }
+
+    /**
+     * The deferred plan change the owner has scheduled (downgrade, or an
+     * apply_at_renewal upgrade), with the plan it switches to and the date
+     * it takes effect; null when nothing is pending.
+     *
+     * @return array{type: string, plan_id: int, plan_name: string|null, applies_at: string|null}|null
+     */
+    public function pendingChange(Subscription $sub): ?array
+    {
+        $target = $this->pendingPlanTarget($sub);
+        if (! $target) {
+            return null;
+        }
+
+        return [
+            'type' => $target['event'] === 'upgraded' ? 'upgrade' : 'downgrade',
+            'plan_id' => $target['plan_id'],
+            'plan_name' => SubscriptionPlan::whereKey($target['plan_id'])->value('name'),
+            'applies_at' => $sub->ends_at?->toDateTimeString(),
+        ];
     }
 
     /**

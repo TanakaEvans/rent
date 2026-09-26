@@ -38,14 +38,13 @@ class HomeController extends Controller
         $viewer = $request->user();
         $isTenant = $viewer?->hasRole('Tenant');
 
-        $featured = Property::listed()
-            ->with(['owner:id,name,email', 'images'])
-            ->withCount('views')
-            ->withCount('favouritedBy as favourites_count')
+        $featured = $this->search->publicListings()
+            ->with(['owner:id,name,email,verified,badge_tier', 'images'])
             ->featured()
             ->latest()
             ->take(3)
-            ->get();
+            ->get()
+            ->loadCount(['views', 'favouritedBy as favourites_count']);
 
         // Record one impression for every promotion window shown in the
         // featured rail (FR-05/NFR-03 — placement-level, no personal data).
@@ -59,26 +58,25 @@ class HomeController extends Controller
                 'current_page' => $paginator->currentPage(),
                 'last_page' => $paginator->lastPage(),
             ],
-            'cities' => Property::listed()
+            'cities' => $this->search->publicListings()
                 ->select('city')
                 ->distinct()
                 ->whereNotNull('city')
                 ->orderBy('city')
                 ->pluck('city'),
-            'zones' => Property::listed()
+            'zones' => $this->search->publicListings()
                 ->select('zone')
                 ->distinct()
                 ->whereNotNull('zone')
                 ->orderBy('zone')
                 ->pluck('zone'),
             'featured' => $featured,
-            'justListed' => Property::listed()
-                ->with(['owner:id,name,email', 'images'])
-                ->withCount('views')
-                ->withCount('favouritedBy as favourites_count')
+            'justListed' => $this->search->publicListings()
+                ->with(['owner:id,name,email,verified,badge_tier', 'images'])
                 ->latest()
                 ->take(8)
-                ->get(),
+                ->get()
+                ->loadCount(['views', 'favouritedBy as favourites_count']),
             'filters' => array_filter($filters, fn ($value) => $value !== null),
             'favouriteIds' => $viewer
                 ? app(\App\Services\FavouriteService::class)->idsFor($viewer)
@@ -96,7 +94,7 @@ class HomeController extends Controller
                 'suggestionUrl' => route('search.suggestions'),
                 'popular' => (array) $this->config->get('marketplace.popular_threshold', ['views' => 60, 'saves' => 2]),
             ],
-            'explore' => Property::listed()
+            'explore' => $this->search->publicListings()
                 ->selectRaw('suburb, city, COUNT(*) as total')
                 ->whereNotNull('suburb')
                 ->groupBy('suburb', 'city')
@@ -135,7 +133,13 @@ class HomeController extends Controller
     private function normalizeFilters(Request $request): array
     {
         $types = array_keys(Property::TYPES);
-        $sorts = ['newest', 'recently_updated', 'price_asc', 'price_desc', 'price_per_m2', 'featured'];
+        $sorts = ['newest', 'recently_updated', 'price_asc', 'price_desc', 'price_per_m2', 'featured', 'top_rated'];
+        $options = [
+            'payment_terms' => Property::PAYMENT_TERMS,
+            'security_type' => Property::SECURITY_TYPES,
+            'parking_type' => Property::PARKING_TYPES,
+            'preferred_tenant' => Property::PREFERRED_TENANTS,
+        ];
         $config = $this->config;
 
         return [
@@ -146,6 +150,18 @@ class HomeController extends Controller
             'city' => $request->filled('city') ? (string) $request->city : null,
             'zone' => $request->filled('zone') ? (string) $request->zone : null,
             'suburb' => $request->filled('suburb') ? (string) $request->suburb : null,
+            'payment_terms' => $request->filled('payment_terms') && in_array($request->payment_terms, $options['payment_terms'], true)
+                ? (string) $request->payment_terms
+                : null,
+            'security_type' => $request->filled('security_type') && in_array($request->security_type, $options['security_type'], true)
+                ? (string) $request->security_type
+                : null,
+            'parking_type' => $request->filled('parking_type') && in_array($request->parking_type, $options['parking_type'], true)
+                ? (string) $request->parking_type
+                : null,
+            'preferred_tenant' => $request->filled('preferred_tenant') && in_array($request->preferred_tenant, $options['preferred_tenant'], true)
+                ? (string) $request->preferred_tenant
+                : null,
             'min_price' => is_numeric($request->min_price) ? (float) $request->min_price : null,
             'max_price' => is_numeric($request->max_price) ? (float) $request->max_price : null,
             'bedrooms' => is_numeric($request->bedrooms) ? (int) $request->bedrooms : null,

@@ -273,7 +273,8 @@ class AdsTest extends TestCase
         $resumed = $this->service()->resume($placement->fresh());
         $this->assertSame('active', $resumed->status);
         $this->assertNull($resumed->paused_at);
-        $this->assertGreaterThanOrEqual(5 * 86400 - 120, $resumed->ends_at->diffInSeconds($originalEnd));
+        // The window is pushed out by exactly the paused span (5 days).
+        $this->assertEqualsWithDelta($originalEnd->getTimestamp() + 5 * 86400, $resumed->ends_at->getTimestamp(), 5);
         $this->assertTrue($property->fresh()->featured);
     }
 
