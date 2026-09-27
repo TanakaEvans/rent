@@ -30,8 +30,8 @@ use Illuminate\Support\Facades\Hash;
 class SeedDemoDataCommand extends Command
 {
     protected $signature = 'zimrent:seed-demo
-        {--owners=400 : Property owners to create}
-        {--tenants=4000 : Tenants to create}
+        {--owners=600 : Property owners to create}
+        {--tenants=5000 : Tenants to create}
         {--properties=6000 : Listings to create}
         {--seed=2026 : Random seed, so the data set is reproducible}
         {--fresh : Remove the previous load-test data set first}';
