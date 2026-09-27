@@ -32,6 +32,8 @@ import {
     BookOpen,
 } from 'lucide-react';
 import Brand from '@/Components/Shared/Brand';
+import Avatar from '@/Components/Shared/Avatar';
+import ChatWidget from '@/Components/Shared/ChatWidget';
 import { cn } from '@/lib/utils';
 
 const safeRoute = (name, params = {}) => {
@@ -396,9 +398,7 @@ export default function MainLayout({ children, title = 'Dashboard', ...overrides
                                     onClick={() => setProfileOpen((v) => !v)}
                                     className="flex items-center gap-2.5 rounded-full border border-white/40 bg-white/70 py-1.5 pl-1.5 pr-3 shadow-sm transition-colors hover:bg-white"
                                 >
-                                    <span className="grid h-8 w-8 place-items-center rounded-full brand-gradient text-sm font-extrabold text-white">
-                                        {(user?.name || 'D').charAt(0).toUpperCase()}
-                                    </span>
+                                    <Avatar user={user} size={32} />
                                     <span className="hidden max-w-32 truncate text-sm font-semibold text-foreground sm:block">{user?.name}</span>
                                     <ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform', profileOpen && 'rotate-180')} />
                                 </button>
@@ -417,8 +417,15 @@ export default function MainLayout({ children, title = 'Dashboard', ...overrides
                                             </div>
                                         </div>
                                         <Link
-                                            href={safeRoute('password.change')}
+                                            href={safeRoute('account.profile')}
                                             className="mt-1 flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-muted"
+                                        >
+                                            <UserRound className="h-4 w-4" />
+                                            Account settings
+                                        </Link>
+                                        <Link
+                                            href={safeRoute('password.change')}
+                                            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-muted"
                                         >
                                             <KeyRound className="h-4 w-4" />
                                             Change password
@@ -438,6 +445,8 @@ export default function MainLayout({ children, title = 'Dashboard', ...overrides
 
                     <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">{children}</main>
                 </div>
+
+                {user && <ChatWidget />}
 
                 {toasts.length > 0 && (
                     <div className="pointer-events-none fixed right-4 top-4 z-[70] flex w-[min(92vw,380px)] flex-col gap-2">

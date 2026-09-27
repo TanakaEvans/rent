@@ -250,6 +250,71 @@ final class ConfigurationService
     public static function defaults(): array
     {
         return [
+            // Platform access / paywall (configurable free-then-paid model).
+            // Ships disabled so nobody is ever locked out until you decide.
+            'access.charge_enabled' => [
+                'group' => 'access',
+                'type' => 'boolean',
+                'value' => false,
+                'label' => 'Charge for access',
+                'description' => 'Master switch. While off, the whole app is free for everyone.',
+                'risk' => 'critical',
+            ],
+            'access.free_until' => [
+                'group' => 'access',
+                'type' => 'string',
+                'value' => '2027-03-27',
+                'label' => 'Free until (YYYY-MM-DD)',
+                'description' => 'Everyone uses the app free until this date, even when charging is on.',
+                'risk' => 'high',
+            ],
+            'access.payer' => [
+                'group' => 'access',
+                'type' => 'string',
+                'value' => 'owner',
+                'options' => ['owner', 'tenant', 'both'],
+                'label' => 'Who pays',
+                'description' => 'Which party must hold an active access pass once the free period ends.',
+                'risk' => 'high',
+            ],
+            'access.price' => [
+                'group' => 'access',
+                'type' => 'decimal',
+                'value' => 1.00,
+                'label' => 'Access price',
+                'description' => 'Price of one access pass.',
+                'risk' => 'high',
+            ],
+            'access.period_days' => [
+                'group' => 'access',
+                'type' => 'integer',
+                'value' => 30,
+                'label' => 'Access period (days)',
+                'description' => 'How long one paid access pass lasts.',
+                'risk' => 'medium',
+            ],
+            'access.currency' => [
+                'group' => 'access',
+                'type' => 'string',
+                'value' => 'USD',
+                'options' => ['USD', 'ZWL'],
+                'label' => 'Access currency',
+                'description' => 'Currency the access pass is billed in.',
+                'risk' => 'medium',
+            ],
+
+            // Location privacy (inDrive-style): the public marketplace shows an
+            // approximate area; the exact pin/address unlocks once a viewing is
+            // accepted (or an application/lease exists).
+            'privacy.location.approx_radius_m' => [
+                'group' => 'privacy',
+                'type' => 'integer',
+                'value' => 500,
+                'label' => 'Approximate location radius (metres)',
+                'description' => 'Size of the shaded circle shown before a viewing is accepted.',
+                'risk' => 'low',
+            ],
+
             // Subscription lifecycle
             'subscriptions.grace_period_days' => [
                 'group' => 'subscriptions',

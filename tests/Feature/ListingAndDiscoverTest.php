@@ -35,6 +35,8 @@ class ListingAndDiscoverTest extends TestCase
         return array_merge([
             'title' => '3 Bedroom House in Marlborough',
             'description' => 'Spacious and secure.',
+            'latitude' => -17.8252,
+            'longitude' => 31.0335,
             'property_type' => 'house',
             'bedrooms' => 3,
             'bathrooms' => 2,

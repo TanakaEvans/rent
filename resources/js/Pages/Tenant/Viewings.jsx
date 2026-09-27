@@ -1,5 +1,5 @@
 import { Head, router, useForm } from '@inertiajs/react';
-import { CalendarClock, CalendarDays, MessageSquareText, MapPin, XCircle, CheckCircle2 } from 'lucide-react';
+import { CalendarClock, CalendarDays, MessageSquareText, MapPin, XCircle, CheckCircle2, Navigation, ExternalLink } from 'lucide-react';
 import MainLayout from '@/Layouts/MainLayout';
 import StatusBadge from '@/Components/Shared/StatusBadge';
 import EmptyState from '@/Components/Shared/EmptyState';
@@ -70,6 +70,30 @@ export default function TenantViewings({ requests = [] }) {
                                 <p className="mt-3 flex gap-2 text-sm leading-relaxed text-muted-foreground">
                                     <MessageSquareText className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" /> {booking.request_message}
                                 </p>
+                            )}
+
+                            {booking.property?.locationExact && booking.property?.latitude && (
+                                <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
+                                    <p className="text-xs font-bold text-emerald-800">Viewing confirmed — here's the exact location:</p>
+                                    <div className="mt-2 flex flex-wrap gap-2">
+                                        <a
+                                            href={`https://www.google.com/maps/dir/?api=1&destination=${booking.property.latitude},${booking.property.longitude}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-500"
+                                        >
+                                            <Navigation className="h-3.5 w-3.5" /> Get directions
+                                        </a>
+                                        <a
+                                            href={`https://www.google.com/maps/search/?api=1&query=${booking.property.latitude},${booking.property.longitude}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 px-3 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100"
+                                        >
+                                            <ExternalLink className="h-3.5 w-3.5" /> Open in Google Maps
+                                        </a>
+                                    </div>
+                                </div>
                             )}
 
                             <div className="mt-4 flex flex-wrap items-center gap-2">

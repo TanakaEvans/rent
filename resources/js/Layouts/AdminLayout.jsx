@@ -30,8 +30,12 @@ import {
     IdCard,
     BookOpen,
     KeyRound,
+    UserRound,
+    MessageSquareText,
 } from 'lucide-react';
 import Brand from '@/Components/Shared/Brand';
+import Avatar from '@/Components/Shared/Avatar';
+import ChatWidget from '@/Components/Shared/ChatWidget';
 import { cn } from '@/lib/utils';
 
 const safeRoute = (name, params = {}) => {
@@ -69,6 +73,7 @@ const navSections = [
             { label: 'Maintenance Escalations', icon: Wrench, route: 'admin.maintenance.escalations.index', pattern: 'admin.maintenance.escalations.*' },
             { label: 'Contractor Registry', icon: Briefcase, route: 'admin.contractors.index', pattern: 'admin.contractors.*' },
             { label: 'KYC Review', icon: IdCard, route: 'admin.kyc.index', pattern: 'admin.kyc.*' },
+            { label: 'Support Inbox', icon: MessageSquareText, route: 'admin.support.index', pattern: 'admin.support.*' },
         ],
     },
     {
@@ -220,9 +225,7 @@ export default function AdminLayout({ children, title = 'Dashboard', ...override
 
                             <div className="relative profile-pop flex shrink-0 items-center gap-2">
                                 <button onClick={() => setProfileOpen((v) => !v)} className="flex items-center gap-2.5 rounded-full border border-white/40 bg-white/70 py-1.5 pl-1.5 pr-3 shadow-sm transition-colors hover:bg-white">
-                                    <span className="grid h-8 w-8 place-items-center rounded-full brand-gradient text-sm font-extrabold text-white">
-                                        {(auth?.user?.name || 'D').charAt(0).toUpperCase()}
-                                    </span>
+                                    <Avatar user={auth?.user} size={32} />
                                     <span className="hidden max-w-32 truncate text-sm font-semibold text-foreground sm:block">{auth?.user?.name}</span>
                                     <ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform', profileOpen && 'rotate-180')} />
                                 </button>
@@ -233,7 +236,11 @@ export default function AdminLayout({ children, title = 'Dashboard', ...override
                                             <div className="truncate text-sm font-bold text-foreground">{auth?.user?.name}</div>
                                             <div className="truncate text-xs text-muted-foreground">{auth?.user?.email}</div>
                                         </div>
-                                        <Link href={safeRoute('password.change')} className="mx-2 mt-2 flex w-[calc(100%-1rem)] items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-muted">
+                                        <Link href={safeRoute('account.profile')} className="mx-2 mt-2 flex w-[calc(100%-1rem)] items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-muted">
+                                            <UserRound className="h-4 w-4" />
+                                            Account settings
+                                        </Link>
+                                        <Link href={safeRoute('password.change')} className="mx-2 flex w-[calc(100%-1rem)] items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-muted">
                                             <KeyRound className="h-4 w-4" />
                                             Change password
                                         </Link>
@@ -249,6 +256,8 @@ export default function AdminLayout({ children, title = 'Dashboard', ...override
 
                     <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">{children}</main>
                 </div>
+
+                {auth?.user && <ChatWidget />}
 
                 {toasts.length > 0 && (
                     <div className="pointer-events-none fixed right-4 top-4 z-[70] flex w-[min(92vw,380px)] flex-col gap-2">

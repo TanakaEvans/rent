@@ -53,7 +53,7 @@ class PropertyController extends Controller
      */
     public function store(Request $request)
     {
-        $validated = $request->validate($this->rules(true));
+        $validated = $request->validate($this->rules(true), $this->locationMessages());
 
         $property = $this->properties->create($validated, $request->user(), [
             'cover' => $request->file('cover'),
@@ -114,7 +114,7 @@ class PropertyController extends Controller
      */
     public function update(Request $request, int $id)
     {
-        $validated = $request->validate($this->rules(false));
+        $validated = $request->validate($this->rules(false), $this->locationMessages());
 
         $media = ['cover' => $request->file('cover')];
         if ($request->exists('images') || $request->exists('cover_image')) {
@@ -228,6 +228,11 @@ class PropertyController extends Controller
             'zone' => 'nullable|string|max:100',
             'city' => 'nullable|string|max:100',
             'address' => 'nullable|string|max:255',
+            // The exact pin is mandatory: it is what the platform shares with a
+            // tenant once the owner accepts their viewing. The public map only
+            // ever shows an approximate area derived from it.
+            'latitude' => 'required|numeric|between:-90,90',
+            'longitude' => 'required|numeric|between:-180,180',
             'amenities' => 'nullable|array',
             'amenities.*' => 'string|max:60',
             'cover_image' => 'nullable|string|max:255',
@@ -235,6 +240,25 @@ class PropertyController extends Controller
             'images' => 'nullable|array|max:8',
             'images.*' => ['required', $imageEntry],
             'available_from' => 'nullable|date',
+        ];
+    }
+
+    /**
+     * Friendly validation messages for the mandatory precise-location pin.
+     *
+     * @return array<string, string>
+     */
+    private function locationMessages(): array
+    {
+        $pin = 'Drop the exact pin on the map (or tap “Use my current location”) so we can share the precise location once you accept a viewing.';
+
+        return [
+            'latitude.required' => $pin,
+            'longitude.required' => $pin,
+            'latitude.numeric' => $pin,
+            'longitude.numeric' => $pin,
+            'latitude.between' => 'The map pin is out of range — set it again on the map.',
+            'longitude.between' => 'The map pin is out of range — set it again on the map.',
         ];
     }
 

@@ -8,6 +8,7 @@ use App\Services\AdPlacementService;
 use App\Services\ConfigurationService;
 use App\Services\FavouriteService;
 use App\Services\InterestService;
+use App\Services\LocationVisibilityService;
 use App\Services\PropertySearchService;
 use App\Services\RecommendationService;
 use Illuminate\Http\Request;
@@ -22,6 +23,7 @@ class PublicPropertyController extends Controller
         private readonly ConfigurationService $config,
         private readonly AdPlacementService $advertisements,
         private readonly InterestService $interests,
+        private readonly LocationVisibilityService $location,
     ) {
     }
 
@@ -91,6 +93,15 @@ class PublicPropertyController extends Controller
             ->latest()
             ->take(4)
             ->get();
+
+        // inDrive-style location privacy: the detail map shows the exact pin,
+        // street address and directions only to an entitled viewer (owner,
+        // admin, or a tenant with an accepted viewing / approved application /
+        // open lease). Everyone else — and every "similar" card — gets a
+        // stable approximate area with no street address.
+        $radius = (int) $this->config->get('privacy.location.approx_radius_m', 500);
+        $this->location->mask($property, $this->location->canSeeExact($property, $viewer), $radius);
+        $similar->each(fn ($item) => $this->location->mask($item, false, $radius));
 
         return Inertia::render('Marketplace/Show', [
             'property' => $property,

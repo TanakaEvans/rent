@@ -554,7 +554,7 @@ function MapResults({ properties, total, activeId, onActivate, center }) {
                 <Maximize2 className="h-3.5 w-3.5" /> Show all
             </button>
             <div className="pointer-events-none absolute bottom-3 left-3 z-[1000] rounded-full bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-[0_2px_10px_rgba(0,0,0,0.14)]">
-                {located.length} of {total.toLocaleString()} home{total === 1 ? '' : 's'} on the map
+                {located.length} of {total.toLocaleString()} home{total === 1 ? '' : 's'} · approximate areas
             </div>
         </div>
     );

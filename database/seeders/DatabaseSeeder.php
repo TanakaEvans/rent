@@ -16,6 +16,7 @@ class DatabaseSeeder extends Seeder
             AdvertisingSeeder::class,
             ContractorSeeder::class,
             MaintenanceSeeder::class,
+            ChatSeeder::class,
             ConfigSeeder::class,
         ]);
     }

@@ -16,6 +16,12 @@ use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 
 class ViewingRequestService
 {
+    public function __construct(
+        private readonly ConfigurationService $config,
+        private readonly LocationVisibilityService $location,
+    ) {
+    }
+
     /**
      * A tenant requests a viewing on an available future slot.
      */
@@ -87,13 +93,25 @@ class ViewingRequestService
 
     /**
      * All viewing bookings made by the tenant, newest first.
+     *
+     * Each booking's property carries only the location the tenant is entitled
+     * to: once a viewing is accepted the tenant may see the exact pin and
+     * street address (and open Google Maps); before that it stays an
+     * approximate area.
      */
     public function requestsForTenant(User $tenant)
     {
+        $radius = (int) $this->config->get('privacy.location.approx_radius_m', 500);
+
         return ViewingRequest::with(['property', 'slot'])
             ->where('tenant_id', $tenant->id)
             ->latest()
-            ->get();
+            ->get()
+            ->each(function (ViewingRequest $request) use ($tenant, $radius) {
+                if ($request->property) {
+                    $this->location->mask($request->property, $this->location->canSeeExact($request->property, $tenant), $radius);
+                }
+            });
     }
 
     /**

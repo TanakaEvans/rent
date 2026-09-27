@@ -22,6 +22,7 @@ class User extends Authenticatable
         'name',
         'email',
         'username',
+        'avatar_path',
         'password',
         'status',
         'password_changed_at',
@@ -64,6 +65,36 @@ class User extends Authenticatable
             'rating_avg' => 'decimal:2',
             'ratings_count' => 'integer',
         ];
+    }
+
+    /**
+     * Serialized so every signed-in page can show the profile photo and a
+     * fallback monogram without a second query.
+     *
+     * @var array<int, string>
+     */
+    protected $appends = ['avatar_url', 'initials'];
+
+    /**
+     * Public URL of the profile photo, or null when none is set (the UI then
+     * shows the monogram). Photos live on the public disk.
+     */
+    public function getAvatarUrlAttribute(): ?string
+    {
+        $path = $this->attributes['avatar_path'] ?? null;
+
+        return $path ? asset('storage/'.$path) : null;
+    }
+
+    /**
+     * One or two letters for the avatar fallback, e.g. "Tendai Moyo" → "TM".
+     */
+    public function getInitialsAttribute(): string
+    {
+        $parts = preg_split('/\s+/', trim((string) $this->name)) ?: [];
+        $letters = array_map(fn ($part) => mb_substr($part, 0, 1), array_slice($parts, 0, 2));
+
+        return mb_strtoupper(implode('', $letters)) ?: 'U';
     }
 
     /**

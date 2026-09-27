@@ -9,6 +9,11 @@ return Application::configure(basePath: dirname(__DIR__))
         web: __DIR__.'/../routes/web.php',
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
+        then: function (): void {
+            // In-app chat (Module 05). Self-contained route file so the feature
+            // ships without editing the shared routes/web.php.
+            require __DIR__.'/../routes/chat.php';
+        },
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->web(append: [
@@ -17,6 +22,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'admin' => \App\Http\Middleware\AdminMiddleware::class,
+            'access.pass' => \App\Http\Middleware\EnsureHasAccess::class,
             'role' => \App\Http\Middleware\EnsureRole::class,
         ]);
     })

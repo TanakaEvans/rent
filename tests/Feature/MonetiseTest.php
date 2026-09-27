@@ -102,6 +102,8 @@ class MonetiseTest extends TestCase
     {
         return [
             'title' => 'Test House',
+            'latitude' => -17.8252,
+            'longitude' => 31.0335,
             'property_type' => 'house',
             'bedrooms' => 3,
             'bathrooms' => 2,

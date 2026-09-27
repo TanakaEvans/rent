@@ -1,9 +1,11 @@
-import { Head } from '@inertiajs/react';
+import { Head, usePage } from '@inertiajs/react';
 import { ShieldCheck, Home, KeyRound, BadgeCheck, FileText, Users, UserCheck, Briefcase, Building2, Network, LayoutDashboard } from 'lucide-react';
 import AdminLayout from '@/Layouts/AdminLayout';
 import StatCard from '@/Components/Shared/StatCard';
+import Avatar from '@/Components/Shared/Avatar';
 
 export default function AdminDashboard({ stats = {} }) {
+    const authUser = usePage().props?.auth?.user ?? null;
     const marketplaceCards = [
         { key: 'total_properties', label: 'Total Properties', value: stats.total_properties ?? 0, icon: Home, tone: 'emerald', routeName: 'home' },
         { key: 'listed_properties', label: 'Live Listings', value: stats.listed_properties ?? 0, icon: KeyRound, tone: 'teal', routeName: 'home' },
@@ -24,29 +26,32 @@ export default function AdminDashboard({ stats = {} }) {
         <AdminLayout title="Admin Dashboard">
             <Head title="Admin Dashboard" />
 
-            <div className="mb-7">
-                <span className="kicker border-primary/25 bg-primary/10 text-primary">
-                    <LayoutDashboard className="h-3.5 w-3.5" /> Platform overview
-                </span>
-                <h2 className="mt-2 text-balance text-2xl font-extrabold tracking-tight sm:text-3xl">Administration Centre</h2>
-                <p className="mt-1 text-sm text-muted-foreground">Monitor the marketplace, verify listings, and manage the platform.</p>
+            <div className="mb-6 flex flex-wrap items-center gap-3">
+                {authUser && <Avatar user={authUser} size={44} className="ring-2 ring-primary/15" />}
+                <div>
+                    <span className="kicker border-primary/25 bg-primary/10 text-primary">
+                        <LayoutDashboard className="h-3.5 w-3.5" /> Platform overview
+                    </span>
+                    <h2 className="mt-1.5 text-balance text-xl font-extrabold tracking-tight sm:text-2xl">Administration Centre</h2>
+                    <p className="text-sm text-muted-foreground">Monitor the marketplace, verify listings, and manage the platform.</p>
+                </div>
             </div>
 
-            <div className="mb-6 flex items-center gap-3">
+            <div className="mb-4 flex items-center gap-3">
                 <span className="h-5 w-1 rounded-r-full brand-gradient" />
                 <h3 className="text-sm font-extrabold uppercase tracking-[0.14em] text-foreground">Marketplace Health</h3>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
                 {marketplaceCards.map((card) => (
                     <StatCard key={card.key} {...card} />
                 ))}
             </div>
 
-            <div className="mt-9 mb-6 flex items-center gap-3">
+            <div className="mt-8 mb-4 flex items-center gap-3">
                 <span className="h-5 w-1 rounded-r-full brand-gradient" />
                 <h3 className="text-sm font-extrabold uppercase tracking-[0.14em] text-foreground">Platform Operations</h3>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">
                 {platformCards.map((card) => (
                     <StatCard key={card.key} {...card} />
                 ))}

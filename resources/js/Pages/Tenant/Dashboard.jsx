@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import { Heart, FileText, Hourglass, BadgeCheck, MapPin, CalendarDays, Mail, BedDouble, Bath, Armchair, MessageSquareText, Search, ArrowRight, Building2 } from 'lucide-react';
 import MainLayout from '@/Layouts/MainLayout';
 import StatCard from '@/Components/Shared/StatCard';
 import StatusBadge from '@/Components/Shared/StatusBadge';
 import PropertyArt from '@/Components/Shared/PropertyArt';
 import EmptyState from '@/Components/Shared/EmptyState';
+import Avatar from '@/Components/Shared/Avatar';
 import { Button, buttonVariants } from '@/Components/ui/button';
 import { cn } from '@/lib/utils';
 import { TYPE_LABELS as typeLabels, formatPrice, priceSuffix } from '@/lib/listing';
@@ -21,6 +22,7 @@ const quickLinks = [
 ];
 
 export default function TenantDashboard({ stats = {}, favourites = [], applications = [] }) {
+    const authUser = usePage().props?.auth?.user ?? null;
     const statCards = [
         { key: 'enquiries', label: 'Enquiries', value: stats.enquiries ?? 0, icon: MessageSquareText, tone: 'sky', routeName: 'tenant.enquiries.index' },
         { key: 'favourites', label: 'Favourite Homes', value: stats.favourites ?? 0, icon: Heart, tone: 'rose', routeName: 'tenant.favourites.index' },
@@ -51,10 +53,15 @@ export default function TenantDashboard({ stats = {}, favourites = [], applicati
         <MainLayout title="Tenant Dashboard">
             <Head title="Tenant Dashboard" />
 
-            <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
-                <div>
-                    <h2 className="text-balance text-2xl font-extrabold tracking-tight sm:text-3xl">Find Your Next Home</h2>
-                    <p className="mt-1 text-sm text-muted-foreground">Track your enquiries and applications, and keep an eye on the homes you love.</p>
+            <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                    {authUser && <Avatar user={authUser} size={44} className="ring-2 ring-primary/15" />}
+                    <div>
+                        <h2 className="text-balance text-xl font-extrabold tracking-tight sm:text-2xl">
+                            Welcome back{authUser?.name ? `, ${authUser.name.split(' ')[0]}` : ''}
+                        </h2>
+                        <p className="text-sm text-muted-foreground">Track your enquiries, applications and saved homes.</p>
+                    </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
                     <Link href={route('home')} className={cn(buttonVariants())}>
@@ -66,7 +73,7 @@ export default function TenantDashboard({ stats = {}, favourites = [], applicati
                 </div>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
                 {statCards.map((card) => (
                     <StatCard key={card.key} {...card} />
                 ))}

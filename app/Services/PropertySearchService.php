@@ -11,8 +11,10 @@ use Illuminate\Pagination\LengthAwarePaginator;
 
 class PropertySearchService
 {
-    public function __construct(private readonly ConfigurationService $config)
-    {
+    public function __construct(
+        private readonly ConfigurationService $config,
+        private readonly LocationVisibilityService $location,
+    ) {
     }
 
     /**
@@ -170,6 +172,11 @@ class PropertySearchService
     private function withCounts(LengthAwarePaginator $page): LengthAwarePaginator
     {
         $page->getCollection()->loadCount(['views', 'favouritedBy as favourites_count']);
+
+        // The public marketplace map never exposes exact coordinates: every
+        // result is masked to its stable approximate point (inDrive-style).
+        $radius = (int) $this->config->get('privacy.location.approx_radius_m', 500);
+        $page->getCollection()->each(fn (Property $property) => $this->location->mask($property, false, $radius));
 
         return $page;
     }

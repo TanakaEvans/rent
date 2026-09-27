@@ -1,10 +1,11 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import { Home as HomeIcon, Building2, KeyRound, CalendarCheck, FileText, Wallet, MessageSquareText, MapPin, BadgeCheck, ArrowRight, Sparkles, Layers, Banknote } from 'lucide-react';
 import MainLayout from '@/Layouts/MainLayout';
 import StatCard from '@/Components/Shared/StatCard';
 import StatusBadge from '@/Components/Shared/StatusBadge';
 import PropertyArt from '@/Components/Shared/PropertyArt';
 import EmptyState from '@/Components/Shared/EmptyState';
+import Avatar from '@/Components/Shared/Avatar';
 import { buttonVariants } from '@/Components/ui/button';
 import { cn } from '@/lib/utils';
 import { TYPE_LABELS as typeLabels, formatPrice, priceSuffix } from '@/lib/listing';
@@ -19,6 +20,7 @@ const quickLinks = [
 ];
 
 export default function OwnerDashboard({ stats = {}, financial = {}, subscription = null, properties = [] }) {
+    const authUser = usePage().props?.auth?.user ?? null;
     const trend = financial.income_trend || [];
     const trendMax = Math.max(...trend.map((point) => Number(point.income) || 0), 0);
 
@@ -43,17 +45,22 @@ export default function OwnerDashboard({ stats = {}, financial = {}, subscriptio
         <MainLayout title="Owner Dashboard">
             <Head title="Owner Dashboard" />
 
-            <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
-                <div>
-                    <h2 className="text-balance text-2xl font-extrabold tracking-tight sm:text-3xl">Your Rental Portfolio</h2>
-                    <p className="mt-1 text-sm text-muted-foreground">Manage listings, view applications, and track your rental income.</p>
+            <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                    {authUser && <Avatar user={authUser} size={44} className="ring-2 ring-primary/15" />}
+                    <div>
+                        <h2 className="text-balance text-xl font-extrabold tracking-tight sm:text-2xl">
+                            Welcome back{authUser?.name ? `, ${authUser.name.split(' ')[0]}` : ''}
+                        </h2>
+                        <p className="text-sm text-muted-foreground">Manage listings, applications and your rental income.</p>
+                    </div>
                 </div>
                 <Link href={route('owner.properties.create')} className={cn(buttonVariants())}>
                     <HomeIcon className="h-4 w-4" /> List a New Property
                 </Link>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
                 {statCards.map((card) => (
                     <StatCard key={card.key} {...card} />
                 ))}

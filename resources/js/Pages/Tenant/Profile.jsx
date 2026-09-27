@@ -1,8 +1,9 @@
 import { useRef, useState } from 'react';
-import { Head, useForm, router } from '@inertiajs/react';
-import { IdCard, Trash2, Download, Upload, ShieldCheck, UserRound } from 'lucide-react';
+import { Head, useForm, usePage, router } from '@inertiajs/react';
+import { IdCard, Trash2, Download, Upload, ShieldCheck, UserRound, ImagePlus } from 'lucide-react';
 import MainLayout from '@/Layouts/MainLayout';
 import StatusBadge from '@/Components/Shared/StatusBadge';
+import Avatar from '@/Components/Shared/Avatar';
 import { Button } from '@/Components/ui/button';
 
 const fmt = (value) => (value ? new Date(value).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
@@ -125,6 +126,71 @@ function KycCard({ type, label, document }) {
     );
 }
 
+function AvatarBlock() {
+    const { auth } = usePage().props;
+    const user = auth?.user || {};
+    const inputRef = useRef(null);
+    const [error, setError] = useState(null);
+    const form = useForm({ avatar: null });
+
+    const onPick = (e) => {
+        const picked = e.target.files?.[0] || null;
+        e.target.value = '';
+        if (!picked) return;
+        setError(null);
+        form.setData('avatar', picked);
+        form.post(route('account.avatar.store'), {
+            preserveScroll: true,
+            forceFormData: true,
+            onError: (errors) => setError(errors.avatar || 'Upload failed.'),
+            onSuccess: () => form.setData('avatar', null),
+        });
+    };
+
+    const remove = () => {
+        if (window.confirm('Remove your profile photo?')) {
+            router.delete(route('account.avatar.destroy'), { preserveScroll: true });
+        }
+    };
+
+    return (
+        <div className="surface mb-6 flex flex-col gap-4 p-6 sm:flex-row sm:items-center">
+            <Avatar user={user} size={72} className="ring-4 ring-primary/10" />
+            <div className="flex-1">
+                <h3 className="text-base font-extrabold tracking-tight">Profile photo</h3>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                    Shown across your signed-in dashboard. JPG, PNG or WebP · up to 4 MB.
+                </p>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <Button size="sm" type="button" onClick={() => inputRef.current?.click()} disabled={form.processing}>
+                        {user?.avatar_url ? <Upload className="h-4 w-4" /> : <ImagePlus className="h-4 w-4" />}
+                        {form.processing ? 'Uploading…' : user?.avatar_url ? 'Change photo' : 'Upload photo'}
+                    </Button>
+                    {user?.avatar_url && (
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            type="button"
+                            className="text-muted-foreground hover:bg-rose-50 hover:text-rose-500"
+                            onClick={remove}
+                        >
+                            <Trash2 className="h-4 w-4" /> Remove
+                        </Button>
+                    )}
+                    <input
+                        ref={inputRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        className="hidden"
+                        onChange={onPick}
+                    />
+                </div>
+                {error && <p className="mt-2 text-xs font-semibold text-rose-600">{error}</p>}
+            </div>
+        </div>
+    );
+}
+
 export default function TenantProfilePage({ profile = null, documents = [], kyc_tier = 'none', badge_tier = 'none', options = {} }) {
     const employmentOptions = options.employment_status || [];
     const salaryOptions = options.salary_band || [];
@@ -154,6 +220,8 @@ export default function TenantProfilePage({ profile = null, documents = [], kyc_
                     Tell owners who they'd be renting to — and verify your identity so your applications carry real trust.
                 </p>
             </div>
+
+            <AvatarBlock />
 
             <div className="grid gap-6 lg:grid-cols-5">
                 <form

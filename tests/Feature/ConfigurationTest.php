@@ -165,6 +165,8 @@ class ConfigurationTest extends TestCase
                 'city' => 'Harare',
                 'currency' => 'USD',
                 'payment_terms' => 'monthly',
+                'latitude' => -17.8252,
+                'longitude' => 31.0335,
                 'security_type' => 'fenced',
                 'minimum_stay' => 12,
                 'preferred_tenant' => 'any',

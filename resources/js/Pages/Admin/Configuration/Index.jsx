@@ -18,9 +18,11 @@ const prettyJson = (value) => {
     }
 };
 
-const GROUP_ORDER = ['subscriptions', 'numbering', 'invoices', 'payments', 'late_fees', 'featured', 'maintenance', 'marketplace', 'listings'];
+const GROUP_ORDER = ['access', 'privacy', 'subscriptions', 'numbering', 'invoices', 'payments', 'late_fees', 'featured', 'maintenance', 'marketplace', 'listings'];
 
 const GROUP_HINTS = {
+    access: 'Free-then-paid platform access (paywall master switch, free-until date, who pays, price and period)',
+    privacy: 'Approximate location on the public marketplace before a viewing is accepted',
     subscriptions: 'Plan lifecycle, quota and lifecycle rules',
     numbering: 'Invoice and receipt numbering',
     invoices: 'Rent invoice timing, reminders and overdue grace',

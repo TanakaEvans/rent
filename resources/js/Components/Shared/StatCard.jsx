@@ -26,35 +26,34 @@ export default function StatCard({ icon: Icon, label, value, hint, tone = 'emera
         <Tag
             {...(linkHref ? { href: linkHref } : {})}
             className={cn(
-                'surface group relative overflow-hidden p-5 transition-all duration-300',
+                'surface group relative flex items-center gap-3 overflow-hidden p-3.5 transition-all duration-300',
                 linkHref && 'hover:-translate-y-0.5 hover:shadow-[0_16px_40px_-16px_rgba(16,60,45,0.28)] cursor-pointer'
             )}
         >
-            <span className={cn('absolute inset-x-0 top-0 h-0.5 opacity-0 transition-opacity group-hover:opacity-100 brand-gradient')} />
-            <div className="flex items-start justify-between gap-3">
-                {Icon && (
-                    <span className={cn('grid h-11 w-11 shrink-0 place-items-center rounded-xl ring-1', iconTones[tone] || iconTones.emerald)}>
-                        <Icon className="h-5 w-5" strokeWidth={2} />
-                    </span>
-                )}
-                {trend && (
-                    <span
-                        className={cn(
-                            'inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[11px] font-bold',
-                            trend.direction === 'up' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'
-                        )}
-                    >
-                        {trend.direction === 'up' ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
-                        {trend.value}
-                    </span>
-                )}
+            <span className={cn('absolute inset-y-0 left-0 w-0.5 opacity-0 transition-opacity group-hover:opacity-100 brand-gradient')} />
+            {Icon && (
+                <span className={cn('grid h-9 w-9 shrink-0 place-items-center rounded-lg ring-1', iconTones[tone] || iconTones.emerald)}>
+                    <Icon className="h-[18px] w-[18px]" strokeWidth={2} />
+                </span>
+            )}
+            <div className="min-w-0 flex-1">
+                <div className="truncate text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</div>
+                <div className="mt-0.5 flex items-center gap-1.5">
+                    <span className="truncate text-xl font-extrabold leading-none tracking-tight text-foreground">{value}</span>
+                    {trend && (
+                        <span
+                            className={cn(
+                                'inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold',
+                                trend.direction === 'up' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'
+                            )}
+                        >
+                            {trend.direction === 'up' ? <ArrowUpRight className="h-2.5 w-2.5" /> : <ArrowDownRight className="h-2.5 w-2.5" />}
+                            {trend.value}
+                        </span>
+                    )}
+                </div>
+                {hint && <div className="mt-0.5 truncate text-[11px] text-muted-foreground/80">{hint}</div>}
             </div>
-            <div className="mt-4 min-w-0">
-                <div className="truncate text-sm font-medium text-muted-foreground">{label}</div>
-                <div className="mt-0.5 text-[26px] font-extrabold leading-none tracking-tight text-foreground">{value}</div>
-                {hint && <div className="mt-1.5 text-xs text-muted-foreground/80">{hint}</div>}
-            </div>
-            {linkHref && <span className="absolute bottom-3 right-3 text-[11px] font-bold text-primary/60 opacity-0 transition-opacity group-hover:opacity-100">View →</span>}
         </Tag>
     );
 }

@@ -39,6 +39,9 @@ use App\Http\Controllers\MaintenanceController;
 use App\Http\Controllers\ContractorController;
 use App\Http\Controllers\TenantProfileController;
 use App\Http\Controllers\HelpController;
+use App\Http\Controllers\AccountController;
+use App\Http\Controllers\AccessController;
+use App\Http\Controllers\Admin\SupportController;
 use App\Http\Middleware\EnsurePasswordIsChanged;
 use App\Http\Middleware\EnsureHasRole;
 
@@ -99,6 +102,28 @@ Route::middleware(['auth', EnsurePasswordIsChanged::class, EnsureHasRole::class]
         ->name('notifications.read-all')
         ->defaults('description', 'Mark all notifications as read');
 
+    // Account settings + profile photo (all signed-in roles)
+    Route::get('/account/profile', [AccountController::class, 'edit'])
+        ->name('account.profile')
+        ->defaults('description', 'View my account settings');
+    Route::put('/account/profile', [AccountController::class, 'update'])
+        ->name('account.profile.update')
+        ->defaults('description', 'Update my account settings');
+    Route::post('/account/avatar', [AccountController::class, 'uploadAvatar'])
+        ->name('account.avatar.store')
+        ->defaults('description', 'Upload my profile photo');
+    Route::delete('/account/avatar', [AccountController::class, 'deleteAvatar'])
+        ->name('account.avatar.destroy')
+        ->defaults('description', 'Remove my profile photo');
+
+    // Platform access pass (configurable free-then-paid; free while charging is off)
+    Route::get('/access', [AccessController::class, 'index'])
+        ->name('access.index')
+        ->defaults('description', 'View my platform access pass');
+    Route::post('/access/purchase', [AccessController::class, 'purchase'])
+        ->name('access.purchase')
+        ->defaults('description', 'Activate a platform access pass');
+
     // Agreement documents (M20-lite) - parties on the lease or admin
     Route::get('/documents/{document}', [\App\Http\Controllers\DocumentController::class, 'show'])
         ->name('documents.show')
@@ -122,6 +147,7 @@ Route::middleware(['auth', EnsurePasswordIsChanged::class, EnsureHasRole::class]
                 ->defaults('description', 'Add a new property listing');
             Route::post('/', [PropertyController::class, 'store'])
                 ->name('store')
+                ->middleware('access.pass')
                 ->defaults('description', 'Save a new property listing');
             Route::get('{id}', [PropertyController::class, 'show'])
                 ->name('show')
@@ -334,6 +360,7 @@ Route::middleware(['auth', EnsurePasswordIsChanged::class, EnsureHasRole::class]
             ->defaults('description', 'View my enquiry threads');
         Route::post('/tenant/enquiries/{property}', [EnquiryController::class, 'store'])
             ->name('tenant.enquiries.store')
+            ->middleware('access.pass')
             ->defaults('description', 'Send an enquiry about a property');
         Route::post('/tenant/enquiries/{id}/reply', [EnquiryController::class, 'tenantReply'])
             ->name('tenant.enquiries.reply')
@@ -345,6 +372,7 @@ Route::middleware(['auth', EnsurePasswordIsChanged::class, EnsureHasRole::class]
         Route::post('/tenant/interests/{property}', [InterestController::class, 'express'])
             ->name('tenant.interests.store')
             ->whereNumber('property')
+            ->middleware('access.pass')
             ->defaults('description', 'Express interest in an available property');
         Route::post('/tenant/interests/{interest}/withdraw', [InterestController::class, 'withdraw'])
             ->name('tenant.interests.withdraw')
@@ -369,6 +397,7 @@ Route::middleware(['auth', EnsurePasswordIsChanged::class, EnsureHasRole::class]
             ->defaults('description', 'View my rental applications');
         Route::post('/tenant/applications/{property}', [ApplicationController::class, 'store'])
             ->name('tenant.applications.store')
+            ->middleware('access.pass')
             ->defaults('description', 'Submit a rental application');
 
         Route::get('/tenant/leases', [LeaseController::class, 'tenantIndex'])
@@ -511,6 +540,7 @@ Route::prefix('auth')->name('auth.')->middleware('admin')->group(function () {
     Route::prefix('admin')->name('admin.')->middleware('admin')->group(function () {
         // Admin guide (Help Center inside the admin portal)
         Route::get('help', [HelpController::class, 'admin'])->name('help');
+        // Support inbox routes (admin.support.*) live in routes/chat.php alongside the chat feature.
 
         // Admin Dashboard
         Route::get('dashboard', function () {

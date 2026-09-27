@@ -1271,4 +1271,41 @@ class DzimbaAccessControlTest extends TestCase
             $this->get(route($name, $payment->id))->assertRedirect(route('login'));
         }
     }
+    public function test_account_profile_reachable_by_any_role_and_guest_redirected(): void
+    {
+        foreach (['owner', 'tenant', 'admin', 'contractor'] as $u) {
+            $this->actingAs(User::where('username', $u)->first())->get('/account/profile')->assertOk();
+        }
+        auth()->logout();
+        $this->get('/account/profile')->assertRedirect(route('login'));
+    }
+
+    public function test_access_page_reachable_by_any_role_and_guest_redirected(): void
+    {
+        foreach (['owner', 'tenant', 'admin'] as $u) {
+            $this->actingAs(User::where('username', $u)->first())->get('/access')->assertOk();
+        }
+        auth()->logout();
+        $this->get('/access')->assertRedirect(route('login'));
+    }
+
+    public function test_any_authenticated_role_can_open_chat_but_guest_cannot(): void
+    {
+        foreach (['owner', 'tenant', 'admin'] as $u) {
+            $this->actingAs(User::where('username', $u)->first())->get('/chat')->assertOk();
+        }
+        auth()->logout();
+        $this->get(route('chat.index'))->assertRedirect(route('login'));
+        $this->post(route('chat.start-support'))->assertRedirect(route('login'));
+    }
+
+    public function test_only_admins_can_reach_the_support_inbox(): void
+    {
+        $this->actingAs(User::where('username', 'admin')->first())->get('/admin/support')->assertOk();
+        foreach (['owner', 'tenant'] as $u) {
+            $this->actingAs(User::where('username', $u)->first())->get('/admin/support')->assertForbidden();
+        }
+        auth()->logout();
+        $this->get('/admin/support')->assertRedirect(route('login'));
+    }
 }

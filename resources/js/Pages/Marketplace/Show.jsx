@@ -34,6 +34,7 @@ import {
     Users,
     Undo2,
     X,
+    MessageCircle,
 } from 'lucide-react';
 import Brand from '@/Components/Shared/Brand';
 import MapStyleToggle from '@/Components/Shared/MapStyleToggle';
@@ -74,7 +75,7 @@ const availabilityOf = (property) => {
     return 'Available now';
 };
 
-function MapEmbed({ property }) {
+function MapEmbed({ property, exact, radius }) {
     const mountRef = useRef(null);
     const mapRef = useRef(null);
     const layersRef = useRef(null);
@@ -90,15 +91,28 @@ function MapEmbed({ property }) {
         layersRef.current.map.addTo(map);
         mapRef.current = map;
 
-        L.marker([lat, lng], { icon: homePinIcon(), title: property.title }).addTo(map);
-        map.setView([lat, lng], 16);
+        if (exact) {
+            L.marker([lat, lng], { icon: homePinIcon(), title: property.title }).addTo(map);
+            map.setView([lat, lng], 16);
+        } else {
+            // inDrive-style privacy: a shaded circle covering the approximate
+            // area, never the exact pin, until the viewer is entitled.
+            L.circle([lat, lng], {
+                radius: radius || 500,
+                color: '#059669',
+                weight: 1.5,
+                fillColor: '#10b981',
+                fillOpacity: 0.15,
+            }).addTo(map);
+            map.setView([lat, lng], 15);
+        }
         map.once('focus', () => map.scrollWheelZoom.enable());
 
         return () => {
             map.remove();
             mapRef.current = null;
         };
-    }, [property.id, property.latitude, property.longitude, property.title]);
+    }, [property.id, property.latitude, property.longitude, property.title, exact, radius]);
 
     useEffect(() => {
         const map = mapRef.current;
@@ -288,6 +302,8 @@ export default function MarketplaceShow({ property, onMarket = true, similar = [
     ].filter(([, value]) => value != null && value !== '');
     const memberSince = property.owner?.created_at ? new Date(property.owner.created_at).getFullYear() : null;
     const hasCoords = hasCoordinates(property);
+    const exactLocation = Boolean(property.locationExact);
+    const approxRadius = Number(property.approxRadiusM) || 500;
     const ownerVerified = Boolean(property.owner?.verified);
     const nowAvailable = !(property.available_from && new Date(property.available_from).getTime() > Date.now());
 
@@ -412,30 +428,37 @@ export default function MarketplaceShow({ property, onMarket = true, similar = [
                                 {hasCoords ? (
                                     <>
                                         <div className="mt-4 overflow-hidden rounded-2xl border border-border">
-                                            <MapEmbed property={property} />
+                                            <MapEmbed property={property} exact={exactLocation} radius={approxRadius} />
                                         </div>
-                                        <div className="mt-3 flex flex-wrap gap-2">
-                                            <a
-                                                href={`https://www.google.com/maps/dir/?api=1&destination=${Number(property.latitude)},${Number(property.longitude)}`}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="btn-secondary h-9 px-4 text-sm"
-                                            >
-                                                <Navigation className="h-4 w-4" /> Get directions
-                                            </a>
-                                            <a
-                                                href={`https://www.google.com/maps/search/?api=1&query=${Number(property.latitude)},${Number(property.longitude)}`}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="btn-secondary h-9 px-4 text-sm"
-                                            >
-                                                <ExternalLink className="h-4 w-4" /> Open in Google Maps
-                                            </a>
-                                        </div>
+                                        {exactLocation ? (
+                                            <div className="mt-3 flex flex-wrap gap-2">
+                                                <a
+                                                    href={`https://www.google.com/maps/dir/?api=1&destination=${Number(property.latitude)},${Number(property.longitude)}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="btn-secondary h-9 px-4 text-sm"
+                                                >
+                                                    <Navigation className="h-4 w-4" /> Get directions
+                                                </a>
+                                                <a
+                                                    href={`https://www.google.com/maps/search/?api=1&query=${Number(property.latitude)},${Number(property.longitude)}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="btn-secondary h-9 px-4 text-sm"
+                                                >
+                                                    <ExternalLink className="h-4 w-4" /> Open in Google Maps
+                                                </a>
+                                            </div>
+                                        ) : (
+                                            <p className="mt-3 flex items-start gap-2 rounded-2xl bg-muted/60 px-4 py-3 text-sm text-muted-foreground">
+                                                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
+                                                Approximate area — the exact location is shared once the owner accepts your viewing.
+                                            </p>
+                                        )}
                                     </>
                                 ) : (
                                     <p className="mt-3 rounded-2xl bg-muted/60 px-4 py-3 text-sm text-muted-foreground">
-                                        The exact location is shared with interested tenants once you enquire.
+                                        The exact location is shared with interested tenants once the owner accepts your viewing.
                                     </p>
                                 )}
                             </section>
@@ -699,6 +722,15 @@ export default function MarketplaceShow({ property, onMarket = true, similar = [
                                             >
                                                 <Send className="h-4 w-4" /> {enquiry.processing ? 'Sending…' : 'Send Enquiry'}
                                             </button>
+                                            {property.owner_id && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => router.post(route('chat.start-direct', property.id))}
+                                                    className={cn(buttonVariants({ variant: 'outline' }), 'w-full')}
+                                                >
+                                                    <MessageCircle className="h-4 w-4" /> Message owner (live chat)
+                                                </button>
+                                            )}
                                             <p className="pt-1 text-center text-[11px] font-medium text-muted-foreground">
                                                 Free for tenants — the owner replies right here, no agent.
                                             </p>

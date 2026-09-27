@@ -90,6 +90,8 @@ class OwnerLeasingFixesTest extends TestCase
         return array_merge([
             'title' => 'Fixes Suite House',
             'description' => 'Bright and secure.',
+            'latitude' => -17.8252,
+            'longitude' => 31.0335,
             'property_type' => 'house',
             'bedrooms' => 3,
             'bathrooms' => 2,
