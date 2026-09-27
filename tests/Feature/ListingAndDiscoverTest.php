@@ -1144,4 +1144,21 @@ class ListingAndDiscoverTest extends TestCase
         $this->assertSame('apartment', $parser->parse('2 bed apartment in Avondale under $700')['property_type'] ?? null);
         $this->assertSame('flat', $parser->parse('modern flat in Gunhill')['property_type'] ?? null);
     }
+
+    public function test_explore_by_area_fills_from_the_catalogue_when_few_areas_have_listings(): void
+    {
+        // The demo seed lists only a handful of suburbs, so the "Explore by
+        // area" section must top itself up from the popular location catalogue
+        // rather than showing only the two or three areas that have listings.
+        $this->get('/')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Marketplace/Index')
+                ->has('explore', 12)
+                ->where('explore', fn ($areas) => collect($areas)->every(
+                    fn ($a) => isset($a['suburb'], $a['city']) && $a['total'] >= 0
+                ))
+                ->where('explore', fn ($areas) => collect($areas)->contains(fn ($a) => $a['total'] === 0))
+            );
+    }
 }

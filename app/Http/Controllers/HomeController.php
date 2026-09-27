@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Location;
 use App\Models\Property;
 use App\Services\AdPlacementService;
 use App\Services\ConfigurationService;
@@ -94,18 +95,7 @@ class HomeController extends Controller
                 'suggestionUrl' => route('search.suggestions'),
                 'popular' => (array) $this->config->get('marketplace.popular_threshold', ['views' => 60, 'saves' => 2]),
             ],
-            'explore' => $this->search->publicListings()
-                ->selectRaw('suburb, city, COUNT(*) as total')
-                ->whereNotNull('suburb')
-                ->groupBy('suburb', 'city')
-                ->orderByDesc('total')
-                ->limit(6)
-                ->get()
-                ->map(fn ($row) => [
-                    'suburb' => $row->suburb,
-                    'city' => $row->city,
-                    'total' => (int) $row->total,
-                ]),
+            'explore' => $this->exploreAreas(),
             'recommended' => $isTenant
                 ? $this->recommendations->recommendFor($viewer)
                 : collect(),
@@ -113,6 +103,49 @@ class HomeController extends Controller
                 ? $this->recommendations->recentlyViewedFor($viewer)
                 : collect(),
         ]);
+    }
+
+    /**
+     * Areas for the "Explore by area" section: every area that currently has
+     * live listings (busiest first), then filled up with popular areas from
+     * the location catalogue so the section stays rich before every
+     * neighbourhood has a listing. Each still links to a real filtered search.
+     *
+     * @return \Illuminate\Support\Collection<int, array{suburb: string, city: string, total: int}>
+     */
+    private function exploreAreas(int $limit = 12): \Illuminate\Support\Collection
+    {
+        $counts = $this->search->publicListings()
+            ->selectRaw('suburb, city, COUNT(*) as total')
+            ->whereNotNull('suburb')
+            ->groupBy('suburb', 'city')
+            ->orderByDesc('total')
+            ->get()
+            ->map(fn ($row) => [
+                'suburb' => $row->suburb,
+                'city' => $row->city,
+                'total' => (int) $row->total,
+            ]);
+
+        if ($counts->count() >= $limit) {
+            return $counts->take($limit)->values();
+        }
+
+        $seen = $counts->map(fn ($a) => $a['suburb'].'|'.$a['city'])->all();
+
+        $popular = Location::suburbs()->popular()
+            ->whereNotNull('city')
+            ->orderBy('city')
+            ->orderBy('name')
+            ->get(['name', 'city'])
+            ->reject(fn ($row) => in_array($row->name.'|'.$row->city, $seen, true))
+            ->map(fn ($row) => [
+                'suburb' => $row->name,
+                'city' => $row->city,
+                'total' => 0,
+            ]);
+
+        return $counts->concat($popular)->take($limit)->values();
     }
 
     /**

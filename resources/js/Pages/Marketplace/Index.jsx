@@ -672,7 +672,7 @@ function ExploreNeighbourhoods({ places, onPick }) {
                         >
                             <span>
                                 <span className="block text-[17px] font-semibold text-slate-900">{place.suburb}</span>
-                                <span className="block text-sm text-slate-500">{place.city} · {place.total} listing{place.total === 1 ? '' : 's'}</span>
+                                <span className="block text-sm text-slate-500">{place.city} · {place.total > 0 ? `${place.total} listing${place.total === 1 ? '' : 's'}` : 'Browse area'}</span>
                             </span>
                             <ChevronRight className="h-5 w-5 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-brand" />
                         </button>
