@@ -881,7 +881,25 @@ export default function MarketplaceIndex({
     // Only a genuinely featured listing may fill the "Featured this week" showcase.
     const heroProperty = featured?.find((property) => property.featured) || null;
     const pageTotal = pagination.last_page || 1;
-    const pageNumbers = Array.from({ length: pageTotal }, (_, i) => i + 1);
+    const currentPage = pagination.current_page || 1;
+    // Compact, windowed pager: 1 … (cur-1) cur (cur+1) … last, with '…' markers
+    // so a 250-page result never prints 250 buttons.
+    const pageNumbers = (() => {
+        const window = 1; // pages on each side of the current page
+        const pages = new Set([1, pageTotal]);
+        for (let p = currentPage - window; p <= currentPage + window; p += 1) {
+            if (p >= 1 && p <= pageTotal) pages.add(p);
+        }
+        const sorted = [...pages].sort((a, b) => a - b);
+        const out = [];
+        let prev = 0;
+        for (const p of sorted) {
+            if (p - prev > 1) out.push(`gap-${p}`);
+            out.push(p);
+            prev = p;
+        }
+        return out;
+    })();
     const hasResults = properties.length > 0;
     const isTenant = Boolean(auth?.user?.roles?.some((role) => role.name === 'Tenant'));
     // Favourites are tenant-only: guests are sent to sign in, other roles see no heart.
@@ -1265,7 +1283,11 @@ export default function MarketplaceIndex({
                                         <ChevronLeft className="h-5 w-5" />
                                     </button>
                                     {pageNumbers.map((num) => (
-                                        <button key={num} type="button" onClick={() => goToPage(num)} aria-current={num === pagination.current_page ? 'page' : undefined} className={cn('grid h-10 min-w-10 place-items-center rounded-full px-2 text-sm font-medium transition', num === pagination.current_page ? 'pointer-events-none bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-100')}>{num}</button>
+                                        typeof num === 'string' ? (
+                                            <span key={num} className="grid h-10 w-10 place-items-center text-sm text-slate-400" aria-hidden="true">…</span>
+                                        ) : (
+                                            <button key={num} type="button" onClick={() => goToPage(num)} aria-current={num === currentPage ? 'page' : undefined} className={cn('grid h-10 min-w-10 place-items-center rounded-full px-2 text-sm font-medium transition', num === currentPage ? 'pointer-events-none bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-100')}>{num}</button>
+                                        )
                                     ))}
                                     <button type="button" disabled={pagination.current_page >= pageTotal} onClick={() => goToPage(pagination.current_page + 1)} aria-label="Next page" className="grid h-10 w-10 place-items-center rounded-full text-slate-900 hover:bg-slate-100 disabled:pointer-events-none disabled:text-slate-300">
                                         <ChevronRight className="h-5 w-5" />
