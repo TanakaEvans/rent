@@ -41,6 +41,25 @@ class AuthService
      */
     public function registerTenant(array $data): User
     {
+        return $this->registerWithRole($data, 'Tenant');
+    }
+
+    /**
+     * Public owner self-signup — creates an active account on the Owner role so
+     * a landlord can list without waiting for an admin. Listings still pass
+     * through the existing verification workflow.
+     */
+    public function registerOwner(array $data): User
+    {
+        return $this->registerWithRole($data, 'Owner');
+    }
+
+    /**
+     * Shared self-signup: an active account, username derived from the email,
+     * not forced to change the password, on exactly one starting role.
+     */
+    private function registerWithRole(array $data, string $role): User
+    {
         $email = Str::lower($data['email']);
 
         $user = User::create([
@@ -52,7 +71,7 @@ class AuthService
             'password_changed_at' => now(),
         ]);
 
-        $user->assignRole('Tenant');
+        $user->assignRole($role);
 
         return $user;
     }

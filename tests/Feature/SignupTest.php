@@ -138,4 +138,59 @@ class SignupTest extends TestCase
         $this->actingAs($owner)->post(route('register'), $this->validPayload())
             ->assertRedirect(route('owner.dashboard'));
     }
+
+    public function test_owner_signup_creates_an_owner_and_lands_on_the_owner_dashboard(): void
+    {
+        $this->post(route('register'), $this->validPayload([
+            'email' => 'newlandlord@example.com',
+            'role' => 'owner',
+        ]))->assertRedirect(route('owner.dashboard'));
+
+        $user = User::where('email', 'newlandlord@example.com')->firstOrFail();
+        $this->assertTrue($user->hasRole('Owner'));
+        $this->assertFalse($user->hasRole('Tenant'));
+        $this->assertSame('active', $user->status);
+        $this->assertNotNull($user->password_changed_at);
+    }
+
+    public function test_signed_up_owner_can_reach_the_owner_dashboard_but_not_admin(): void
+    {
+        $this->post(route('register'), $this->validPayload([
+            'email' => 'landlord2@example.com',
+            'role' => 'owner',
+        ]));
+
+        $owner = User::where('email', 'landlord2@example.com')->firstOrFail();
+        $this->actingAs($owner)->get(route('owner.dashboard'))->assertOk();
+        $this->actingAs($owner)->get(route('admin.dashboard'))->assertForbidden();
+    }
+
+    public function test_missing_role_still_defaults_to_a_tenant(): void
+    {
+        $this->post(route('register'), $this->validPayload(['email' => 'defaults@example.com']));
+
+        $user = User::where('email', 'defaults@example.com')->firstOrFail();
+        $this->assertTrue($user->hasRole('Tenant'));
+        $this->assertFalse($user->hasRole('Owner'));
+    }
+
+    public function test_an_invalid_role_is_rejected(): void
+    {
+        $this->post(route('register'), $this->validPayload(['role' => 'admin']))
+            ->assertSessionHasErrors('role');
+
+        $this->assertDatabaseMissing('auth_users', ['email' => 'tendai@example.com']);
+    }
+
+    public function test_register_page_preselects_owner_when_asked(): void
+    {
+        $this->get(route('register', ['as' => 'owner']))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Auth/Register')
+                ->where('defaultRole', 'owner'));
+
+        $this->get(route('register'))
+            ->assertInertia(fn ($page) => $page->where('defaultRole', 'tenant'));
+    }
 }

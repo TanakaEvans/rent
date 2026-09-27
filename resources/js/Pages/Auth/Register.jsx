@@ -5,14 +5,17 @@ import { Input } from '@/Components/ui/input';
 import { Label } from '@/Components/ui/label';
 import { Checkbox } from '@/Components/ui/checkbox';
 
-export default function Register({ errors }) {
+export default function Register({ errors, defaultRole = 'tenant' }) {
     const { data, setData, post, processing, reset } = useForm({
         name: '',
         email: '',
         password: '',
         password_confirmation: '',
+        role: defaultRole === 'owner' ? 'owner' : 'tenant',
         terms: false,
     });
+
+    const isOwner = data.role === 'owner';
 
     const [showPassword, setShowPassword] = useState(false);
     const [focusedField, setFocusedField] = useState(null);
@@ -69,11 +72,14 @@ export default function Register({ errors }) {
 
                         <div className="flex-1 flex flex-col justify-center">
                             <h1 className="text-3xl font-bold text-white leading-tight tracking-tight mb-4">
-                                Tenants search, save &amp; apply for free.
+                                {isOwner
+                                    ? 'List your property. Rent it out directly.'
+                                    : 'Tenants search, save & apply for free.'}
                             </h1>
                             <p className="text-sm text-slate-400 leading-relaxed max-w-sm">
-                                Create a tenant account in under a minute and start browsing verified
-                                homes let directly by their owners — no agent fees, no commissions.
+                                {isOwner
+                                    ? 'Create an owner account in under a minute, list your property and deal with tenants directly — no agent, no commission.'
+                                    : 'Create a tenant account in under a minute and start browsing verified homes let directly by their owners — no agent fees, no commissions.'}
                             </p>
 
                             <div className="w-12 h-0.5 bg-emerald-500 rounded-full my-8" />
@@ -109,9 +115,37 @@ export default function Register({ errors }) {
                 {/* RIGHT PANEL: Register Form */}
                 <div className="lg:col-span-3 p-8 lg:p-12 xl:p-14 flex flex-col justify-center">
                     <div className="max-w-sm mx-auto w-full">
-                        <div className="mb-8">
+                        <div className="mb-6">
                             <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Create your account</h2>
-                            <p className="text-sm text-slate-500 mt-1.5">Free to join. Tenants never pay listing or agency fees.</p>
+                            <p className="text-sm text-slate-500 mt-1.5">
+                                {isOwner
+                                    ? 'List your property and manage tenants directly — no agent commission.'
+                                    : 'Free to join. Tenants never pay listing or agency fees.'}
+                            </p>
+                        </div>
+
+                        {/* Account type toggle */}
+                        <div className="mb-6 grid grid-cols-2 gap-2 rounded-xl bg-slate-100 p-1" role="tablist" aria-label="Account type">
+                            {[
+                                { key: 'tenant', label: 'Rent a home', hint: "I'm looking" },
+                                { key: 'owner', label: 'List property', hint: "I'm an owner" },
+                            ].map((option) => (
+                                <button
+                                    key={option.key}
+                                    type="button"
+                                    role="tab"
+                                    aria-selected={data.role === option.key}
+                                    onClick={() => setData('role', option.key)}
+                                    className={`flex flex-col items-center rounded-lg px-3 py-2 text-sm font-semibold transition-all ${
+                                        data.role === option.key
+                                            ? 'bg-white text-emerald-700 shadow-sm'
+                                            : 'text-slate-500 hover:text-slate-700'
+                                    }`}
+                                >
+                                    {option.label}
+                                    <span className="text-[11px] font-normal text-slate-400">{option.hint}</span>
+                                </button>
+                            ))}
                         </div>
 
                         {Object.keys(errors).length > 0 && (
@@ -230,7 +264,7 @@ export default function Register({ errors }) {
                                         Creating account...
                                     </span>
                                 ) : (
-                                    <span>Create free account</span>
+                                    <span>{isOwner ? 'Create owner account' : 'Create free account'}</span>
                                 )}
                             </Button>
                         </form>

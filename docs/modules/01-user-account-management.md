@@ -89,3 +89,39 @@ AC-01 A tenant/owner restricted path returns HTTP 403 for the wrong role.
 AC-02 A locked account (7 failures) cannot log in until unlocked.
 AC-03 A first-time user is forced to change their password before proceeding.
 AC-04 Login redirect targets the correct role dashboard.
+
+## 10. Authentication flows (design + status)
+
+The signed-out surface is: **Register**, **Login**, **Forgot / Reset password**, and (post-login, when required) **Forced password change**. All are Inertia pages behind guest/auth middleware; passwords always hash with `Rules\Password::defaults()` strength.
+
+### 10.1 Account creation
+
+| Path | Who | How |
+|---|---|---|
+| Public **tenant** signup | Anyone | `POST /register` with `role=tenant` (default) → `AuthService::registerTenant` → `Tenant` role, auto-login, land on tenant dashboard. |
+| Public **owner** signup **(Sep 2026)** | Anyone listing property | `POST /register` with `role=owner` → `AuthService::registerOwner` → `Owner` role, auto-login, land on owner dashboard. The marketplace **"List your property"** CTAs deep-link to `register?as=owner`, which preselects the owner tab. |
+| Admin-created staff/owner | Admin/Superuser | User-management screen (`auth.management`) assigns any role; the account starts with `password_changed_at = null` so it is forced through the change screen on first sign-in. |
+
+Registration rules (both roles): `name` required, `email` unique + lowercased, `password` confirmed + default strength, **terms accepted**, username auto-derived from the email, `status = active`, `password_changed_at = now()` (self-signup users are not forced to change). Owner self-signup does **not** auto-verify the owner — listings still pass through the existing verification/badge workflow (Module 14); signup only creates the account and role.
+
+### 10.2 Login, lockout, forced change (built)
+
+- `POST /login` — email **or** username + password. Each failure increments `failed_login_attempts`; at **7** the account locks (`AuthService::LOCKED_MESSAGE`, "contact an administrator"). Success resets the counter.
+- `password/change` (`EnsurePasswordIsChanged`) forces accounts with a null `password_changed_at` to set a new password before using the app. Demo users keep it set to avoid the loop.
+- Admin recovery: `auth.management.reset` issues a one-time temporary password (clears lockout, forces change) and `auth.management.unlock` clears a lockout.
+
+### 10.3 Self-service password reset **(Sep 2026)** — Laravel password broker
+
+Standard, best-practice broker flow (`config/auth.php` `passwords.users`, `password_reset_tokens` table, 60-min token expiry, 60-sec throttle):
+
+1. `GET /forgot-password` — guest form asking for the account email.
+2. `POST /forgot-password` — `Password::sendResetLink()`. Response is a **generic** status ("If that email is registered, a reset link is on its way.") so the endpoint never reveals whether an email exists. Throttled by the broker.
+3. `GET /reset-password/{token}` — guest form (token + email prefilled) to choose a new password.
+4. `POST /reset-password` — `Password::reset()`; on success sets the new hash, **`password_changed_at = now()`** (so the user is not then forced through the change screen), clears `failed_login_attempts` (a forgotten password often means a locked account), fires the `PasswordReset` event, and redirects to login with a success flash.
+
+The reset link is delivered by Laravel's `ResetPassword` notification over the configured mailer. **Operational note:** `MAIL_MAILER` must be a real transport (SMTP) in production; the default `log` transport writes the link to the log instead of sending it.
+
+AC-05 Owner self-signup creates an `Owner` (not a tenant) and lands on the owner dashboard.
+AC-06 A reset request for an unknown email returns the same generic success as a known one (no user enumeration).
+AC-07 A valid reset token sets the new password, clears any lockout, and stamps `password_changed_at` so no forced change follows.
+AC-08 An invalid/expired token is rejected and the password is unchanged.

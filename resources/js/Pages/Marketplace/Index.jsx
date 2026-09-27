@@ -920,6 +920,8 @@ export default function MarketplaceIndex({
 
     const [mapActive, setMapActive] = useState({ id: null, from: null });
     const dashboardHref = auth?.user ? route(dashboardRouteFor(auth.user.roles)) : route('login');
+    // Guests listing a property go straight to the owner-signup flow.
+    const listPropertyHref = auth?.user ? dashboardHref : route('register', { as: 'owner' });
     const navLinks = [
         ['#properties', 'Browse homes'],
         ...(explore?.length ? [['#neighbourhoods', 'Neighbourhoods']] : []),
@@ -956,7 +958,7 @@ export default function MarketplaceIndex({
                             ) : (
                                 <>
                                     <Link href={route('login')} className="text-sm font-medium text-white/75 transition-colors hover:text-white">Sign in</Link>
-                                    <Link href={route('login')} className={cn(ctaPitch, 'h-9 px-4 text-sm')}>List your property</Link>
+                                    <Link href={listPropertyHref} className={cn(ctaPitch, 'h-9 px-4 text-sm')}>List your property</Link>
                                 </>
                             )}
                         </div>
@@ -970,7 +972,7 @@ export default function MarketplaceIndex({
                                 <a key={href} href={href} onClick={() => setMobileNav(false)} className="block border-b border-white/10 py-3.5 text-[15px] text-white">{label}</a>
                             ))}
                             {!auth?.user && <Link href={route('login')} className="block border-b border-white/10 py-3.5 text-[15px] text-white">Sign in</Link>}
-                            <Link href={dashboardHref} className={cn(ctaPitch, 'mt-4 h-11 w-full text-sm')}>{auth?.user ? 'My dashboard' : 'List your property'}</Link>
+                            <Link href={listPropertyHref} className={cn(ctaPitch, 'mt-4 h-11 w-full text-sm')}>{auth?.user ? 'My dashboard' : 'List your property'}</Link>
                         </div>
                     )}
                 </header>
@@ -1360,7 +1362,7 @@ export default function MarketplaceIndex({
                             <p className="mt-4 text-lg leading-8 text-white/70">Reach tenants who are actively searching, manage enquiries and viewings in one place, and pay a simple subscription instead of an agent's cut.</p>
                         </div>
                         <div className="flex shrink-0 flex-wrap gap-3">
-                            <Link href={dashboardHref} className="inline-flex h-12 items-center gap-2 rounded-full bg-pitch px-7 text-[15px] font-semibold text-brand transition hover:bg-white">
+                            <Link href={listPropertyHref} className="inline-flex h-12 items-center gap-2 rounded-full bg-pitch px-7 text-[15px] font-semibold text-brand transition hover:bg-white">
                                 {auth?.user ? 'Go to my dashboard' : 'List your property'} <ArrowRight className="h-4 w-4" />
                             </Link>
                             <a href="#properties" className="inline-flex h-12 items-center rounded-full border border-white/30 px-7 text-[15px] font-semibold text-white transition hover:bg-white/10">Browse homes</a>

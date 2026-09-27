@@ -15,13 +15,16 @@ class RegisterController extends Controller
     {
     }
 
-    public function create()
+    public function create(Request $request)
     {
         if (auth()->check()) {
             return redirect($this->authService->landingUrlFor(auth()->user()) ?? route('dashboard'));
         }
 
-        return Inertia::render('Auth/Register');
+        return Inertia::render('Auth/Register', [
+            // "List your property" links here with ?as=owner to preselect the tab.
+            'defaultRole' => $request->query('as') === 'owner' ? 'owner' : 'tenant',
+        ]);
     }
 
     public function store(Request $request)
@@ -34,15 +37,22 @@ class RegisterController extends Controller
             'name' => ['required', 'string', 'max:150'],
             'email' => ['required', 'string', 'email', 'max:150', 'unique:auth_users'],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
+            'role' => ['nullable', 'in:tenant,owner'],
             'terms' => ['required', 'accepted'],
         ]);
 
-        $user = $this->authService->registerTenant($validated);
+        $isOwner = ($validated['role'] ?? 'tenant') === 'owner';
+
+        $user = $isOwner
+            ? $this->authService->registerOwner($validated)
+            : $this->authService->registerTenant($validated);
 
         Auth::login($user);
         $request->session()->regenerate();
 
         return redirect($this->authService->landingUrlFor($user) ?? route('dashboard'))
-            ->with('success', 'Welcome to ZimRent! Your tenant account is ready.');
+            ->with('success', $isOwner
+                ? 'Welcome to ZimRent! Your owner account is ready — add your first property.'
+                : 'Welcome to ZimRent! Your tenant account is ready.');
     }
 }
