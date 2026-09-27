@@ -48,7 +48,12 @@ class InterestsTest extends TestCase
 
     private function availableProperty(): Property
     {
-        return Property::where('status', 'available')->where('owner_id', $this->owner()->id)->first();
+        // Deterministic, and never one the seeded demo interest already uses.
+        return Property::where('status', 'available')
+            ->where('owner_id', $this->owner()->id)
+            ->whereDoesntHave('interests', fn ($query) => $query->where('tenant_id', $this->tenant()->id))
+            ->orderBy('id')
+            ->firstOrFail();
     }
 
     public function test_tenant_can_express_interest(): void
