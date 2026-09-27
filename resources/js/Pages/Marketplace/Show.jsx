@@ -43,6 +43,7 @@ import { createBaseLayers, createMap, hasCoordinates, homePinIcon } from '@/lib/
 import PropertyArt from '@/Components/Shared/PropertyArt';
 import StatusBadge from '@/Components/Shared/StatusBadge';
 import OwnerTrustBadge from '@/Components/Shared/OwnerTrustBadge';
+import ChatWidget from '@/Components/Shared/ChatWidget';
 import { buttonVariants } from '@/Components/ui/button';
 import { cn } from '@/lib/utils';
 import { dashboardRouteFor } from '@/lib/roles';
@@ -956,6 +957,8 @@ export default function MarketplaceShow({ property, onMarket = true, similar = [
                     </div>
                 </div>
             )}
+
+            <ChatWidget />
         </>
     );
 }

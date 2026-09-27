@@ -13,6 +13,7 @@ import PropertyArt from '@/Components/Shared/PropertyArt';
 import EmptyState from '@/Components/Shared/EmptyState';
 import OwnerTrustBadge from '@/Components/Shared/OwnerTrustBadge';
 import MapStyleToggle from '@/Components/Shared/MapStyleToggle';
+import ChatWidget from '@/Components/Shared/ChatWidget';
 import { Button } from '@/Components/ui/button';
 import { cn } from '@/lib/utils';
 import { dashboardRouteFor } from '@/lib/roles';
@@ -1402,6 +1403,8 @@ export default function MarketplaceIndex({
                     onToggleFavourite={favouriteHandler}
                 />
             )}
+
+            <ChatWidget />
         </>
     );
 }
