@@ -271,7 +271,7 @@ final class ConfigurationService
             'access.payer' => [
                 'group' => 'access',
                 'type' => 'string',
-                'value' => 'owner',
+                'value' => 'both',
                 'options' => ['owner', 'tenant', 'both'],
                 'label' => 'Who pays',
                 'description' => 'Which party must hold an active access pass once the free period ends.',

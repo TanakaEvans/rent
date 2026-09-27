@@ -24,6 +24,7 @@ const SECTIONS = [
     { id: 'pricing', label: 'Pricing', hint: 'Rent, deposit and the running costs tenants should budget for.' },
     { id: 'details', label: 'Rental details', hint: 'The ground rules and who the home suits best.' },
     { id: 'location', label: 'Location', hint: 'Where the property is — pin it on the map so tenants can find it.' },
+    { id: 'amenities', label: 'Amenities', hint: 'The features and extras that help your listing stand out.' },
     { id: 'photos', label: 'Photos', hint: 'At least one photo is required. Tenants browse by photo first.' },
 ];
 
@@ -39,7 +40,8 @@ const SECTION_FIELDS = {
         'show_phone', 'families_allowed',
     ],
     location: ['suburb', 'zone', 'city', 'available_from', 'address', 'latitude', 'longitude'],
-    photos: ['media', 'cover', 'cover_image', 'images', 'amenities'],
+    amenities: ['amenities'],
+    photos: ['media', 'cover', 'cover_image', 'images'],
 };
 
 const sectionForField = (field) => {
@@ -501,37 +503,38 @@ export default function PropertyForm({ mode = 'create', property = null, amenity
                 </div>
             </Section>
 
-            {/* Photos + amenities */}
-            <Section {...sectionProps('photos', 4)}>
+            {/* Amenities — its own collapsible section */}
+            <Section {...sectionProps('amenities', 4)}>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+                    {amenityOptions.map(({ key, label }) => {
+                        const active = data.amenities.includes(key);
+                        return (
+                            <button
+                                key={key}
+                                type="button"
+                                onClick={() => toggleAmenity(key)}
+                                className={cn(
+                                    'rounded-xl border px-3 py-2.5 text-left text-xs font-semibold transition-colors',
+                                    active
+                                        ? 'border-primary bg-primary/10 text-primary'
+                                        : 'border-border bg-muted/50 text-muted-foreground hover:border-primary/40'
+                                )}
+                            >
+                                {label}
+                            </button>
+                        );
+                    })}
+                </div>
+            </Section>
+
+            {/* Photos */}
+            <Section {...sectionProps('photos', 5)}>
                 <PhotoUploader
                     cover={data.cover || data.cover_image || null}
                     images={data.images}
                     onChange={changePhotos}
                     error={errors.media}
                 />
-                <div className="mt-6">
-                    <h4 className="mb-3 text-sm font-extrabold uppercase tracking-wider text-muted-foreground">Amenities</h4>
-                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-                        {amenityOptions.map(({ key, label }) => {
-                            const active = data.amenities.includes(key);
-                            return (
-                                <button
-                                    key={key}
-                                    type="button"
-                                    onClick={() => toggleAmenity(key)}
-                                    className={cn(
-                                        'rounded-xl border px-3 py-2.5 text-left text-xs font-semibold transition-colors',
-                                        active
-                                            ? 'border-primary bg-primary/10 text-primary'
-                                            : 'border-border bg-muted/50 text-muted-foreground hover:border-primary/40'
-                                    )}
-                                >
-                                    {label}
-                                </button>
-                            );
-                        })}
-                    </div>
-                </div>
             </Section>
 
             <div className="flex items-center justify-between gap-3">
