@@ -17,23 +17,46 @@ return [
             'articles' => [
                 [
                     'id' => 'owner-account',
-                    'title' => 'Get an owner account',
-                    'summary' => 'Public sign-up creates tenant accounts. Owner accounts are set up by the ZimRent team, who give your account the **Owner** role.',
+                    'title' => 'Create an owner account',
+                    'summary' => 'Sign up as an owner in under a minute — no waiting for the ZimRent team.',
                     'steps' => [
-                        'Contact the ZimRent team and ask for an owner account.',
-                        'Sign in with the details you receive. If you are asked to change your password, choose a new one before continuing.',
-                        'You land on your **Owner Dashboard**.',
+                        'Choose **List your property** anywhere on the marketplace, or open **Create account** and pick the **List property** tab.',
+                        'Enter your name, email and a password, accept the terms and submit. You are signed in straight away on the **Owner Dashboard**.',
+                        'Add your first property from **My Properties** — listings go live once they pass verification.',
                     ],
                     'notes' => [
                         'Passwords must be at least 8 characters and include upper and lower case letters, a number and a symbol.',
+                        'Already signed up as a tenant? Ask the ZimRent team to add the Owner role to your existing account.',
                     ],
                     'links' => [
                         ['label' => 'Open my dashboard', 'route' => 'owner.dashboard'],
                     ],
                     'verified_by' => [
-                        'Tests\Feature\SignupTest::test_public_signup_creates_a_tenant_with_default_role',
+                        'Tests\Feature\SignupTest::test_owner_signup_creates_an_owner_and_lands_on_the_owner_dashboard',
+                        'Tests\Feature\SignupTest::test_signed_up_owner_can_reach_the_owner_dashboard_but_not_admin',
+                        'Tests\Feature\SignupTest::test_register_page_preselects_owner_when_asked',
                         'Tests\Feature\DzimbaAccessControlTest::test_owner_can_access_owner_dashboard',
                         'Tests\Feature\AdminManualTest::test_admin_can_make_an_existing_user_an_owner',
+                    ],
+                ],
+                [
+                    'id' => 'reset-password',
+                    'title' => 'Reset a forgotten password',
+                    'summary' => 'Locked out? Reset your own password by email — no need to contact anyone.',
+                    'steps' => [
+                        'On the sign-in page choose **Forgot your password?**',
+                        'Enter your account email and submit. If it is registered, we email you a reset link.',
+                        'Open the link and set a new password — you can then sign in with it.',
+                    ],
+                    'notes' => [
+                        'For your security we always show the same confirmation, whether or not the email is registered.',
+                        'The reset link expires after 60 minutes; request a new one if it lapses.',
+                        'Resetting your password also clears an account locked by too many failed sign-ins.',
+                    ],
+                    'verified_by' => [
+                        'Tests\Feature\Fixes\PasswordResetTest::test_requesting_a_reset_for_a_known_email_sends_the_link',
+                        'Tests\Feature\Fixes\PasswordResetTest::test_a_valid_token_resets_the_password_clears_lockout_and_stamps_changed',
+                        'Tests\Feature\Fixes\PasswordResetTest::test_the_reset_lets_the_user_sign_in_with_the_new_password',
                     ],
                 ],
                 [
