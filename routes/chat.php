@@ -33,6 +33,10 @@ Route::middleware(['web', 'auth', EnsurePasswordIsChanged::class, EnsureHasRole:
     Route::post('/chat/support', [ChatController::class, 'startSupport'])
         ->name('chat.start-support')
         ->defaults('description', 'Start a chat with ZimRent support');
+    Route::get('/chat/{conversation}/thread', [ChatController::class, 'thread'])
+        ->name('chat.thread')
+        ->whereNumber('conversation')
+        ->defaults('description', 'Read a conversation thread (JSON) for the chat widget');
     Route::get('/chat/{conversation}', [ChatController::class, 'show'])
         ->name('chat.show')
         ->whereNumber('conversation')

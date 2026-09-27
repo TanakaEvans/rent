@@ -242,4 +242,53 @@ class ChatTest extends TestCase
         $this->actingAs($this->owner())->get(route('admin.support.index'))->assertForbidden();
         $this->actingAs($this->tenant())->get(route('admin.support.index'))->assertForbidden();
     }
+
+    public function test_thread_endpoint_returns_messages_and_marks_them_read(): void
+    {
+        $conversation = $this->chat()->startDirect($this->tenant(), $this->freshProperty());
+        $this->chat()->postMessage($conversation, $this->owner(), 'Is it still available?');
+
+        $this->actingAs($this->tenant())
+            ->getJson(route('chat.thread', $conversation->id))
+            ->assertOk()
+            ->assertJsonPath('id', $conversation->id)
+            ->assertJsonPath('peer', $this->owner()->name)
+            ->assertJsonPath('messages.0.body', 'Is it still available?')
+            ->assertJsonPath('messages.0.mine', false);
+
+        // Opening the thread advanced the tenant's read cursor.
+        $this->assertSame(0, $this->chat()->unreadTotal($this->tenant()));
+    }
+
+    public function test_posting_json_returns_the_new_message(): void
+    {
+        $conversation = $this->chat()->startDirect($this->tenant(), $this->freshProperty());
+
+        $this->actingAs($this->tenant())
+            ->postJson(route('chat.message', $conversation->id), ['body' => 'Booking a viewing'])
+            ->assertOk()
+            ->assertJsonPath('message.body', 'Booking a viewing')
+            ->assertJsonPath('message.mine', true)
+            ->assertJsonPath('message.sender', $this->tenant()->name);
+    }
+
+    public function test_a_non_participant_cannot_read_a_thread(): void
+    {
+        $conversation = $this->chat()->startDirect($this->tenant(), $this->freshProperty());
+
+        $this->actingAs($this->stranger())
+            ->getJson(route('chat.thread', $conversation->id))
+            ->assertNotFound();
+    }
+
+    public function test_starting_support_over_json_returns_the_conversation_id(): void
+    {
+        $response = $this->actingAs($this->tenant())
+            ->postJson(route('chat.start-support'))
+            ->assertOk();
+
+        $id = $response->json('id');
+        $this->assertNotNull($id);
+        $this->assertDatabaseHas('conversations', ['id' => $id, 'type' => 'support']);
+    }
 }
