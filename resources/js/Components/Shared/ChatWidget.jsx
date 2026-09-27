@@ -12,11 +12,11 @@ const safeRoute = (name, params = {}) => {
 };
 
 /**
- * Floating chat launcher for signed-in pages. Shows an unread badge, and a
- * small panel that lists recent conversations plus a "Message support"
- * button. Data comes from the JSON `chat.unread` endpoint over plain fetch
- * (light polling — no websockets), so the widget works on any page that
- * mounts it. Renders nothing for guests.
+ * Floating chat launcher, shown on every page. For signed-in users it shows an
+ * unread badge and a panel listing recent conversations plus a "Message
+ * support" button (data from the JSON `chat.unread` endpoint, light polling —
+ * no websockets). For guests it still shows the bubble, and opening it invites
+ * them to sign in, since messaging owners and support requires an account.
  */
 export default function ChatWidget() {
     const user = usePage().props.auth?.user;
@@ -25,6 +25,8 @@ export default function ChatWidget() {
     const [conversations, setConversations] = useState([]);
 
     const endpoint = safeRoute('chat.unread');
+    const loginUrl = safeRoute('login');
+    const registerUrl = safeRoute('register');
 
     const refresh = useCallback(() => {
         if (!endpoint || document.visibilityState !== 'visible') return;
@@ -50,7 +52,7 @@ export default function ChatWidget() {
         };
     }, [user, endpoint, refresh]);
 
-    if (!user || !endpoint) return null;
+    if (!user && !loginUrl) return null;
 
     const peerName = (conversation) => {
         if (conversation.type === 'support') return 'ZimRent Support';
@@ -79,6 +81,28 @@ export default function ChatWidget() {
                         </button>
                     </div>
 
+                    {!user ? (
+                        <div className="px-5 py-8 text-center">
+                            <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-primary/10 text-primary">
+                                <MessageCircle className="h-6 w-6" />
+                            </span>
+                            <p className="mt-3 text-sm font-extrabold text-foreground">Chat with owners &amp; support</p>
+                            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                                Sign in to message property owners directly — no agent — and reach ZimRent support.
+                            </p>
+                            <div className="mt-4 flex flex-col gap-2">
+                                <button type="button" onClick={() => router.visit(loginUrl)} className="inline-flex h-10 items-center justify-center rounded-xl bg-primary px-4 text-sm font-bold text-primary-foreground transition-colors hover:opacity-90">
+                                    Sign in
+                                </button>
+                                {registerUrl && (
+                                    <button type="button" onClick={() => router.visit(registerUrl)} className="inline-flex h-10 items-center justify-center rounded-xl border border-border px-4 text-sm font-bold text-foreground transition-colors hover:bg-muted">
+                                        Create a free account
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    ) : (
+                    <>
                     <div className="max-h-80 overflow-y-auto">
                         {conversations.length === 0 ? (
                             <p className="px-4 py-8 text-center text-sm text-muted-foreground">No conversations yet.</p>
@@ -120,6 +144,8 @@ export default function ChatWidget() {
                             Open messages <ChevronRight className="h-3.5 w-3.5" />
                         </button>
                     </div>
+                    </>
+                    )}
                 </div>
             )}
 
