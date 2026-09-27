@@ -49,6 +49,8 @@ class HandleInertiaRequests extends Middleware
                 'error' => fn () => $request->session()->get('error'),
                 'warning' => fn () => $request->session()->get('warning'),
             ],
+            // Auth status line (password reset link sent, password reset, etc.).
+            'status' => fn () => $request->session()->get('status'),
         ];
     }
 }

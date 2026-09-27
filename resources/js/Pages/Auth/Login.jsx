@@ -238,7 +238,9 @@ export default function Login({ status, errors }) {
                                 </div>
                             </div>
                             <p className="text-xs text-slate-500">
-                                Forgot your password? Contact ZimRent support to reset it.
+                                <Link href={route('password.request')} className="font-medium text-emerald-600 hover:text-emerald-700 transition-colors">
+                                    Forgot your password?
+                                </Link>
                             </p>
 
                             <Button
