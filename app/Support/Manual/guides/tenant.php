@@ -49,13 +49,13 @@ return [
                         'Open the link and set a new password — you can then sign in with it.',
                     ],
                     'notes' => [
-                        'For your security we always show the same confirmation, whether or not the email is registered.',
+                        'If the email is not linked to any account, we tell you so — check the spelling or create an account.',
                         'The reset link expires after 60 minutes; request a new one if it lapses.',
                         'Resetting your password also clears an account that was locked by too many failed sign-ins.',
                     ],
                     'verified_by' => [
                         'Tests\Feature\Fixes\PasswordResetTest::test_requesting_a_reset_for_a_known_email_sends_the_link',
-                        'Tests\Feature\Fixes\PasswordResetTest::test_unknown_email_gets_the_same_generic_response_and_no_mail',
+                        'Tests\Feature\Fixes\PasswordResetTest::test_unknown_email_is_reported_and_sends_no_mail',
                         'Tests\Feature\Fixes\PasswordResetTest::test_a_valid_token_resets_the_password_clears_lockout_and_stamps_changed',
                         'Tests\Feature\Fixes\PasswordResetTest::test_the_reset_lets_the_user_sign_in_with_the_new_password',
                     ],

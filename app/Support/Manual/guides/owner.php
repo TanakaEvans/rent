@@ -49,7 +49,7 @@ return [
                         'Open the link and set a new password — you can then sign in with it.',
                     ],
                     'notes' => [
-                        'For your security we always show the same confirmation, whether or not the email is registered.',
+                        'If the email is not linked to any account, we tell you so — check the spelling or create an account.',
                         'The reset link expires after 60 minutes; request a new one if it lapses.',
                         'Resetting your password also clears an account locked by too many failed sign-ins.',
                     ],

@@ -115,13 +115,13 @@ Registration rules (both roles): `name` required, `email` unique + lowercased, `
 Standard, best-practice broker flow (`config/auth.php` `passwords.users`, `password_reset_tokens` table, 60-min token expiry, 60-sec throttle):
 
 1. `GET /forgot-password` — guest form asking for the account email.
-2. `POST /forgot-password` — `Password::sendResetLink()`. Response is a **generic** status ("If that email is registered, a reset link is on its way.") so the endpoint never reveals whether an email exists. Throttled by the broker.
+2. `POST /forgot-password` — `Password::sendResetLink()`. The response is **explicit** (product decision): a match returns "A password reset link is on its way", an unregistered email returns a validation error "That email isn't linked to any ZimRent account", and a repeat within the window returns a throttle notice. This favours clear feedback over user-enumeration resistance. Throttled by the broker.
 3. `GET /reset-password/{token}` — guest form (token + email prefilled) to choose a new password.
 4. `POST /reset-password` — `Password::reset()`; on success sets the new hash, **`password_changed_at = now()`** (so the user is not then forced through the change screen), clears `failed_login_attempts` (a forgotten password often means a locked account), fires the `PasswordReset` event, and redirects to login with a success flash.
 
 The reset link is delivered by Laravel's `ResetPassword` notification over the configured mailer. **Operational note:** `MAIL_MAILER` must be a real transport (SMTP) in production; the default `log` transport writes the link to the log instead of sending it.
 
 AC-05 Owner self-signup creates an `Owner` (not a tenant) and lands on the owner dashboard.
-AC-06 A reset request for an unknown email returns the same generic success as a known one (no user enumeration).
+AC-06 A reset request for an unknown email returns an explicit "not linked to any account" error and sends no mail.
 AC-07 A valid reset token sets the new password, clears any lockout, and stamps `password_changed_at` so no forced change follows.
 AC-08 An invalid/expired token is rejected and the password is unchanged.

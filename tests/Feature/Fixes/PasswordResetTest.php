@@ -42,12 +42,12 @@ class PasswordResetTest extends TestCase
         Notification::assertSentTo($this->tenant(), ResetPassword::class);
     }
 
-    public function test_unknown_email_gets_the_same_generic_response_and_no_mail(): void
+    public function test_unknown_email_is_reported_and_sends_no_mail(): void
     {
         Notification::fake();
 
         $this->post(route('password.email'), ['email' => 'nobody@nowhere.test'])
-            ->assertSessionHas('status');
+            ->assertSessionHasErrors('email');
 
         Notification::assertNothingSent();
     }
