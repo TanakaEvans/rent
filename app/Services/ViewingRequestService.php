@@ -12,6 +12,7 @@ use App\Notifications\ViewingConfirmedNotification;
 use App\Notifications\ViewingDeclinedNotification;
 use App\Notifications\ViewingRequestedNotification;
 use App\Notifications\ViewingRescheduledNotification;
+use Illuminate\Support\Carbon;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 
 class ViewingRequestService
@@ -49,6 +50,45 @@ class ViewingRequestService
     }
 
     /**
+     * A tenant suggests their own viewing time (no owner slot fits). The
+     * request carries the proposed window and no slot; the owner accepts it
+     * (which creates and locks the slot), reschedules, or declines.
+     */
+    public function propose(User $tenant, Property $property, Carbon $startsAt, Carbon $endsAt, ?string $message): ViewingRequest
+    {
+        abort_unless($property->status === 'available', 404);
+
+        if ($startsAt->isPast()) {
+            throw new ConflictHttpException('Suggest a time in the future.');
+        }
+        if ($endsAt->lessThanOrEqualTo($startsAt)) {
+            throw new ConflictHttpException('The viewing must end after it starts.');
+        }
+
+        if (ViewingRequest::where('tenant_id', $tenant->id)
+            ->where('property_id', $property->id)
+            ->whereNull('slot_id')
+            ->active()
+            ->exists()) {
+            throw new ConflictHttpException('You already have a suggested time waiting on this property.');
+        }
+
+        $booking = ViewingRequest::create([
+            'property_id' => $property->id,
+            'tenant_id' => $tenant->id,
+            'slot_id' => null,
+            'proposed_starts_at' => $startsAt,
+            'proposed_ends_at' => $endsAt,
+            'request_message' => $message,
+            'status' => 'requested',
+        ]);
+
+        $property->owner->notify(new ViewingRequestedNotification($booking));
+
+        return $booking;
+    }
+
+    /**
      * All viewing bookings against the owner's properties, newest first.
      * Each booking carries its property's other available slots for rescheduling.
      */
@@ -71,10 +111,17 @@ class ViewingRequestService
             ->with(['property:id,title,suburb,city', 'tenant:id,name,email', 'slot:id,starts_at,ends_at,status'])
             ->latest()
             ->get()
-            ->map(fn (ViewingRequest $request) => $request->setAttribute(
-                'available_slots',
-                in_array('reschedule', ViewingRequest::TRANSITIONS[$request->status] ?? [], true) ? ($slotsByProperty->get($request->property_id) ?? collect()) : collect()
-            ));
+            ->map(function (ViewingRequest $request) use ($slotsByProperty) {
+                $window = $request->window();
+                $request->setAttribute('start_at', $window['start']);
+                $request->setAttribute('end_at', $window['end']);
+                $request->setAttribute('is_proposed', $request->slot_id === null);
+
+                return $request->setAttribute(
+                    'available_slots',
+                    in_array('reschedule', ViewingRequest::TRANSITIONS[$request->status] ?? [], true) ? ($slotsByProperty->get($request->property_id) ?? collect()) : collect()
+                );
+            });
     }
 
     /**
@@ -111,6 +158,10 @@ class ViewingRequestService
                 if ($request->property) {
                     $this->location->mask($request->property, $this->location->canSeeExact($request->property, $tenant), $radius);
                 }
+                $window = $request->window();
+                $request->setAttribute('start_at', $window['start']);
+                $request->setAttribute('end_at', $window['end']);
+                $request->setAttribute('is_proposed', $request->slot_id === null);
             });
     }
 
@@ -122,12 +173,27 @@ class ViewingRequestService
         $this->authorizeOwner($owner, $request);
         $this->assertTransition($request, 'accept');
 
-        $this->assertSlotBookable($request->slot);
+        // A tenant-suggested time has no slot yet: create and lock one now.
+        if ($request->slot === null) {
+            if ($request->proposed_starts_at === null || $request->proposed_ends_at->isPast()) {
+                throw new ConflictHttpException('That suggested time has passed. Ask the tenant to suggest another, or offer a slot.');
+            }
 
-        $request->slot->update(['status' => 'taken']);
-        $request->update(['status' => 'accepted']);
+            $slot = ViewingSlot::create([
+                'property_id' => $request->property_id,
+                'owner_id' => $owner->id,
+                'starts_at' => $request->proposed_starts_at,
+                'ends_at' => $request->proposed_ends_at,
+                'status' => 'taken',
+            ]);
+            $request->update(['slot_id' => $slot->id, 'status' => 'accepted']);
+        } else {
+            $this->assertSlotBookable($request->slot);
+            $request->slot->update(['status' => 'taken']);
+            $request->update(['status' => 'accepted']);
+        }
 
-        $request->tenant->notify(new ViewingAcceptedNotification($request));
+        $request->tenant->notify(new ViewingAcceptedNotification($request->fresh(['slot', 'property', 'tenant'])));
 
         return $request;
     }
@@ -269,7 +335,7 @@ class ViewingRequestService
 
     private function releaseSlot(ViewingRequest $request): void
     {
-        if ($request->slot->status === 'taken') {
+        if ($request->slot && $request->slot->status === 'taken') {
             $request->slot->update(['status' => 'available']);
         }
     }

@@ -6,13 +6,13 @@ import StatusBadge from '@/Components/Shared/StatusBadge';
 import EmptyState from '@/Components/Shared/EmptyState';
 
 const formatSlot = (value) =>
-    new Date(value).toLocaleString(undefined, {
+    value ? new Date(value).toLocaleString(undefined, {
         weekday: 'short',
         month: 'short',
         day: 'numeric',
         hour: 'numeric',
         minute: '2-digit',
-    });
+    }) : 'Time to be confirmed';
 
 const CONFIRM = {
     decline: 'Decline this viewing request? The tenant will be notified.',
@@ -107,9 +107,12 @@ export default function OwnerViewings({ requests = [], properties = [] }) {
 
                                 <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl bg-muted/60 p-3.5 text-sm">
                                     <span className="inline-flex items-center gap-1.5 font-bold text-foreground">
-                                        <CalendarDays className="h-4 w-4 text-emerald-500" /> {formatSlot(booking.slot?.starts_at)}
+                                        <CalendarDays className="h-4 w-4 text-primary" /> {formatSlot(booking.start_at)}
                                     </span>
-                                    <span className="text-xs text-muted-foreground">until {formatSlot(booking.slot?.ends_at)}</span>
+                                    <span className="text-xs text-muted-foreground">until {formatSlot(booking.end_at)}</span>
+                                    {booking.is_proposed && (
+                                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-700">Tenant suggested this time</span>
+                                    )}
                                     {booking.outcome && (
                                         <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700">
                                             {booking.outcome}

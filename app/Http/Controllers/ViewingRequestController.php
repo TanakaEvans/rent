@@ -60,6 +60,32 @@ class ViewingRequestController extends Controller
     }
 
     /**
+     * A tenant suggests their own viewing time when no open slot suits.
+     */
+    public function propose(Request $request)
+    {
+        $validated = $request->validate([
+            'property_id' => ['required', 'integer'],
+            'starts_at' => ['required', 'date', 'after:now'],
+            'ends_at' => ['required', 'date', 'after:starts_at'],
+            'request_message' => ['nullable', 'string', 'max:1000'],
+        ], [], [
+            'starts_at' => 'start time',
+            'ends_at' => 'end time',
+        ]);
+
+        $this->requests->propose(
+            $request->user(),
+            Property::findOrFail($validated['property_id']),
+            \Illuminate\Support\Carbon::parse($validated['starts_at']),
+            \Illuminate\Support\Carbon::parse($validated['ends_at']),
+            $validated['request_message'] ?? null,
+        );
+
+        return redirect()->back()->with('success', 'Your suggested time was sent — the owner will confirm or offer an alternative.');
+    }
+
+    /**
      * Owner accepts a request and locks the slot.
      */
     public function accept(Request $request, ViewingRequest $booking)

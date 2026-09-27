@@ -37,6 +37,7 @@ import {
     MessageCircle,
 } from 'lucide-react';
 import Brand from '@/Components/Shared/Brand';
+import ViewingBooker from '@/Components/Shared/ViewingBooker';
 import MapStyleToggle from '@/Components/Shared/MapStyleToggle';
 import { createBaseLayers, createMap, hasCoordinates, homePinIcon } from '@/lib/map';
 import PropertyArt from '@/Components/Shared/PropertyArt';
@@ -198,7 +199,6 @@ export default function MarketplaceShow({ property, onMarket = true, similar = [
     const [reportOpen, setReportOpen] = useState(false);
     const flash = usePage().props.flash || {};
     const enquiry = useForm({ message: '', phone: '' });
-    const viewing = useForm({ property_id: property.id, slot_id: '', request_message: '' });
     const application = useForm({ message: '' });
     const interest = useForm({ note: '' });
     const report = useForm({ subject_type: 'property', subject_id: property.id, category: reportCategories[0] || '', description: '', priority: 'medium' });
@@ -237,14 +237,6 @@ export default function MarketplaceShow({ property, onMarket = true, similar = [
         enquiry.post(route('tenant.enquiries.store', property.id), {
             preserveScroll: true,
             onSuccess: () => enquiry.reset('message', 'phone'),
-        });
-    };
-
-    const sendViewing = (e) => {
-        e.preventDefault();
-        viewing.post(route('tenant.viewings.store'), {
-            preserveScroll: true,
-            onSuccess: () => viewing.reset('slot_id', 'request_message'),
         });
     };
 
@@ -745,42 +737,8 @@ export default function MarketplaceShow({ property, onMarket = true, similar = [
                                         </Link>
                                     )}
 
-                                    {isTenant && onMarket && viewingSlots?.length > 0 && (
-                                        <form onSubmit={sendViewing} className="flex flex-col gap-2 rounded-2xl border border-dashed border-primary/25 bg-primary/[0.03] p-3.5">
-                                            <span className="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wider text-primary">
-                                                <CalendarClock className="h-4 w-4" /> Book a Viewing
-                                            </span>
-                                            <select
-                                                value={viewing.data.slot_id}
-                                                onChange={(e) => viewing.setData('slot_id', e.target.value)}
-                                                className="field w-full"
-                                            >
-                                                <option value="">Pick an open slot…</option>
-                                                {viewingSlots.map((slot) => (
-                                                    <option key={slot.id} value={slot.id}>
-                                                        {formatSlot(slot.starts_at)} – {formatSlot(slot.ends_at)}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                            <input
-                                                type="text"
-                                                value={viewing.data.request_message}
-                                                onChange={(e) => viewing.setData('request_message', e.target.value)}
-                                                placeholder="Anything about the visit (optional)"
-                                                maxLength={1000}
-                                                className="field w-full"
-                                            />
-                                            {['property_id', 'slot_id', 'request_message'].map((field) => viewing.errors[field] && (
-                                                <p key={field} className="text-xs font-semibold text-rose-600">{viewing.errors[field]}</p>
-                                            ))}
-                                            <button
-                                                type="submit"
-                                                disabled={viewing.processing}
-                                                className={cn(buttonVariants({ size: 'sm' }), 'w-full')}
-                                            >
-                                                <CalendarClock className="h-4 w-4" /> {viewing.processing ? 'Booking…' : 'Request Viewing'}
-                                            </button>
-                                        </form>
+                                    {isTenant && onMarket && (
+                                        <ViewingBooker propertyId={property.id} slots={viewingSlots} />
                                     )}
 
                                     {isTenant && applicationState && (

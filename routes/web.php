@@ -384,7 +384,12 @@ Route::middleware(['auth', EnsurePasswordIsChanged::class, EnsureHasRole::class]
             ->defaults('description', 'View my viewing bookings');
         Route::post('/tenant/viewings', [ViewingRequestController::class, 'store'])
             ->name('tenant.viewings.store')
+            ->middleware('access.pass')
             ->defaults('description', 'Request a viewing on a slot');
+        Route::post('/tenant/viewings/suggest', [ViewingRequestController::class, 'propose'])
+            ->name('tenant.viewings.propose')
+            ->middleware('access.pass')
+            ->defaults('description', 'Suggest my own viewing time');
         Route::post('/tenant/viewings/{booking}/confirm', [ViewingRequestController::class, 'confirm'])
             ->name('tenant.viewings.confirm')
             ->defaults('description', 'Confirm a rescheduled slot');

@@ -854,4 +854,89 @@ class EngageTest extends TestCase
     {
         $this->get('/notifications')->assertRedirect(route('login'));
     }
+    public function test_tenant_can_suggest_their_own_viewing_time(): void
+    {
+        $tenant = $this->tenant();
+        $property = $this->availableProperty();
+        $start = now()->addDays(4)->setTime(14, 0);
+        $end = now()->addDays(4)->setTime(14, 30);
+
+        $this->actingAs($tenant)->post('/tenant/viewings/suggest', [
+            'property_id' => $property->id,
+            'starts_at' => $start->toDateTimeString(),
+            'ends_at' => $end->toDateTimeString(),
+            'request_message' => 'Afternoons suit me best.',
+        ])->assertRedirect();
+
+        $this->assertDatabaseHas('viewing_requests', [
+            'property_id' => $property->id,
+            'tenant_id' => $tenant->id,
+            'slot_id' => null,
+            'status' => 'requested',
+        ]);
+        $booking = \App\Models\ViewingRequest::where('tenant_id', $tenant->id)->whereNull('slot_id')->firstOrFail();
+        $this->assertSame($start->toDateTimeString(), $booking->proposed_starts_at->toDateTimeString());
+    }
+
+    public function test_suggested_time_must_be_in_the_future_and_end_after_start(): void
+    {
+        $tenant = $this->tenant();
+        $property = $this->availableProperty();
+
+        $this->actingAs($tenant)->post('/tenant/viewings/suggest', [
+            'property_id' => $property->id,
+            'starts_at' => now()->subDay()->toDateTimeString(),
+            'ends_at' => now()->addDay()->toDateTimeString(),
+        ])->assertSessionHasErrors('starts_at');
+
+        $this->actingAs($tenant)->post('/tenant/viewings/suggest', [
+            'property_id' => $property->id,
+            'starts_at' => now()->addDays(2)->setTime(10, 0)->toDateTimeString(),
+            'ends_at' => now()->addDays(2)->setTime(9, 0)->toDateTimeString(),
+        ])->assertSessionHasErrors('ends_at');
+    }
+
+    public function test_accepting_a_suggested_time_creates_and_locks_a_slot(): void
+    {
+        $tenant = $this->tenant();
+        $property = $this->availableProperty();
+        $start = now()->addDays(3)->setTime(11, 0);
+        $end = now()->addDays(3)->setTime(11, 30);
+
+        $this->actingAs($tenant)->post('/tenant/viewings/suggest', [
+            'property_id' => $property->id,
+            'starts_at' => $start->toDateTimeString(),
+            'ends_at' => $end->toDateTimeString(),
+        ])->assertRedirect();
+
+        $booking = \App\Models\ViewingRequest::where('tenant_id', $tenant->id)->whereNull('slot_id')->firstOrFail();
+
+        $this->actingAs($this->owner())->post('/owner/viewings/'.$booking->id.'/accept')->assertRedirect();
+
+        $booking->refresh();
+        $this->assertSame('accepted', $booking->status);
+        $this->assertNotNull($booking->slot_id);
+        $this->assertSame('taken', $booking->slot->status);
+        $this->assertSame($start->toDateTimeString(), $booking->slot->starts_at->toDateTimeString());
+    }
+
+    public function test_a_tenant_cannot_stack_two_suggested_times_on_one_property(): void
+    {
+        $tenant = $this->tenant();
+        $property = $this->availableProperty();
+        $payload = fn () => [
+            'property_id' => $property->id,
+            'starts_at' => now()->addDays(6)->setTime(10, 0)->toDateTimeString(),
+            'ends_at' => now()->addDays(6)->setTime(10, 30)->toDateTimeString(),
+        ];
+
+        $this->actingAs($tenant)->post('/tenant/viewings/suggest', $payload())->assertRedirect();
+        $this->actingAs($tenant)
+            ->from(route('property.show', $property->id))
+            ->withHeaders(['X-Inertia' => 'true'])
+            ->post('/tenant/viewings/suggest', $payload())
+            ->assertSessionHas('error');
+
+        $this->assertSame(1, \App\Models\ViewingRequest::where('tenant_id', $tenant->id)->whereNull('slot_id')->count());
+    }
 }

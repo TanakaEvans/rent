@@ -756,8 +756,15 @@ export default function MarketplaceIndex({
     const compareMax = Number(marketplace.compareMax || 3);
 
     useEffect(() => {
-        router.on('start', () => setLoading(true));
-        router.on('finish', () => setLoading(false));
+        // Only the marketplace's own partial reloads (filters/sort/page/view)
+        // toggle the in-place loading state, so favouriting or navigating away
+        // never flashes the results skeleton. `only` marks those visits.
+        const isMarketplaceReload = (visit) => Array.isArray(visit?.only) && visit.only.includes('properties');
+        const offStart = router.on('start', (event) => {
+            if (isMarketplaceReload(event.detail?.visit)) setLoading(true);
+        });
+        const offFinish = router.on('finish', () => setLoading(false));
+        return () => { offStart(); offFinish(); };
     }, []);
 
     useEffect(() => {
@@ -786,8 +793,11 @@ export default function MarketplaceIndex({
     const apply = (merge) => {
         const next = { ...form, ...merge };
         setForm(next);
+        // Live, in-place update (like Livewire): only the result props are
+        // fetched, the URL updates, and the scroll position is kept so the page
+        // never jumps or feels like a full reload.
         router.get(route('home'), buildParams(next, view), {
-            replace: true, preserveState: true,
+            replace: true, preserveState: true, preserveScroll: true,
             only: PARTIAL_PROPS,
         });
     };
@@ -807,7 +817,7 @@ export default function MarketplaceIndex({
 
     const resetFilters = () => {
         setForm({ q: '', city: '', zone: '', suburb: '', property_type: '', bedrooms: '', bathrooms: '', min_price: '', max_price: '', furnished: '', verified: '', payment_terms: '', security_type: '', parking_type: '', preferred_tenant: '', availability: '', amenities: [], sort: 'newest', page: 1 });
-        router.get(route('home'), { view }, { replace: true, preserveState: true });
+        router.get(route('home'), { view }, { replace: true, preserveState: true, preserveScroll: true, only: PARTIAL_PROPS });
     };
 
     const changeView = (next) => {

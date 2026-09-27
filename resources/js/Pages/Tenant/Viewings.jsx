@@ -1,22 +1,29 @@
+import { useMemo } from 'react';
 import { Head, router, useForm } from '@inertiajs/react';
-import { CalendarClock, CalendarDays, MessageSquareText, MapPin, XCircle, CheckCircle2, Navigation, ExternalLink } from 'lucide-react';
+import { CalendarClock, CalendarDays, MessageSquareText, MapPin, XCircle, CheckCircle2, Navigation, ExternalLink, Lightbulb } from 'lucide-react';
 import MainLayout from '@/Layouts/MainLayout';
 import StatusBadge from '@/Components/Shared/StatusBadge';
 import EmptyState from '@/Components/Shared/EmptyState';
+import Calendar from '@/Components/Shared/Calendar';
 
+const timeOf = (value) => value ? new Date(value).toLocaleString(undefined, { hour: 'numeric', minute: '2-digit' }) : '';
 const formatSlot = (value) =>
-    new Date(value).toLocaleString(undefined, {
+    value ? new Date(value).toLocaleString(undefined, {
         weekday: 'short',
         month: 'short',
         day: 'numeric',
         hour: 'numeric',
         minute: '2-digit',
-    });
+    }) : 'Time to be confirmed';
 
 const canCancel = (status) => ['requested', 'accepted', 'rescheduled'].includes(status);
 
 export default function TenantViewings({ requests = [] }) {
     const confirmForm = useForm({});
+
+    const events = useMemo(() => requests
+        .filter((r) => r.start_at && !['declined', 'cancelled', 'no-show'].includes(r.status))
+        .map((r) => ({ id: r.id, start: r.start_at, tone: r.status === 'accepted' ? 'green' : r.status === 'completed' ? 'slate' : 'amber' })), [requests]);
 
     const doConfirm = (id) => {
         confirmForm.post(route('tenant.viewings.confirm', id), { preserveScroll: true });
@@ -43,7 +50,18 @@ export default function TenantViewings({ requests = [] }) {
                     description="Open any available property and book a viewing time — your requests will appear here."
                 />
             ) : (
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-5 lg:grid-cols-[minmax(0,320px)_1fr]">
+                    <div className="surface h-fit p-5 lg:sticky lg:top-24">
+                        <h3 className="mb-3 text-sm font-extrabold uppercase tracking-wider text-muted-foreground">Your schedule</h3>
+                        <Calendar events={events} />
+                        <div className="mt-4 flex flex-wrap gap-3 border-t border-border pt-3 text-[11px] font-semibold text-muted-foreground">
+                            <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-green-500" /> Confirmed</span>
+                            <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-amber-500" /> Awaiting owner</span>
+                            <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-slate-400" /> Done</span>
+                        </div>
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
                     {requests.map((booking) => (
                         <div key={booking.id} className="surface p-5 transition-shadow hover:shadow-md">
                             <div className="flex flex-wrap items-start justify-between gap-2">
@@ -60,9 +78,14 @@ export default function TenantViewings({ requests = [] }) {
                             <div className="mt-4 rounded-xl bg-muted/60 p-3.5">
                                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
                                     <span className="inline-flex items-center gap-1.5 font-bold text-foreground">
-                                        <CalendarDays className="h-4 w-4 text-emerald-500" /> {formatSlot(booking.slot?.starts_at)}
+                                        <CalendarDays className="h-4 w-4 text-primary" /> {formatSlot(booking.start_at)}
+                                        {booking.end_at && <span className="font-medium text-muted-foreground"> – {timeOf(booking.end_at)}</span>}
                                     </span>
-                                    <span className="text-xs text-muted-foreground">until {formatSlot(booking.slot?.ends_at)}</span>
+                                    {booking.is_proposed && (
+                                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">
+                                            <Lightbulb className="h-3 w-3" /> Your suggested time
+                                        </span>
+                                    )}
                                 </div>
                             </div>
 
@@ -119,6 +142,7 @@ export default function TenantViewings({ requests = [] }) {
                             </div>
                         </div>
                     ))}
+                    </div>
                 </div>
             )}
         </MainLayout>
