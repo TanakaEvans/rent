@@ -342,6 +342,234 @@ return [
                 'high' => ['Chiedza'],
             ],
         ],
+
+        // --- Manicaland (remaining towns) ---
+        'Chipinge' => [
+            'Chipinge' => [
+                'commercial' => ['Chipinge Town'],
+                'high' => ['Gaza'],
+            ],
+        ],
+        'Nyanga' => [
+            'Nyanga' => [
+                'commercial' => ['Nyanga Town'],
+                'high' => ['Nyamhuka'],
+            ],
+        ],
+        'Chimanimani' => [
+            'Chimanimani' => [
+                'commercial' => ['Chimanimani Village'],
+                'high' => ['Ngangu'],
+            ],
+        ],
+        'Buhera' => [
+            'Buhera' => [
+                'commercial' => ['Murambinda'],
+                'medium' => ['Birchenough Bridge'],
+            ],
+        ],
+        'Headlands' => [
+            'Headlands' => [
+                'commercial' => ['Headlands'],
+            ],
+        ],
+        'Penhalonga' => [
+            'Penhalonga' => [
+                'commercial' => ['Penhalonga'],
+                'high' => ['Tsvingwe'],
+            ],
+        ],
+
+        // --- Mashonaland Central (remaining towns) ---
+        'Mount Darwin' => [
+            'Mount Darwin' => [
+                'commercial' => ['Mount Darwin Centre'],
+            ],
+        ],
+        'Shamva' => [
+            'Shamva' => [
+                'commercial' => ['Shamva Centre'],
+                'high' => ['Wadzanai'],
+            ],
+        ],
+        'Glendale' => [
+            'Glendale' => [
+                'commercial' => ['Glendale'],
+            ],
+        ],
+        'Mvurwi' => [
+            'Mvurwi' => [
+                'commercial' => ['Mvurwi Centre'],
+            ],
+        ],
+        'Guruve' => [
+            'Guruve' => [
+                'commercial' => ['Guruve Centre'],
+            ],
+        ],
+        'Concession' => [
+            'Concession' => [
+                'commercial' => ['Concession'],
+            ],
+        ],
+
+        // --- Mashonaland East (remaining towns) ---
+        'Chivhu' => [
+            'Chivhu' => [
+                'commercial' => ['Chivhu Town'],
+            ],
+        ],
+        'Goromonzi' => [
+            'Goromonzi' => [
+                'commercial' => ['Goromonzi'],
+            ],
+        ],
+        'Murehwa' => [
+            'Murehwa' => [
+                'commercial' => ['Murehwa Centre'],
+            ],
+        ],
+        'Mutoko' => [
+            'Mutoko' => [
+                'commercial' => ['Mutoko Centre'],
+            ],
+        ],
+        'Beatrice' => [
+            'Beatrice' => [
+                'commercial' => ['Beatrice'],
+            ],
+        ],
+        'Macheke' => [
+            'Macheke' => [
+                'commercial' => ['Macheke'],
+            ],
+        ],
+
+        // --- Mashonaland West (remaining towns) ---
+        'Banket' => [
+            'Banket' => [
+                'commercial' => ['Banket'],
+            ],
+        ],
+        'Chirundu' => [
+            'Chirundu' => [
+                'commercial' => ['Chirundu'],
+            ],
+        ],
+        'Mhangura' => [
+            'Mhangura' => [
+                'commercial' => ['Mhangura'],
+            ],
+        ],
+
+        // --- Masvingo (remaining towns) ---
+        'Chiredzi' => [
+            'Chiredzi' => [
+                'commercial' => ['Chiredzi Town'],
+                'high' => ['Tshovani'],
+                'low' => ['Hippo Valley', 'Buffalo Range'],
+            ],
+        ],
+        'Triangle' => [
+            'Triangle' => [
+                'commercial' => ['Triangle'],
+            ],
+        ],
+        'Gutu' => [
+            'Gutu' => [
+                'commercial' => ['Mpandawana'],
+            ],
+        ],
+        'Zaka' => [
+            'Zaka' => [
+                'commercial' => ['Jerera'],
+            ],
+        ],
+        'Mashava' => [
+            'Mashava' => [
+                'commercial' => ['Mashava'],
+            ],
+        ],
+        'Bikita' => [
+            'Bikita' => [
+                'commercial' => ['Nyika'],
+            ],
+        ],
+        'Mwenezi' => [
+            'Mwenezi' => [
+                'commercial' => ['Rutenga'],
+                'medium' => ['Neshuro'],
+            ],
+        ],
+
+        // --- Matabeleland North (remaining towns) ---
+        'Lupane' => [
+            'Lupane' => [
+                'commercial' => ['Lupane Centre'],
+            ],
+        ],
+        'Binga' => [
+            'Binga' => [
+                'commercial' => ['Binga Centre'],
+            ],
+        ],
+        'Dete' => [
+            'Dete' => [
+                'commercial' => ['Dete'],
+            ],
+        ],
+        'Nkayi' => [
+            'Nkayi' => [
+                'commercial' => ['Nkayi Centre'],
+            ],
+        ],
+
+        // --- Matabeleland South (remaining towns) ---
+        'Plumtree' => [
+            'Plumtree' => [
+                'commercial' => ['Plumtree Town'],
+                'high' => ['Dingumuzi'],
+            ],
+        ],
+        'Esigodini' => [
+            'Esigodini' => [
+                'commercial' => ['Esigodini'],
+            ],
+        ],
+        'Filabusi' => [
+            'Filabusi' => [
+                'commercial' => ['Filabusi'],
+            ],
+        ],
+        'Kezi' => [
+            'Kezi' => [
+                'commercial' => ['Maphisa'],
+            ],
+        ],
+        'West Nicholson' => [
+            'West Nicholson' => [
+                'commercial' => ['West Nicholson'],
+            ],
+        ],
+
+        // --- Midlands (remaining towns) ---
+        'Shurugwi' => [
+            'Shurugwi' => [
+                'commercial' => ['Shurugwi Town'],
+                'high' => ['Makusha'],
+            ],
+        ],
+        'Gokwe' => [
+            'Gokwe' => [
+                'commercial' => ['Gokwe Centre'],
+                'high' => ['Mapfungautsi'],
+            ],
+        ],
+        'Mvuma' => [
+            'Mvuma' => [
+                'commercial' => ['Mvuma'],
+            ],
+        ],
     ],
 
     'landmarks' => [

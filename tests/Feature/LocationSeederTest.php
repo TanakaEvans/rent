@@ -53,6 +53,17 @@ class LocationSeederTest extends TestCase
         $this->assertSame(0, Location::suburbs()->whereNotIn('density', Location::DENSITIES)->count());
     }
 
+    public function test_every_seeded_city_or_town_has_at_least_one_area(): void
+    {
+        $citiesWithoutAreas = Location::cities()
+            ->get()
+            ->filter(fn (Location $city) => ! Location::suburbs()->inCity($city->name)->exists())
+            ->pluck('name')
+            ->all();
+
+        $this->assertSame([], $citiesWithoutAreas, 'These towns have no areas seeded: '.implode(', ', $citiesWithoutAreas));
+    }
+
     public function test_landmarks_are_linked_to_their_suburb_and_zone(): void
     {
         $samLevy = Location::landmarks()->where('name', "Sam Levy's Village")->firstOrFail();
