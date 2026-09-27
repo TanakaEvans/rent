@@ -3,6 +3,8 @@
 > Phase: Phase 2 (foundation of the Monetise wave) | Primary actors: Admin (configure), all engines (consume), Owner/Tenant (feel the effect)
 >
 > **Guiding principle (source): "Staff should not need developers to change a price, billing cycle, approval requirement, grace period, property limit, invoice rule, suspension behaviour, or notification period." — `docs/modules/Staff should not need developers to chan.md`**
+>
+> **Implementation status — platform access charge (Sep 2026):** whether ZimRent charges for access is entirely configuration, never code. Keys (all in the Configuration Centre, read through `ConfigurationService`): `access.charge_enabled` (bool, **default false** — free at launch, nobody is ever blocked), `access.free_until` (date the charge starts to bite, default 2027-03-27), `access.payer` (`owners`/`tenants`/`both`, default `both`), `access.price` (default 1.00), `access.period_days` (default 30) and `access.currency` (default USD). The `EnsureHasAccess` middleware (`access.pass` alias) gates the configured payer's key actions **only** once charging is on **and** past `free_until`; a user buys a pass on the **Access** page (`access.index`/`access.purchase`, `access_passes` table with dateTime `starts_at`/`ends_at`) which grants access for the period and blocks again on expiry. Verified in `tests/Feature/Fixes/AccessPassTest.php`.
 
 ## 1. Core Design Principle
 

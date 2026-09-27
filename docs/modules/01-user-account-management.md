@@ -2,6 +2,8 @@
 
 > Phase: MVP | Implemented (core) | Primary actors: Admin, Owner, Tenant
 
+> **Implementation status — profile photos & account settings (Sep 2026):** every signed-in user has an **Account settings** page (`account.profile`) with an avatar upload (`account.avatar.store`/`destroy`). `auth_users.avatar_path` backs it; `User` appends `avatar_url` (served from the public disk) and `initials`, so the shared `Avatar` component shows the photo when set and the user's initials otherwise. The avatar appears on the header profile button and beside chat messages across signed-in areas. Uploads are image-only and capped at 4 MB; a user can only change their own avatar. Verified in `tests/Feature/Fixes/ProfilePhotoTest.php`.
+
 ## 1. Purpose
 
 Manage every person who uses ZimRent: tenants, property owners, staff and administrators. It provides registration, authentication, roles, session security, password hygiene and account lifecycle controls.

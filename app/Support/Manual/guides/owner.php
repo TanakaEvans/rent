@@ -54,6 +54,53 @@ return [
                         'Tests\Feature\MonetiseTest::test_owner_dashboard_exposes_the_ledger_based_financial_snapshot',
                     ],
                 ],
+                [
+                    'id' => 'profile-photo',
+                    'title' => 'Add a profile photo',
+                    'summary' => 'Your photo appears on your profile button and beside your replies, so tenants know who they are dealing with.',
+                    'steps' => [
+                        'Open **Account settings** from your profile button (top right).',
+                        'Upload a photo. Until you add one, your initials are shown instead.',
+                        'Replace or remove it any time from the same page.',
+                    ],
+                    'notes' => [
+                        'Photos must be an image under 4 MB.',
+                        'Only you can change your own photo.',
+                    ],
+                    'links' => [
+                        ['label' => 'Open account settings', 'route' => 'account.profile'],
+                    ],
+                    'verified_by' => [
+                        'Tests\Feature\Fixes\ProfilePhotoTest::test_upload_sets_avatar_path_and_stores_the_file',
+                        'Tests\Feature\Fixes\ProfilePhotoTest::test_replacing_the_photo_deletes_the_old_file',
+                        'Tests\Feature\Fixes\ProfilePhotoTest::test_upload_rejects_non_image_files',
+                        'Tests\Feature\Fixes\ProfilePhotoTest::test_a_user_cannot_change_another_users_avatar',
+                        'Tests\Feature\Fixes\ProfilePhotoTest::test_account_profile_page_opens_for_each_role',
+                    ],
+                ],
+                [
+                    'id' => 'access-pass',
+                    'title' => 'Your access pass',
+                    'summary' => 'ZimRent is free to launch. Later, a small access pass may be needed to publish new listings.',
+                    'steps' => [
+                        'Everything is free right now — listing, replying and managing tenants all work with no pass.',
+                        'When paid access begins, the **Access** page shows whether a pass is required for you, the price and how long it lasts.',
+                        'If needed, buy a pass from that page and it grants access for the whole period.',
+                    ],
+                    'notes' => [
+                        'Whether owners pay, when charging starts and the price are all set by ZimRent — nothing is hard-coded, and you are never blocked while access is free.',
+                    ],
+                    'links' => [
+                        ['label' => 'View my access', 'route' => 'access.index'],
+                    ],
+                    'verified_by' => [
+                        'Tests\Feature\Fixes\AccessPassTest::test_with_charging_off_nobody_requires_a_pass_and_all_actions_work',
+                        'Tests\Feature\Fixes\AccessPassTest::test_after_free_until_owner_without_pass_is_redirected_from_listing_create',
+                        'Tests\Feature\Fixes\AccessPassTest::test_payer_owner_does_not_gate_tenants',
+                        'Tests\Feature\Fixes\AccessPassTest::test_buying_a_pass_grants_access_for_the_period',
+                        'Tests\Feature\Fixes\AccessPassTest::test_expired_pass_blocks_again',
+                    ],
+                ],
             ],
         ],
         [
@@ -63,13 +110,16 @@ return [
                 [
                     'id' => 'create-listing',
                     'title' => 'List a property',
+                    'summary' => 'The form is grouped into collapsible sections so you can work through it one part at a time.',
                     'steps' => [
                         'Open **My Properties** and choose to add a new property.',
-                        'Fill in the title, description, property type, bedrooms and bathrooms, rent, deposit, location (suburb, area and city) and the other details.',
+                        'Work through the sections — **Basics**, **Pricing**, **Rental details**, **Location**, **Amenities** and **Photos** — filling in the title, description, type, bedrooms and bathrooms, rent, deposit and the rest.',
+                        'In **Location**, drop the map pin on the exact spot. This is required — tenants see only an approximate area until you engage with them, so the exact pin stays private.',
                         'Save the listing. Only listings with the status **available** appear on the marketplace.',
                     ],
                     'notes' => [
                         'Required fields are checked before anything is saved — fix any highlighted fields and save again.',
+                        'A property cannot be saved without a map pin.',
                         'On the Free plan you can publish one available listing at a time. Upgrade your plan to publish more.',
                     ],
                     'links' => [
@@ -80,6 +130,8 @@ return [
                         'Tests\Feature\ListingAndDiscoverTest::test_owner_can_create_a_property',
                         'Tests\Feature\ListingAndDiscoverTest::test_validation_errors_block_property_creation',
                         'Tests\Feature\ListingAndDiscoverTest::test_only_available_properties_appear_on_the_marketplace',
+                        'Tests\Feature\Fixes\LocationPrivacyTest::test_creating_a_property_without_a_map_pin_is_rejected',
+                        'Tests\Feature\Fixes\LocationPrivacyTest::test_owner_sees_the_exact_location',
                         'Tests\Feature\MonetiseTest::test_second_publish_is_blocked_on_free_plan_until_upgrade',
                     ],
                 ],
@@ -152,6 +204,29 @@ return [
                     ],
                 ],
                 [
+                    'id' => 'live-chat',
+                    'title' => 'Chat live with tenants',
+                    'summary' => 'Tenants can open a direct conversation with you from your property page — reply in real time.',
+                    'steps' => [
+                        'When a tenant messages you, it appears in the chat box in the bottom corner of any signed-in page, and you are notified.',
+                        'Reply straight from the chat box, or open **Messages** to see every conversation.',
+                        'Each tenant–property conversation is a single thread, so nothing gets scattered.',
+                    ],
+                    'notes' => [
+                        'Need ZimRent staff? Use **Contact support** in the chat box.',
+                    ],
+                    'links' => [
+                        ['label' => 'Open my messages', 'route' => 'chat.index'],
+                    ],
+                    'verified_by' => [
+                        'Tests\Feature\Fixes\ChatTest::test_starting_a_direct_chat_creates_one_conversation_with_tenant_and_owner',
+                        'Tests\Feature\Fixes\ChatTest::test_a_participant_can_post_a_message',
+                        'Tests\Feature\Fixes\ChatTest::test_a_non_participant_cannot_post_to_a_conversation',
+                        'Tests\Feature\Fixes\ChatTest::test_unread_count_tracks_new_messages_and_mark_read_clears_it',
+                        'Tests\Feature\Fixes\ChatTest::test_any_authenticated_role_can_open_the_chat_page',
+                    ],
+                ],
+                [
                     'id' => 'interests',
                     'title' => 'Follow up on interested tenants',
                     'summary' => 'Tenants can express interest in one tap. **Interests** collects them per property, with the tenant’s profile and badge so you can decide who to contact.',
@@ -172,11 +247,15 @@ return [
                 [
                     'id' => 'viewings',
                     'title' => 'Offer viewing times and handle requests',
+                    'summary' => 'Manage availability on a calendar and act on every request — including times a tenant suggests — in one place.',
                     'steps' => [
-                        'From a property in **My Properties**, open its viewing slots and add the times you are available. Slots must be in the future and end after they start.',
-                        'Tenants pick an open slot. You are notified of each request.',
-                        'In **Viewing Requests**, accept, decline or propose another slot. Accepting locks the slot so it cannot be double-booked.',
+                        'From a property in **My Properties**, open its **Viewing Calendar**. Pick a day, then add the times you are available — slots must be in the future and end after they start. Tenant requests show on the same calendar so you can see demand at a glance.',
+                        'Tenants either take one of your open slots or suggest a time of their own. You are notified of each request.',
+                        'In **Viewing Requests**, accept, decline or propose another slot. A tenant-suggested time is flagged; accepting it creates and locks that slot automatically so it cannot be double-booked.',
                         'After the visit, mark it as completed or as a no-show.',
+                    ],
+                    'notes' => [
+                        'A locked slot never disappears from your calendar — it shows as **Booked** with the tenant’s name.',
                     ],
                     'links' => [
                         ['label' => 'Open viewing requests', 'route' => 'owner.viewings.index'],
@@ -186,6 +265,7 @@ return [
                         'Tests\Feature\EngageTest::test_slot_start_must_be_in_the_future',
                         'Tests\Feature\EngageTest::test_owner_gets_notified_when_tenant_requests_viewing',
                         'Tests\Feature\EngageTest::test_accept_locks_the_slot',
+                        'Tests\Feature\EngageTest::test_accepting_a_suggested_time_creates_and_locks_a_slot',
                         'Tests\Feature\EngageTest::test_double_booking_is_rejected',
                         'Tests\Feature\EngageTest::test_reschedule_proposes_another_slot_then_tenant_confirms',
                         'Tests\Feature\EngageTest::test_owner_can_mark_completed_and_no_show',

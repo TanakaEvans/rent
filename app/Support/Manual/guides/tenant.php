@@ -83,6 +83,54 @@ return [
                         'Tests\Feature\KycAdminTest::test_rejecting_with_a_note_keeps_the_trail_and_sends_the_reason',
                     ],
                 ],
+                [
+                    'id' => 'profile-photo',
+                    'title' => 'Add a profile photo',
+                    'summary' => 'Your photo appears on your profile button and beside your messages once you sign in.',
+                    'steps' => [
+                        'Open **Account settings** from your profile button (top right).',
+                        'Upload a photo. Until you add one, your initials are shown instead.',
+                        'You can replace or remove the photo at any time from the same page.',
+                    ],
+                    'notes' => [
+                        'Photos must be an image under 4 MB. Other file types are rejected.',
+                        'Only you can change your own photo.',
+                    ],
+                    'links' => [
+                        ['label' => 'Open account settings', 'route' => 'account.profile'],
+                    ],
+                    'verified_by' => [
+                        'Tests\Feature\Fixes\ProfilePhotoTest::test_upload_sets_avatar_path_and_stores_the_file',
+                        'Tests\Feature\Fixes\ProfilePhotoTest::test_replacing_the_photo_deletes_the_old_file',
+                        'Tests\Feature\Fixes\ProfilePhotoTest::test_delete_removes_the_file_and_nulls_the_column',
+                        'Tests\Feature\Fixes\ProfilePhotoTest::test_upload_rejects_non_image_files',
+                        'Tests\Feature\Fixes\ProfilePhotoTest::test_upload_rejects_images_over_four_megabytes',
+                        'Tests\Feature\Fixes\ProfilePhotoTest::test_a_user_cannot_change_another_users_avatar',
+                    ],
+                ],
+                [
+                    'id' => 'access-pass',
+                    'title' => 'Your access pass',
+                    'summary' => 'ZimRent is free to launch. Later, a small access pass may be needed for some actions.',
+                    'steps' => [
+                        'Everything is free right now — browsing, enquiring, viewings and applications all work with no pass.',
+                        'When paid access begins, the **Access** page shows whether a pass is required for you, the price and how long it lasts.',
+                        'If needed, buy a pass from that page and it grants access for the whole period.',
+                    ],
+                    'notes' => [
+                        'Whether tenants pay at all, when charging starts and the price are all set by ZimRent — nothing is hard-coded, and you are never blocked while access is free.',
+                    ],
+                    'links' => [
+                        ['label' => 'View my access', 'route' => 'access.index'],
+                    ],
+                    'verified_by' => [
+                        'Tests\Feature\Fixes\AccessPassTest::test_with_charging_off_nobody_requires_a_pass_and_all_actions_work',
+                        'Tests\Feature\Fixes\AccessPassTest::test_charging_on_before_free_until_is_still_free',
+                        'Tests\Feature\Fixes\AccessPassTest::test_payer_tenant_gates_tenants_but_not_owners',
+                        'Tests\Feature\Fixes\AccessPassTest::test_buying_a_pass_grants_access_for_the_period',
+                        'Tests\Feature\Fixes\AccessPassTest::test_access_page_renders_with_status',
+                    ],
+                ],
             ],
         ],
         [
@@ -182,6 +230,55 @@ return [
                     ],
                 ],
                 [
+                    'id' => 'live-chat',
+                    'title' => 'Chat live with the owner',
+                    'summary' => 'Prefer a back-and-forth conversation? Message the owner directly and reply in real time.',
+                    'steps' => [
+                        'On a property page choose **Message owner (live chat)** to open a direct conversation with that owner.',
+                        'Type in the chat box in the bottom corner of any signed-in page. New messages raise a badge, and the owner is notified.',
+                        'All your conversations live in **Messages** — pick one up again any time.',
+                    ],
+                    'notes' => [
+                        'Messaging the same owner about the same property always reuses one conversation, so nothing gets scattered.',
+                        'Need help from ZimRent instead of an owner? Use **Contact support** in the chat box to reach our staff.',
+                    ],
+                    'links' => [
+                        ['label' => 'Open my messages', 'route' => 'chat.index'],
+                    ],
+                    'verified_by' => [
+                        'Tests\Feature\Fixes\ChatTest::test_starting_a_direct_chat_creates_one_conversation_with_tenant_and_owner',
+                        'Tests\Feature\Fixes\ChatTest::test_starting_a_direct_chat_twice_returns_the_same_conversation',
+                        'Tests\Feature\Fixes\ChatTest::test_a_participant_can_post_a_message',
+                        'Tests\Feature\Fixes\ChatTest::test_support_chat_reaches_admins_who_can_reply',
+                        'Tests\Feature\Fixes\ChatTest::test_unread_count_tracks_new_messages_and_mark_read_clears_it',
+                        'Tests\Feature\Fixes\ChatTest::test_any_authenticated_role_can_open_the_chat_page',
+                    ],
+                ],
+                [
+                    'id' => 'exact-location',
+                    'title' => 'Seeing a home’s exact location',
+                    'summary' => 'For privacy, exact addresses are only revealed once an owner is engaging with you.',
+                    'steps' => [
+                        'Before then, the map shows only an approximate area (a shaded circle) around the home — enough to judge the neighbourhood.',
+                        'The exact pin and street address appear once the owner accepts your viewing, approves your application, or you are on an open lease for the home.',
+                        'When it unlocks, **My Viewings** shows a **Get directions** button straight to Google Maps.',
+                    ],
+                    'notes' => [
+                        'The approximate area is stable for a home but never gives away the real point, so it is safe to share.',
+                    ],
+                    'links' => [
+                        ['label' => 'Open my viewings', 'route' => 'tenant.viewings.index'],
+                    ],
+                    'verified_by' => [
+                        'Tests\Feature\Fixes\LocationPrivacyTest::test_guest_sees_only_the_approximate_area',
+                        'Tests\Feature\Fixes\LocationPrivacyTest::test_tenant_with_a_pending_viewing_still_sees_only_the_approximate_area',
+                        'Tests\Feature\Fixes\LocationPrivacyTest::test_tenant_with_an_accepted_viewing_sees_the_exact_location',
+                        'Tests\Feature\Fixes\LocationPrivacyTest::test_tenant_with_an_approved_application_sees_the_exact_location',
+                        'Tests\Feature\Fixes\LocationPrivacyTest::test_tenant_on_an_open_lease_sees_the_exact_location',
+                        'Tests\Feature\Fixes\LocationPrivacyTest::test_marketplace_map_never_exposes_exact_coordinates',
+                    ],
+                ],
+                [
                     'id' => 'express-interest',
                     'title' => 'Express interest in one tap',
                     'summary' => 'Not ready to write a message? Express interest and the owner will contact you.',
@@ -208,13 +305,17 @@ return [
                 [
                     'id' => 'viewings',
                     'title' => 'Book a viewing',
+                    'summary' => 'Book on a calendar in two ways: take one of the owner’s open times, or suggest a time that suits you.',
                     'steps' => [
-                        'On the property page, pick one of the owner’s open viewing slots and add an optional message, then request the viewing.',
-                        'The owner accepts, declines or proposes another time. If they propose a new time, confirm it in **My Viewings**.',
-                        'You can cancel a booking from **My Viewings** if your plans change.',
+                        'On the property page, open **Book a viewing**. In **Open times**, pick a day on the calendar and choose one of the owner’s open slots for that day, add an optional message, then request the viewing.',
+                        'Prefer a different time? Switch to **Suggest a time**, choose a start and end that suit you, add a note and send it — even when the owner has no open slots yet.',
+                        'The owner accepts, declines or proposes another time. When they accept your suggested time it becomes a locked slot. If they propose a new time, confirm it in **My Viewings**.',
+                        'Track everything on the calendar in **My Viewings** — confirmed, awaiting-owner and completed viewings are colour-coded — and cancel a booking there if your plans change.',
                     ],
                     'notes' => [
-                        'Once a slot is accepted it is locked for you and nobody else can book it.',
+                        'Once a time is accepted it is locked for you and nobody else can book it.',
+                        'You can only have one suggested time per property at once — accept, cancel or wait on it before suggesting another.',
+                        'When the owner accepts, **My Viewings** shows the exact address with a **Get directions** button to Google Maps.',
                         'You are notified when the owner accepts or reschedules.',
                     ],
                     'links' => [
@@ -222,6 +323,10 @@ return [
                     ],
                     'verified_by' => [
                         'Tests\Feature\EngageTest::test_tenant_can_request_a_viewing',
+                        'Tests\Feature\EngageTest::test_tenant_can_suggest_their_own_viewing_time',
+                        'Tests\Feature\EngageTest::test_suggested_time_must_be_in_the_future_and_end_after_start',
+                        'Tests\Feature\EngageTest::test_accepting_a_suggested_time_creates_and_locks_a_slot',
+                        'Tests\Feature\EngageTest::test_a_tenant_cannot_stack_two_suggested_times_on_one_property',
                         'Tests\Feature\EngageTest::test_accept_locks_the_slot',
                         'Tests\Feature\EngageTest::test_reschedule_proposes_another_slot_then_tenant_confirms',
                         'Tests\Feature\EngageTest::test_cancel_releases_a_locked_slot',

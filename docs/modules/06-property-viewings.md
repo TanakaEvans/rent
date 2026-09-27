@@ -2,7 +2,7 @@
 
 > Phase: MVP (flows) | Primary actors: Tenant (requestor), Owner (scheduler), Admin (monitor)
 
-> **Implementation status (Wave 2):** Viewing **slots** and **requests** built. Slots: owner CRUD under `Owner/ViewingSlots/Index` (`viewing_slots` with starts_at/ends_at/status, `starts_at after:now` / `ends_at after:starts_at`, owner isolation 404). Requests: `viewing_requests` (requested/accepted/rescheduled/**declined**/completed/cancelled/no-show — `declined` added to cover owner reject in FR-03); `ViewingRequestService` enforces a per-status transition machine (409 on illegal moves), locks the slot on **accept** (`taken`, double-book 409), waits for tenant **confirm** after owner **reschedule** (proposes a new slot, releases the old one), and releases a locked slot on **cancel**/**no-show**/**decline**. Tenant books from the public detail page slot picker; both parties have list pages (`Tenant/Viewings`, `Owner/Viewings/Index`); confirmed in `EngageTest` + access matrix. **Notifications** on these events were raised in the Wave 2 notifications slice (`ViewingRequestedNotification` on request → owner, `ViewingAcceptedNotification`/`ViewingRescheduledNotification` on accept/reschedule → tenant; confirm/cancel/decline stay silent). See `docs/modules/15-notifications.md`.
+> **Implementation status (Wave 2):** Viewing **slots** and **requests** built. Slots: owner CRUD under `Owner/ViewingSlots/Index`, now a **month calendar** (`Components/Shared/Calendar.jsx`) with a day panel — pick a day, add/edit/remove slots, and see pending tenant requests on the same grid (Open/Booked/Request/Past legend). Backing store `viewing_slots` with starts_at/ends_at/status, `starts_at after:now` / `ends_at after:starts_at`, owner isolation 404. Requests: `viewing_requests` (requested/accepted/rescheduled/**declined**/completed/cancelled/no-show — `declined` added to cover owner reject in FR-03); `ViewingRequestService` enforces a per-status transition machine (409 on illegal moves), locks the slot on **accept** (`taken`, double-book 409), waits for tenant **confirm** after owner **reschedule** (proposes a new slot, releases the old one), and releases a locked slot on **cancel**/**no-show**/**decline**. **Tenant-suggested times (Sep 2026):** `slot_id` is now nullable; a tenant can propose their own `proposed_starts_at`/`proposed_ends_at` (one open suggestion per property) via `ViewingRequestService::propose`, and when the owner accepts a suggestion the service **creates and locks a slot** from those times. Tenants book from the public detail page via `Components/Shared/ViewingBooker.jsx` (toggle **Open times** ↔ **Suggest a time**); both parties have list pages (`Tenant/Viewings` with a schedule calendar, `Owner/Viewings/Index`) that render each request's window from the slot **or** the proposed times and flag tenant-suggested ones; confirmed in `EngageTest` + access matrix. **Location reveal:** once a viewing is accepted the tenant sees the exact pin and a **Get directions** link (see `docs/modules/03-marketplace-search.md` location privacy). **Notifications** on these events were raised in the Wave 2 notifications slice (`ViewingRequestedNotification` on request → owner, `ViewingAcceptedNotification`/`ViewingRescheduledNotification` on accept/reschedule → tenant; confirm/cancel/decline stay silent). See `docs/modules/15-notifications.md`.
 
 ## 1. Purpose
 
@@ -18,9 +18,9 @@ Manages the physical property-viewing step between a tenant and an owner - a bus
 
 ## 3. Functional Requirements
 
-- FR-01 Tenant requests a viewing with preferred date/time + message.
-- FR-02 Owner maintains a set of available slots per property.
-- FR-03 Owner accepts, rejects or proposes a new slot.
+- FR-01 Tenant requests a viewing by taking an owner slot **or** suggesting their own start/end time, with an optional message. Only one open suggestion per property at a time.
+- FR-02 Owner maintains a set of available slots per property on a calendar.
+- FR-03 Owner accepts, rejects or proposes a new slot. Accepting a tenant-suggested time creates and locks a slot from it.
 - FR-04 Statuses: `requested`, `accepted`, `rescheduled`, **`declined`**, `completed`, `cancelled`, `no-show`. (`declined` extends the spec's release list so an owner can explicitly reject a request; the slot stays open.)
 - FR-05 Confirmations and reminders emitted (in-app/email/SMS) to both parties on schedule.
 - FR-06 Viewing history retained per property and tenant (owner uses it to shortlist serious applicants).
@@ -44,9 +44,9 @@ Manages the physical property-viewing step between a tenant and an owner - a bus
 | Table | Key Columns |
 |---|---|
 | `viewing_slots` | id, property_id FK, owner_id FK, starts_at, ends_at, status (available/taken) |
-| `viewing_requests` | id, property_id FK, tenant_id FK, slot_id FK, status (requested/accepted/rescheduled/declined/completed/cancelled/no-show), request_message, outcome, timestamps |
+| `viewing_requests` | id, property_id FK, tenant_id FK, slot_id FK **(nullable)**, proposed_starts_at, proposed_ends_at, status (requested/accepted/rescheduled/declined/completed/cancelled/no-show), request_message, outcome, timestamps |
 
-Relationships: `viewing_slots` belongsTo `properties`; `viewing_requests` belongsTo property, tenant and slot (one-to-one slot).
+Relationships: `viewing_slots` belongsTo `properties`; `viewing_requests` belongsTo property, tenant and slot (one-to-one slot). When `slot_id` is null the request carries the tenant's own `proposed_starts_at`/`proposed_ends_at`; `ViewingRequest::window()` returns the effective start/end from either source, and accepting a suggestion materialises a locked slot.
 
 ## 7. Integrations & Dependencies
 

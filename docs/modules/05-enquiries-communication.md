@@ -2,6 +2,8 @@
 
 > Phase: MVP (flows) | Phase 2 (built-in messenger) | Primary actors: Tenant (initiator), Owner (responder), Admin (auditor)
 
+> **Implementation status — live chat (Sep 2026):** alongside the enquiry threads, a real-time **direct messenger** is built (`routes/chat.php`, `chat.*` routes). A tenant opens a direct conversation with an owner from the property page ("Message owner (live chat)", `chat.start-direct`, which reuses one conversation per tenant×property); either party posts messages (`chat.message`), sees an unread badge (`chat.unread`) and reads the full history in **Messages** (`chat.index`/`chat.show`) via the `ChatWidget` mounted on every signed-in page. A **support** channel (`chat.start-support`) routes to staff, who reply from the **Support Inbox** (`admin.support.*`); non-participants and cross-user reads are blocked (403/404). Verified in `tests/Feature/Fixes/ChatTest.php`.
+
 ## 1. Purpose
 
 Replaces the traditional agent intermediary: tenants ask questions directly to the property owner through the platform, and owners respond. The platform keeps the thread, history and evidence for trust and dispute handling.

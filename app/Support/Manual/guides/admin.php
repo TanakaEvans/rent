@@ -290,6 +290,26 @@ return [
                         'Tests\Feature\OperateTest::test_suspended_contractors_receive_no_new_assignments',
                     ],
                 ],
+                [
+                    'id' => 'support-inbox',
+                    'title' => 'Answer support messages',
+                    'summary' => 'Any user can reach staff through the **Contact support** option in their chat box. Those threads land here.',
+                    'steps' => [
+                        'Open **Support Inbox** to see every support conversation.',
+                        'Select a thread and reply. The user is notified and can continue the conversation from their chat box.',
+                    ],
+                    'notes' => [
+                        'Only admins and staff can open the support inbox. A user can never read another user’s support thread.',
+                    ],
+                    'links' => [
+                        ['label' => 'Open support inbox', 'route' => 'admin.support.index'],
+                    ],
+                    'verified_by' => [
+                        'Tests\Feature\Fixes\ChatTest::test_support_chat_reaches_admins_who_can_reply',
+                        'Tests\Feature\Fixes\ChatTest::test_a_user_cannot_read_another_users_support_thread',
+                        'Tests\Feature\Fixes\ChatTest::test_only_admins_can_reach_the_support_inbox',
+                    ],
+                ],
             ],
         ],
         [
@@ -313,6 +333,31 @@ return [
                         'Tests\Feature\ConfigurationTest::test_admin_configuration_centre_updates_rule_values',
                         'Tests\Feature\ConfigurationTest::test_config_change_is_audited_and_cache_is_invalidated',
                         'Tests\Feature\ConfigurationTest::test_admin_cannot_set_unknown_or_locked_config_key',
+                    ],
+                ],
+                [
+                    'id' => 'access-charge',
+                    'title' => 'Turn paid access on or off',
+                    'summary' => 'Whether ZimRent charges for access, who pays, from when and how much are all settings in the Configuration Centre — never hard-coded.',
+                    'steps' => [
+                        'Open **Configuration Centre** and find the **Access** settings.',
+                        'Leave charging **off** to keep the platform completely free (the launch default — nobody is ever blocked).',
+                        'To start charging, turn it on and set who pays (**owners**, **tenants** or **both**), the free-until date, the price, the period length and the currency.',
+                        'Save with a reason. Charging still stays free until the free-until date passes, then gated users are asked to buy a pass.',
+                    ],
+                    'notes' => [
+                        'Because the free-until date guards it, turning charging on early cannot lock anyone out before you intend.',
+                        'A user who needs a pass buys one from their **Access** page; it grants access for the whole period and blocks again once it expires.',
+                    ],
+                    'links' => [
+                        ['label' => 'Open configuration centre', 'route' => 'admin.configuration.index'],
+                    ],
+                    'verified_by' => [
+                        'Tests\Feature\Fixes\AccessPassTest::test_status_reports_free_while_charging_off',
+                        'Tests\Feature\Fixes\AccessPassTest::test_charging_on_before_free_until_is_still_free',
+                        'Tests\Feature\Fixes\AccessPassTest::test_payer_both_gates_owners_and_tenants',
+                        'Tests\Feature\Fixes\AccessPassTest::test_buying_a_pass_grants_access_for_the_period',
+                        'Tests\Feature\Fixes\AccessPassTest::test_expired_pass_blocks_again',
                     ],
                 ],
                 [
