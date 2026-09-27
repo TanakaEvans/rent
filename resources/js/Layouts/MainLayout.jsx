@@ -30,6 +30,7 @@ import {
     Wrench,
     IdCard,
     BookOpen,
+    UserRound,
 } from 'lucide-react';
 import Brand from '@/Components/Shared/Brand';
 import Avatar from '@/Components/Shared/Avatar';
