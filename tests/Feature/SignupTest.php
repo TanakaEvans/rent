@@ -37,8 +37,9 @@ class SignupTest extends TestCase
 
     public function test_public_signup_creates_a_tenant_with_default_role(): void
     {
+        // New tenants land on the guided profile builder, not the dashboard.
         $this->post(route('register'), $this->validPayload())
-            ->assertRedirect(route('tenant.dashboard'));
+            ->assertRedirect(route('tenant.profile'));
 
         $user = User::where('email', 'tendai@example.com')->first();
 
@@ -139,12 +140,13 @@ class SignupTest extends TestCase
             ->assertRedirect(route('owner.dashboard'));
     }
 
-    public function test_owner_signup_creates_an_owner_and_lands_on_the_owner_dashboard(): void
+    public function test_owner_signup_creates_an_owner_and_lands_on_the_profile_builder(): void
     {
+        // New owners land on account settings (their profile builder).
         $this->post(route('register'), $this->validPayload([
             'email' => 'newlandlord@example.com',
             'role' => 'owner',
-        ]))->assertRedirect(route('owner.dashboard'));
+        ]))->assertRedirect(route('account.profile'));
 
         $user = User::where('email', 'newlandlord@example.com')->firstOrFail();
         $this->assertTrue($user->hasRole('Owner'));

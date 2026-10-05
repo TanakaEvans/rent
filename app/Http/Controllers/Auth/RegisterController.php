@@ -50,9 +50,11 @@ class RegisterController extends Controller
         Auth::login($user);
         $request->session()->regenerate();
 
-        return redirect($this->authService->landingUrlFor($user) ?? route('dashboard'))
+        // Guided profile builder: new accounts land on their profile first
+        // (photo, phone, details) — they can skip to the dashboard any time.
+        return redirect($isOwner ? route('account.profile') : route('tenant.profile'))
             ->with('success', $isOwner
-                ? 'Welcome to ZimRent! Your owner account is ready — add your first property.'
-                : 'Welcome to ZimRent! Your tenant account is ready.');
+                ? 'Welcome to ZimRent! Build your profile — add a photo and your details, then add your first property. You can skip to your dashboard any time.'
+                : 'Welcome to ZimRent! Build your profile — add a photo and your details so owners reply faster. You can skip to your dashboard any time.');
     }
 }

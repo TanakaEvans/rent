@@ -406,6 +406,9 @@ Route::middleware(['auth', EnsurePasswordIsChanged::class, EnsureHasRole::class]
         Route::post('/tenant/viewings/{booking}/cancel', [ViewingRequestController::class, 'cancel'])
             ->name('tenant.viewings.cancel')
             ->defaults('description', 'Cancel my viewing booking');
+        Route::post('/tenant/viewings/{booking}/not-interested', [ViewingRequestController::class, 'notInterested'])
+            ->name('tenant.viewings.not-interested')
+            ->defaults('description', 'Pass on a home after a completed viewing');
 
         Route::get('/tenant/applications', [ApplicationController::class, 'tenantIndex'])
             ->name('tenant.applications.index')

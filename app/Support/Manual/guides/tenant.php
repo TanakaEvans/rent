@@ -23,7 +23,7 @@ return [
                     'steps' => [
                         'Select **Create account** at the top of any page (or **Sign in**, then **Create a free tenant account**).',
                         'Enter your name, email address and a password, confirm the password and accept the terms.',
-                        'Submit the form. You are signed in straight away and taken to your tenant dashboard.',
+                        'Submit the form. You are signed in straight away and land on your **profile builder** — add a photo and your details so owners reply faster, or head to your dashboard from the menu.',
                     ],
                     'notes' => [
                         'Each email address can only be used for one account.',
@@ -337,6 +337,7 @@ return [
                         'Once a time is accepted it is locked for you and nobody else can book it.',
                         'You can only have one suggested time per property at once — accept, cancel or wait on it before suggesting another.',
                         'When the owner accepts, **My Viewings** shows the exact address with a **Get directions** button to Google Maps.',
+                        'After a completed viewing, choose your next step right on the card: **Apply to rent**, or **Not interested** — which tells the owner you passed.',
                         'You are notified when the owner accepts or reschedules.',
                     ],
                     'links' => [
@@ -352,6 +353,7 @@ return [
                         'Tests\Feature\EngageTest::test_reschedule_proposes_another_slot_then_tenant_confirms',
                         'Tests\Feature\EngageTest::test_cancel_releases_a_locked_slot',
                         'Tests\Feature\EngageTest::test_tenant_gets_notified_when_viewing_accepted',
+                        'Tests\Feature\EngageTest::test_tenant_can_pass_on_a_home_after_a_completed_viewing',
                     ],
                 ],
             ],
@@ -364,8 +366,8 @@ return [
                     'id' => 'apply',
                     'title' => 'Apply for a home',
                     'steps' => [
-                        'On an available property, write a short message about yourself (optional) and submit your application.',
-                        'Follow its progress in **My Applications**: pending, shortlisted, approved or rejected.',
+                        'On an available property, write a short message about yourself (optional) and pick the **date your rent money will be available** — owners use it when vetting.',
+                        'Submit the application and follow its progress in **My Applications**: pending, shortlisted, approved or rejected.',
                     ],
                     'notes' => [
                         'You can have one active application per property. If it is rejected you will see the owner’s reason, and you may apply again.',
@@ -377,6 +379,8 @@ return [
                     ],
                     'verified_by' => [
                         'Tests\Feature\CommitTest::test_tenant_can_apply_to_an_available_property',
+                        'Tests\Feature\CommitTest::test_application_records_the_tenants_funds_available_date',
+                        'Tests\Feature\CommitTest::test_a_past_funds_available_date_is_rejected',
                         'Tests\Feature\CommitTest::test_application_message_is_limited_to_1000_characters',
                         'Tests\Feature\CommitTest::test_tenant_cannot_hold_two_active_applications_for_one_property',
                         'Tests\Feature\CommitTest::test_tenant_can_reapply_after_a_rejection',

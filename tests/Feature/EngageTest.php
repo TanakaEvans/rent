@@ -939,4 +939,49 @@ class EngageTest extends TestCase
 
         $this->assertSame(1, \App\Models\ViewingRequest::where('tenant_id', $tenant->id)->whereNull('slot_id')->count());
     }
+
+    public function test_tenant_can_pass_on_a_home_after_a_completed_viewing(): void
+    {
+        $booking = $this->requestedBooking();
+        $this->actingAs($this->owner())->post('/owner/viewings/'.$booking->id.'/accept');
+        $this->actingAs($this->owner())->post('/owner/viewings/'.$booking->id.'/complete');
+
+        $this->actingAs($this->tenant())
+            ->post('/tenant/viewings/'.$booking->id.'/not-interested')
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('viewing_requests', ['id' => $booking->id, 'outcome' => 'not_interested']);
+    }
+
+    public function test_only_a_completed_viewing_can_be_marked_not_interested(): void
+    {
+        $booking = $this->requestedBooking();
+
+        $this->actingAs($this->tenant())
+            ->post('/tenant/viewings/'.$booking->id.'/not-interested')
+            ->assertStatus(409);
+
+        $this->assertDatabaseHas('viewing_requests', ['id' => $booking->id, 'outcome' => null]);
+    }
+
+    public function test_a_tenant_cannot_pass_on_another_tenants_viewing(): void
+    {
+        $booking = $this->requestedBooking();
+        $this->actingAs($this->owner())->post('/owner/viewings/'.$booking->id.'/accept');
+        $this->actingAs($this->owner())->post('/owner/viewings/'.$booking->id.'/complete');
+
+        $other = User::create([
+            'name' => 'Other Tenant',
+            'email' => 'other-tenant-pass@example.com',
+            'username' => 'other-tenant-pass',
+            'password' => bcrypt('password123'),
+            'status' => 'active',
+            'password_changed_at' => now(),
+        ]);
+        $other->assignRole('Tenant');
+
+        $this->actingAs($other)
+            ->post('/tenant/viewings/'.$booking->id.'/not-interested')
+            ->assertNotFound();
+    }
 }

@@ -18,10 +18,18 @@ class RentalApplication extends Model
         'property_id',
         'applicant_id',
         'message',
+        'funds_available_from',
         'status',
         'reject_reason',
         'reviewed_by',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'funds_available_from' => 'date:Y-m-d',
+        ];
+    }
 
     /**
      * The application status labels used across the UI.

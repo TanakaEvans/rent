@@ -224,6 +224,13 @@ class DzimbaAccessControlTest extends TestCase
         $this->get('/owner/viewings')->assertRedirect(route('login'));
         $this->get('/tenant/viewings')->assertRedirect(route('login'));
         $this->post('/tenant/viewings', [])->assertRedirect(route('login'));
+        $this->post('/tenant/viewings/1/not-interested')->assertRedirect(route('login'));
+    }
+
+    public function test_owner_cannot_mark_a_viewing_not_interested(): void
+    {
+        $owner = User::where('username', 'owner')->first();
+        $this->actingAs($owner)->post('/tenant/viewings/1/not-interested')->assertForbidden();
     }
 
     public function test_owner_can_access_applications_review(): void

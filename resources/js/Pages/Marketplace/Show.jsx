@@ -200,7 +200,7 @@ export default function MarketplaceShow({ property, onMarket = true, similar = [
     const [reportOpen, setReportOpen] = useState(false);
     const flash = usePage().props.flash || {};
     const enquiry = useForm({ message: '', phone: '' });
-    const application = useForm({ message: '' });
+    const application = useForm({ message: '', funds_available_from: '' });
     const interest = useForm({ note: '' });
     const report = useForm({ subject_type: 'property', subject_id: property.id, category: reportCategories[0] || '', description: '', priority: 'medium' });
 
@@ -777,6 +777,19 @@ export default function MarketplaceShow({ property, onMarket = true, similar = [
                                             />
                                             {application.errors.message && (
                                                 <p className="text-xs font-semibold text-rose-600">{application.errors.message}</p>
+                                            )}
+                                            <label className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+                                                When will your rent money be available?
+                                                <input
+                                                    type="date"
+                                                    value={application.data.funds_available_from}
+                                                    onChange={(e) => application.setData('funds_available_from', e.target.value)}
+                                                    min={new Date().toISOString().slice(0, 10)}
+                                                    className="field mt-1 w-full"
+                                                />
+                                            </label>
+                                            {application.errors.funds_available_from && (
+                                                <p className="text-xs font-semibold text-rose-600">{application.errors.funds_available_from}</p>
                                             )}
                                             <button
                                                 type="submit"

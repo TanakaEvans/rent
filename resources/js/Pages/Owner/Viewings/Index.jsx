@@ -4,6 +4,7 @@ import { CalendarClock, CalendarDays, MapPin, CheckCircle2, XCircle, UserRound, 
 import MainLayout from '@/Layouts/MainLayout';
 import StatusBadge from '@/Components/Shared/StatusBadge';
 import EmptyState from '@/Components/Shared/EmptyState';
+import { cn } from '@/lib/utils';
 
 const formatSlot = (value) =>
     value ? new Date(value).toLocaleString(undefined, {
@@ -114,8 +115,11 @@ export default function OwnerViewings({ requests = [], properties = [] }) {
                                         <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-700">Tenant suggested this time</span>
                                     )}
                                     {booking.outcome && (
-                                        <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700">
-                                            {booking.outcome}
+                                        <span className={cn(
+                                            'rounded-full px-2 py-0.5 text-[11px] font-bold',
+                                            booking.outcome === 'not_interested' ? 'bg-rose-50 text-rose-700' : 'bg-emerald-50 text-emerald-700'
+                                        )}>
+                                            {booking.outcome === 'not_interested' ? 'Tenant passed after viewing' : booking.outcome}
                                         </span>
                                     )}
                                 </div>

@@ -33,9 +33,15 @@ class ApplicationController extends Controller
 
         $validated = $request->validate([
             'message' => ['nullable', 'string', 'max:1000'],
+            'funds_available_from' => ['nullable', 'date', 'after_or_equal:today'],
         ]);
 
-        $this->service->create($request->user(), $property, $validated['message'] ?? null);
+        $this->service->create(
+            $request->user(),
+            $property,
+            $validated['message'] ?? null,
+            $validated['funds_available_from'] ?? null,
+        );
 
         return redirect()->back()->with('success', 'Application submitted — the owner will review it soon.');
     }

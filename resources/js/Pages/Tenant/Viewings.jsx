@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
-import { Head, router, useForm } from '@inertiajs/react';
-import { CalendarClock, CalendarDays, MessageSquareText, MapPin, XCircle, CheckCircle2, Navigation, ExternalLink, Lightbulb } from 'lucide-react';
+import { Head, Link, router, useForm } from '@inertiajs/react';
+import { CalendarClock, CalendarDays, MessageSquareText, MapPin, XCircle, CheckCircle2, Navigation, ExternalLink, Lightbulb, ClipboardCheck, ThumbsDown } from 'lucide-react';
 import MainLayout from '@/Layouts/MainLayout';
 import StatusBadge from '@/Components/Shared/StatusBadge';
 import EmptyState from '@/Components/Shared/EmptyState';
@@ -117,6 +117,33 @@ export default function TenantViewings({ requests = [] }) {
                                         </a>
                                     </div>
                                 </div>
+                            )}
+
+                            {/* Post-viewing next step: apply, or close the loop. */}
+                            {booking.status === 'completed' && booking.outcome !== 'not_interested' && (
+                                <div className="mt-3 rounded-xl border border-primary/20 bg-primary/[0.04] p-3">
+                                    <p className="text-xs font-bold text-foreground">You viewed this home — what next?</p>
+                                    <div className="mt-2 flex flex-wrap gap-2">
+                                        <Link
+                                            href={route('property.show', booking.property?.id)}
+                                            className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-xs font-bold text-primary-foreground transition-opacity hover:opacity-90"
+                                        >
+                                            <ClipboardCheck className="h-4 w-4" /> Apply to rent
+                                        </Link>
+                                        <button
+                                            type="button"
+                                            onClick={() => router.post(route('tenant.viewings.not-interested', booking.id), {}, { preserveScroll: true })}
+                                            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3.5 py-2 text-xs font-bold text-muted-foreground transition-colors hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600"
+                                        >
+                                            <ThumbsDown className="h-4 w-4" /> Not interested
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                            {booking.outcome === 'not_interested' && (
+                                <p className="mt-3 rounded-xl bg-muted/60 px-3.5 py-2 text-xs font-semibold text-muted-foreground">
+                                    You passed on this home after viewing — the owner has been informed.
+                                </p>
                             )}
 
                             <div className="mt-4 flex flex-wrap items-center gap-2">

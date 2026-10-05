@@ -309,6 +309,14 @@ export default function MainLayout({ children, title = 'Dashboard', ...overrides
                                 >
                                     <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
                                 </button>
+                                <button
+                                    onClick={() => window.history.back()}
+                                    aria-label="Go back"
+                                    title="Go back"
+                                    className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-border bg-card text-muted-foreground shadow-sm transition-colors hover:bg-muted hover:text-foreground"
+                                >
+                                    <svg className="h-4.5 w-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5m7-7-7 7 7 7" /></svg>
+                                </button>
                                 <div className="min-w-0">
                                     <h1 className="truncate text-lg font-extrabold tracking-tight text-foreground sm:text-xl">{title}</h1>
                                     <p className="hidden text-[11px] font-medium text-muted-foreground sm:block">

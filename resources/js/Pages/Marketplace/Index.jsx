@@ -975,6 +975,31 @@ export default function MarketplaceIndex({
                             <Link href={listPropertyHref} className={cn(ctaPitch, 'mt-4 h-11 w-full text-sm')}>{auth?.user ? 'My dashboard' : 'List your property'}</Link>
                         </div>
                     )}
+                    {/* Housing categories for signed-in tenants — quick one-tap type filters, top right. */}
+                    {isTenant && (
+                        <div className="border-t border-white/10">
+                            <div className="mx-auto flex max-w-7xl items-center justify-end gap-1.5 overflow-x-auto px-4 py-2 sm:px-6 lg:px-8">
+                                <span className="mr-1 hidden shrink-0 text-[11px] font-bold uppercase tracking-wider text-white/50 sm:block">Categories</span>
+                                <button
+                                    type="button"
+                                    onClick={() => { apply({ property_type: '', page: 1 }); document.getElementById('properties')?.scrollIntoView({ behavior: 'smooth' }); }}
+                                    className={cn('shrink-0 rounded-full px-3 py-1 text-xs font-semibold transition-colors', !form.property_type ? 'bg-pitch text-brand' : 'bg-white/10 text-white/80 hover:bg-white/20 hover:text-white')}
+                                >
+                                    All
+                                </button>
+                                {Object.entries(typeLabels).map(([key, label]) => (
+                                    <button
+                                        key={key}
+                                        type="button"
+                                        onClick={() => { apply({ property_type: key, page: 1 }); document.getElementById('properties')?.scrollIntoView({ behavior: 'smooth' }); }}
+                                        className={cn('shrink-0 rounded-full px-3 py-1 text-xs font-semibold transition-colors', form.property_type === key ? 'bg-pitch text-brand' : 'bg-white/10 text-white/80 hover:bg-white/20 hover:text-white')}
+                                    >
+                                        {label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </header>
 
                 <section className="relative overflow-hidden bg-brand text-white">

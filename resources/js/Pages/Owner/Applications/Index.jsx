@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Head, Link, router, useForm } from '@inertiajs/react';
-import { ClipboardCheck, MapPin, Clock3, CheckCircle2, XCircle, Star, UserRound, FileSignature } from 'lucide-react';
+import { ClipboardCheck, MapPin, Clock3, CheckCircle2, XCircle, Star, UserRound, FileSignature, BadgeCheck, Wallet, Phone, Briefcase, BadgeDollarSign } from 'lucide-react';
 import MainLayout from '@/Layouts/MainLayout';
+import Avatar from '@/Components/Shared/Avatar';
 import PropertyArt from '@/Components/Shared/PropertyArt';
 import StatusBadge from '@/Components/Shared/StatusBadge';
 import EmptyState from '@/Components/Shared/EmptyState';
@@ -116,11 +117,16 @@ export default function OwnerApplicationsIndex({ properties = [] }) {
                                     <li key={app.id} className="flex flex-col gap-3 px-5 py-4">
                                         <div className="flex flex-wrap items-center justify-between gap-3">
                                             <div className="flex items-center gap-2.5">
-                                                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full brand-gradient text-xs font-extrabold text-white">
-                                                    {(app.applicant?.name || '?').charAt(0).toUpperCase()}
-                                                </span>
+                                                <Avatar user={app.applicant} size={36} />
                                                 <div className="min-w-0">
-                                                    <p className="text-sm font-bold text-foreground">{app.applicant?.name || 'Tenant'}</p>
+                                                    <p className="flex items-center gap-1.5 text-sm font-bold text-foreground">
+                                                        {app.applicant?.name || 'Tenant'}
+                                                        {app.applicant?.badge_tier && app.applicant.badge_tier !== 'none' && (
+                                                            <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-amber-700">
+                                                                <BadgeCheck className="h-3 w-3" /> {app.applicant.badge_tier}
+                                                            </span>
+                                                        )}
+                                                    </p>
                                                     {app.applicant?.email && <p className="truncate text-xs text-muted-foreground">{app.applicant.email}</p>}
                                                 </div>
                                             </div>
@@ -134,6 +140,36 @@ export default function OwnerApplicationsIndex({ properties = [] }) {
 
                                         {app.message && (
                                             <p className="rounded-xl border border-border bg-muted/40 px-3.5 py-2.5 text-sm leading-relaxed text-foreground">“{app.message}”</p>
+                                        )}
+
+                                        {/* Tenant vetting panel: funds date + profile summary */}
+                                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-xl border border-border bg-muted/30 px-3.5 py-2.5 text-xs text-muted-foreground">
+                                            <span className={cn('inline-flex items-center gap-1.5 font-bold', app.funds_available_from ? 'text-emerald-700' : 'text-muted-foreground')}>
+                                                <Wallet className="h-3.5 w-3.5" />
+                                                {app.funds_available_from
+                                                    ? `Rent money available from ${new Date(app.funds_available_from).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}`
+                                                    : 'Funds date not given'}
+                                            </span>
+                                            {app.applicant?.tenant_profile?.phone && (
+                                                <span className="inline-flex items-center gap-1.5"><Phone className="h-3.5 w-3.5" /> {app.applicant.tenant_profile.phone}</span>
+                                            )}
+                                            {app.applicant?.tenant_profile?.employment_status && (
+                                                <span className="inline-flex items-center gap-1.5"><Briefcase className="h-3.5 w-3.5" /> {app.applicant.tenant_profile.employment_status}</span>
+                                            )}
+                                            {app.applicant?.tenant_profile?.salary_band && (
+                                                <span className="inline-flex items-center gap-1.5"><BadgeDollarSign className="h-3.5 w-3.5" /> {app.applicant.tenant_profile.salary_band}</span>
+                                            )}
+                                            {app.applicant?.tenant_profile?.city && (
+                                                <span className="inline-flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" /> {app.applicant.tenant_profile.city}</span>
+                                            )}
+                                            {!app.applicant?.tenant_profile && (
+                                                <span className="italic">No tenant profile yet — ask for details in chat.</span>
+                                            )}
+                                        </div>
+                                        {app.applicant?.tenant_profile?.about && (
+                                            <p className="rounded-xl border-l-4 border-l-primary/30 bg-primary/[0.03] px-3.5 py-2 text-xs leading-relaxed text-foreground">
+                                                <span className="font-extrabold text-primary">About the tenant: </span>{app.applicant.tenant_profile.about}
+                                            </p>
                                         )}
 
                                         {app.status === 'rejected' && app.reject_reason && (

@@ -21,7 +21,7 @@ return [
                     'summary' => 'Sign up as an owner in under a minute — no waiting for the ZimRent team.',
                     'steps' => [
                         'Choose **List your property** anywhere on the marketplace, or open **Create account** and pick the **List property** tab.',
-                        'Enter your name, email and a password, accept the terms and submit. You are signed in straight away on the **Owner Dashboard**.',
+                        'Enter your name, email and a password, accept the terms and submit. You are signed in straight away and land on your **profile builder** — add a photo and your details, or skip to your dashboard.',
                         'Add your first property from **My Properties** — listings go live once they pass verification.',
                     ],
                     'notes' => [
@@ -32,7 +32,7 @@ return [
                         ['label' => 'Open my dashboard', 'route' => 'owner.dashboard'],
                     ],
                     'verified_by' => [
-                        'Tests\Feature\SignupTest::test_owner_signup_creates_an_owner_and_lands_on_the_owner_dashboard',
+                        'Tests\Feature\SignupTest::test_owner_signup_creates_an_owner_and_lands_on_the_profile_builder',
                         'Tests\Feature\SignupTest::test_signed_up_owner_can_reach_the_owner_dashboard_but_not_admin',
                         'Tests\Feature\SignupTest::test_register_page_preselects_owner_when_asked',
                         'Tests\Feature\DzimbaAccessControlTest::test_owner_can_access_owner_dashboard',
@@ -299,6 +299,7 @@ return [
                     'title' => 'Review applications',
                     'steps' => [
                         'Open **Applications** — they are grouped by property. You are notified of each new one.',
+                        'Vet each applicant from the panel on their application: profile photo and badge, the **date their rent money is available**, phone, employment, salary band, city and their about note.',
                         'Shortlist promising applicants, reject others (a reason is required and is shared with the tenant), and approve the one you choose.',
                     ],
                     'notes' => [
@@ -309,6 +310,7 @@ return [
                     ],
                     'verified_by' => [
                         'Tests\Feature\CommitTest::test_owner_is_notified_when_tenant_applies',
+                        'Tests\Feature\CommitTest::test_owner_application_review_exposes_the_tenant_vetting_profile',
                         'Tests\Feature\CommitTest::test_shortlist_toggles_between_pending_and_shortlisted',
                         'Tests\Feature\CommitTest::test_reject_requires_a_reason',
                         'Tests\Feature\CommitTest::test_owner_approves_an_application_without_moving_the_property',

@@ -292,6 +292,24 @@ class ViewingRequestService
     }
 
     /**
+     * Tenant records their decision after a completed viewing: they either go
+     * on to apply, or mark the home "not interested" — which closes the loop
+     * and shows the owner the listing was declined after viewing.
+     */
+    public function recordNotInterested(User $tenant, ViewingRequest $request): ViewingRequest
+    {
+        abort_unless($request->tenant_id === $tenant->id, 404);
+
+        if ($request->status !== 'completed') {
+            abort(409, 'Only a completed viewing can be marked not interested.');
+        }
+
+        $request->update(['outcome' => 'not_interested']);
+
+        return $request;
+    }
+
+    /**
      * Owner marks the tenant as a no-show; the slot frees up again.
      */
     public function markNoShow(User $owner, ViewingRequest $request): ViewingRequest

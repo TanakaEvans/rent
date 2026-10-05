@@ -130,6 +130,16 @@ class ViewingRequestController extends Controller
     }
 
     /**
+     * Tenant closes the loop after a completed viewing: not interested.
+     */
+    public function notInterested(Request $request, ViewingRequest $booking)
+    {
+        $this->requests->recordNotInterested($request->user(), $booking);
+
+        return redirect()->back()->with('success', 'Noted — the owner will see you passed on this home.');
+    }
+
+    /**
      * Either party cancels a running booking.
      */
     public function cancel(Request $request, ViewingRequest $booking)

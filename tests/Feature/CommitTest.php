@@ -109,6 +109,72 @@ class CommitTest extends TestCase
         $this->assertSame('available', $property->fresh()->status);
     }
 
+    public function test_application_records_the_tenants_funds_available_date(): void
+    {
+        $property = $this->makeProperty();
+        $date = now()->addDays(10)->toDateString();
+
+        $this->actingAs($this->tenant())
+            ->post('/tenant/applications/'.$property->id, [
+                'message' => 'Funds ready soon.',
+                'funds_available_from' => $date,
+            ])
+            ->assertRedirect();
+
+        $application = RentalApplication::where('property_id', $property->id)
+            ->where('applicant_id', $this->tenant()->id)
+            ->firstOrFail();
+
+        $this->assertSame($date, $application->funds_available_from?->toDateString());
+    }
+
+    public function test_a_past_funds_available_date_is_rejected(): void
+    {
+        $property = $this->makeProperty();
+
+        $this->actingAs($this->tenant())
+            ->post('/tenant/applications/'.$property->id, [
+                'funds_available_from' => now()->subDay()->toDateString(),
+            ])
+            ->assertSessionHasErrors('funds_available_from');
+
+        $this->assertDatabaseMissing('rental_applications', ['property_id' => $property->id]);
+    }
+
+    public function test_owner_application_review_exposes_the_tenant_vetting_profile(): void
+    {
+        $property = $this->makeProperty();
+        $tenant = $this->tenant();
+        $tenant->tenantProfile()->updateOrCreate([], [
+            'phone' => '+263 77 123 4567',
+            'city' => 'Harare',
+            'employment_status' => 'Employed full-time',
+            'salary_band' => '$1,000 - $2,000',
+            'about' => 'Quiet professional, no pets.',
+        ]);
+
+        $this->actingAs($tenant)
+            ->post('/tenant/applications/'.$property->id, [
+                'funds_available_from' => now()->addDays(5)->toDateString(),
+            ]);
+
+        $this->actingAs($this->owner())
+            ->get(route('owner.applications.index'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Owner/Applications/Index')
+                ->where('properties', function ($properties) use ($property, $tenant) {
+                    $row = collect($properties)->firstWhere('id', $property->id);
+                    $app = collect($row['applications'] ?? [])->firstWhere('applicant_id', $tenant->id);
+
+                    return $app
+                        && $app['funds_available_from'] !== null
+                        && ($app['applicant']['tenant_profile']['phone'] ?? null) === '+263 77 123 4567'
+                        && ($app['applicant']['tenant_profile']['employment_status'] ?? null) === 'Employed full-time'
+                        && array_key_exists('badge_tier', $app['applicant']);
+                }));
+    }
+
     public function test_application_message_is_limited_to_1000_characters(): void
     {
         $property = $this->makeProperty();

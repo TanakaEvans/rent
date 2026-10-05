@@ -4,6 +4,8 @@
 
 > **Implementation status — location privacy (Sep 2026):** properties carry an exact `latitude`/`longitude` (a map pin is **required** to publish). To protect owners, guests and unrelated tenants see only an **approximate area** (a shaded circle, stable per property but never the real point); the marketplace map never emits exact coordinates. The exact pin and street address are revealed only to the owner, admins/staff, and a tenant who has an **accepted viewing**, an **approved application**, or an **open lease** for that home — at which point the tenant gets a **Get directions** link to Google Maps. Radius is the `privacy.location.approx_radius_m` config. Verified in `tests/Feature/Fixes/LocationPrivacyTest.php`.
 
+> **Implementation status — tenant category bar (Oct 2026):** signed-in tenants get a **housing-categories strip at the top right of the marketplace header** (All / Room / Flat / Apartment / Full house / Townhouse / Cottage / Commercial / Land) — one tap live-filters by `property_type` and scrolls to the results.
+
 > **Implementation status — live filters (Sep 2026):** marketplace filters, sort and reset refresh **in place** via Inertia partial reloads (`only: ['properties', …]`, `preserveScroll`/`preserveState`) — the list updates without a full-page reload, like a live app.
 
 ## 1. Purpose

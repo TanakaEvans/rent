@@ -26,7 +26,7 @@ class ApplicationService
      * Submit an application from a tenant for an available property.
      * A tenant may hold only one active application per property.
      */
-    public function create(User $tenant, Property $property, ?string $message): RentalApplication
+    public function create(User $tenant, Property $property, ?string $message, ?string $fundsAvailableFrom = null): RentalApplication
     {
         if ($this->holding(RentalApplication::where('property_id', $property->id))
             ->where('applicant_id', $tenant->id)
@@ -40,6 +40,7 @@ class ApplicationService
             'property_id' => $property->id,
             'applicant_id' => $tenant->id,
             'message' => $message,
+            'funds_available_from' => $fundsAvailableFrom,
             'status' => 'pending',
         ]);
 
@@ -70,7 +71,13 @@ class ApplicationService
             ->whereHas('applications')
             ->withCount(['leases as open_leases_count' => fn ($query) => $query->whereIn('status', Lease::OPEN)])
             ->with(['applications' => fn ($query) => $query
-                ->with(['applicant:id,name,email', 'lease:id,application_id,lease_no,status'])
+                // Applicant vetting context for the owner (Kule batch 2):
+                // avatar/badge/verification plus the tenant profile summary.
+                ->with([
+                    'applicant:id,name,email,avatar_path,badge_tier,verified',
+                    'applicant.tenantProfile:id,user_id,phone,city,employment_status,salary_band,about',
+                    'lease:id,application_id,lease_no,status',
+                ])
                 ->latest()])
             ->get(['id', 'owner_id', 'title', 'suburb', 'city', 'status', 'price', 'deposit', 'currency', 'payment_terms'])
             ->map(function (Property $property) {

@@ -98,8 +98,8 @@ The signed-out surface is: **Register**, **Login**, **Forgot / Reset password**,
 
 | Path | Who | How |
 |---|---|---|
-| Public **tenant** signup | Anyone | `POST /register` with `role=tenant` (default) → `AuthService::registerTenant` → `Tenant` role, auto-login, land on tenant dashboard. |
-| Public **owner** signup **(Sep 2026)** | Anyone listing property | `POST /register` with `role=owner` → `AuthService::registerOwner` → `Owner` role, auto-login, land on owner dashboard. The marketplace **"List your property"** CTAs deep-link to `register?as=owner`, which preselects the owner tab. |
+| Public **tenant** signup | Anyone | `POST /register` with `role=tenant` (default) → `AuthService::registerTenant` → `Tenant` role, auto-login, land on the **profile builder** (`tenant.profile` — photo, phone, details; skippable to the dashboard). |
+| Public **owner** signup **(Sep 2026)** | Anyone listing property | `POST /register` with `role=owner` → `AuthService::registerOwner` → `Owner` role, auto-login, land on the **profile builder** (`account.profile`; skippable to the dashboard). The marketplace **"List your property"** CTAs deep-link to `register?as=owner`, which preselects the owner tab. |
 | Admin-created staff/owner | Admin/Superuser | User-management screen (`auth.management`) assigns any role; the account starts with `password_changed_at = null` so it is forced through the change screen on first sign-in. |
 
 Registration rules (both roles): `name` required, `email` unique + lowercased, `password` confirmed + default strength, **terms accepted**, username auto-derived from the email, `status = active`, `password_changed_at = now()` (self-signup users are not forced to change). Owner self-signup does **not** auto-verify the owner — listings still pass through the existing verification/badge workflow (Module 14); signup only creates the account and role.
